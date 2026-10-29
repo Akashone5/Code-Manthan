@@ -1,0 +1,1160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Meridian • MISSION BHARAT | Explainable Loan Decision System</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="dataset_data.js"></script>
+</head>
+<body>
+
+  <!-- Top Global Header -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="brand-wrapper">
+        <div class="brand-logo">M</div>
+        <div class="brand-info">
+          <h1>
+            Meridian Financial Services
+            <span class="brand-badge">Mission Bharat</span>
+          </h1>
+          <div class="brand-tagline">AI-Powered Explainable Lending & Demographic Equity Platform</div>
+        </div>
+      </div>
+
+      <div class="header-controls">
+        <!-- Role Persona Selector -->
+        <div class="mode-toggle">
+          <button id="role-applicant" class="mode-btn active" title="Citizen & Applicant View">
+            <span>👤</span> Applicant View
+          </button>
+          <button id="role-officer" class="mode-btn" title="Credit Officer & Underwriting Cockpit">
+            <span>🛡️</span> Loan Officer
+          </button>
+        </div>
+
+        <!-- Language Switcher -->
+        <button id="lang-toggle-btn" class="lang-btn" title="Bilingual Language Switcher">
+          हिन्दी (Hindi)
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Mission Bharat Sub-Banner -->
+  <div class="mission-strip">
+    <div class="mission-strip-inner">
+      <div>
+        <strong style="color: #064E3B;">Track:</strong> Application Development &nbsp;|&nbsp;
+        <strong style="color: #064E3B;">Domain:</strong> Banking & Lending &nbsp;|&nbsp;
+        <strong style="color: #064E3B;">System:</strong> भारत ऋण पारदर्शिता एवं समावेशन मंच
+      </div>
+      <div class="live-badge" id="backend-status-badge" style="cursor: pointer;" onclick="toggleBackendInfoModal()" title="Click to check or manage Python Backend API connection">
+        <span class="pulse-dot" id="backend-pulse-dot"></span>
+        <span id="backend-status-text">Checking Python Backend (localhost:5000)...</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Primary Navigation Bar -->
+  <nav class="nav-bar">
+    <div class="nav-container" id="nav-tabs-container">
+      <!-- Applicant Role Tabs (Visible when in Applicant Mode) -->
+      <div class="nav-item active nav-applicant-item" data-tab="apply-view">
+        <span>📝</span> 1. Apply for a Loan
+      </div>
+      <div class="nav-item nav-applicant-item" data-tab="applicant-view">
+        <span>📊</span> 2. My Decision Report &amp; Explanations
+      </div>
+      <div class="nav-item nav-applicant-item" data-tab="sim-standalone-view" onclick="scrollToSimulator()">
+        <span>🎛️</span> 3. "What-If" Live Simulator
+      </div>
+
+      <!-- Officer Role Tabs (Visible when in Officer Mode) -->
+      <div class="nav-item nav-officer-item" data-tab="officer-view" style="display: none;">
+        <span>⚙️</span> Underwriting Cockpit &amp; SHAP Waterfall
+      </div>
+      <div class="nav-item nav-officer-item" data-tab="database-view" style="display: none;">
+        <span>🗄️</span> Application Vault &amp; Registry
+      </div>
+      <div class="nav-item nav-officer-item" data-tab="model-view" style="display: none;">
+        <span>🎯</span> Model Accuracy Report <span class="tag">80% Accuracy</span>
+      </div>
+      <div class="nav-item nav-officer-item" data-tab="fairness-view" style="display: none;">
+        <span>⚖️</span> Fairness Across Groups <span class="tag">80% Rule</span>
+      </div>
+      <div class="nav-item nav-officer-item" data-tab="portfolio-view" style="display: none;">
+        <span>📁</span> Historical Portfolio (614 Cases)
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Application Body -->
+  <main class="main-content">
+
+    <!-- Archetype Quick-Select Bar -->
+    <div class="archetype-strip">
+      <div class="archetype-label">
+        <span>⚡ Quick Archetypes:</span>
+      </div>
+      <div class="archetype-btn-group">
+        <button class="archetype-btn active" data-archetype="tech_lead">
+          <span>👩🏽‍💻</span> Ananya Rao (Fintech Product Lead • CIBIL 810)
+        </button>
+        <button class="archetype-btn" data-archetype="cloud_consultant">
+          <span>👨🏽‍💻</span> Devansh Kulkarni (Cloud Architect • CIBIL 740)
+        </button>
+        <button class="archetype-btn" data-archetype="ecommerce_msme">
+          <span>🏪</span> Kavya Nair (E-Commerce Founder • CIBIL 760)
+        </button>
+        <button class="archetype-btn" data-archetype="junior_dev">
+          <span>💼</span> Rohan Mehta (Junior Dev / Thin File • CIBIL 580)
+        </button>
+      </div>
+    </div>
+
+    <!-- =========================================================================
+         TAB 1: APPLICANT TRANSPARENCY VIEW (CITIZEN / BORROWER MODE)
+         ========================================================================= -->
+    <section id="applicant-view" class="tab-section">
+
+      <!-- Decision Hero Banner -->
+      <!-- Dynamic Submission Alert Banner -->
+      <div id="submission-alert-banner" style="display: none; background: #064E3B; color: #F8E7C9; padding: 1.1rem 1.5rem; border-radius: 12px; margin-bottom: 1.5rem; border: 2px solid #F8E7C9; box-shadow: 0 4px 16px rgba(6,78,59,0.25);">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+          <div>
+            <div style="font-size: 1.2rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+              <span>✅</span> Your Application Has Been Submitted!
+            </div>
+            <div style="font-size: 0.92rem; margin-top: 4px; color: #FAF3E6;">
+              Reference: <strong id="banner-app-no" style="color: #F8E7C9; text-decoration: underline;">MB-2026-XXXX</strong> &bull; Stored securely in Meridian Vault. Review your instant AI underwriting report below:
+            </div>
+          </div>
+          <button type="button" onclick="document.getElementById('submission-alert-banner').style.display='none'" class="btn btn-outline" style="padding: 5px 14px; font-size: 0.85rem; border-color: #F8E7C9; color: #F8E7C9;">
+            Dismiss
+          </button>
+        </div>
+      </div>
+
+      <div id="decision-hero-card" class="decision-hero approved">
+        <div class="hero-main">
+          <div id="hero-status-tag" class="hero-tag">PRE-APPROVED / HIGH LIKELIHOOD</div>
+          <div id="hero-decision-title" class="hero-title">Likely to be Approved</div>
+          <div id="hero-decision-desc" class="hero-desc">
+            Your credit profile and household debt ratios comfortably satisfy Meridian Mission Bharat standards.
+          </div>
+          <div style="margin-top: 1.25rem; display: flex; gap: 0.75rem; flex-wrap: wrap;">
+            <button id="btn-open-letter" class="btn btn-saffron">
+              <span>📄</span> View & Download Official Decision Letter
+            </button>
+          </div>
+        </div>
+
+        <div class="hero-gauge">
+          <div id="hero-approval-pct" class="gauge-pct">74%</div>
+          <div class="gauge-label">Automated Approval Likelihood</div>
+          <div class="gauge-bar-wrapper">
+            <div id="hero-progress-fill" class="gauge-bar-fill" style="width: 74%;"></div>
+          </div>
+          <div style="font-size: 0.7rem; opacity: 0.8; margin-top: 6px;">Approval Baseline: ≥ 50%</div>
+        </div>
+      </div>
+
+      <!-- Plain-Language Factor Explanations Grid -->
+      <div class="grid-2">
+        <!-- Positive Factors -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">
+                <span style="color: #10B981;">▲</span> Top Factors Helping Your Application
+              </div>
+              <div class="card-subtitle">Key strengths identified in your data that increased your approval score</div>
+            </div>
+          </div>
+          <div id="strengths-list" class="factor-list">
+            <!-- Injected via JavaScript -->
+          </div>
+        </div>
+
+        <!-- Negative / Friction Factors -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">
+                <span style="color: #EF4444;">▼</span> Top Barriers Influencing This Outcome
+              </div>
+              <div class="card-subtitle">Primary friction points or risks reducing your probability of sanction</div>
+            </div>
+          </div>
+          <div id="frictions-list" class="factor-list">
+            <!-- Injected via JavaScript -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Interactive What-If Counterfactual Simulator -->
+      <div class="card" style="margin-top: 1.5rem;">
+        <div class="card-header">
+          <div>
+            <div class="card-title">
+              <span>🎛️</span> Interactive "What-If" Counterfactual Simulator
+            </div>
+            <div class="card-subtitle">
+              Simulate changes to see exactly what adjustments will get your loan approved in real-time
+            </div>
+          </div>
+          <div style="text-align: right;">
+            <span style="font-size: 0.8rem; color: #64748B;">Simulated Likelihood:</span>
+            <span id="sim-current-prob" style="font-size: 1.25rem; font-weight: 800; color: #064E3B; margin-left: 6px;">74%</span>
+            <span id="sim-delta-badge" class="badge badge-info" style="margin-left: 6px;">Baseline</span>
+            <span id="sim-status-label" class="badge badge-success" style="margin-left: 6px;">APPROVED</span>
+          </div>
+        </div>
+
+        <div class="grid-3">
+          <!-- Slider 1: Loan Amount -->
+          <div class="sim-box">
+            <div class="slider-header">
+              <span>Requested Loan Amount:</span>
+              <span id="val-sim-loan" class="value-tag">₹110 Lakh (₹1,10,000)</span>
+            </div>
+            <input type="range" id="sim-slider-loan" class="range-slider" min="30" max="600" step="10" value="110">
+            <div style="display: flex; justify-content: space-between; font-size: 0.72rem; color: #64748B; margin-top: 4px;">
+              <span>₹30,000</span>
+              <span>₹6,00,000</span>
+            </div>
+          </div>
+
+          <!-- Slider 2: Co-Applicant Income -->
+          <div class="sim-box">
+            <div class="slider-header">
+              <span>Co-Applicant Monthly Income:</span>
+              <span id="val-sim-coapp" class="value-tag">₹14,000/mo</span>
+            </div>
+            <input type="range" id="sim-slider-coapp" class="range-slider" min="0" max="60000" step="2000" value="14000">
+            <div style="display: flex; justify-content: space-between; font-size: 0.72rem; color: #64748B; margin-top: 4px;">
+              <span>₹0 (None)</span>
+              <span>₹60,000</span>
+            </div>
+          </div>
+
+          <!-- Slider 3: Loan Tenure -->
+          <div class="sim-box">
+            <div class="slider-header">
+              <span>Loan Tenure (Duration):</span>
+              <span id="val-sim-term" class="value-tag">5 Years (60 Months)</span>
+            </div>
+            <input type="range" id="sim-slider-term" class="range-slider" min="1" max="30" step="1" value="5">
+            <div style="display: flex; justify-content: space-between; font-size: 0.72rem; color: #4B6359; margin-top: 4px;">
+              <span>1 Year (12m)</span>
+              <span>10 Yrs</span>
+              <span>20 Yrs</span>
+              <span>30 Years (360m)</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top: 1rem; padding: 0.75rem 1rem; background: #F8FAFC; border-radius: 8px; display: flex; align-items: center; justify-content: space-between;">
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 0.88rem; font-weight: 600; cursor: pointer;">
+            <input type="checkbox" id="sim-check-credit" checked style="width: 16px; height: 16px; cursor: pointer;">
+            <span>Simulate Pristine Credit Record (All previous repayments on time / defaults cleared)</span>
+          </label>
+          <span style="font-size: 0.78rem; color: #64748B;">Instant Dynamic Recalibration</span>
+        </div>
+      </div>
+
+      <!-- Actionable Remediation Roadmap -->
+      <div class="card" style="margin-top: 1.5rem;">
+        <div class="card-header">
+          <div>
+            <div class="card-title">
+              <span>🚀</span> Personalized Eligibility Roadmap
+            </div>
+            <div class="card-subtitle">Transparent, actionable steps to qualify or maximize loan amount</div>
+          </div>
+        </div>
+        <div id="actions-container">
+          <!-- Injected via JavaScript -->
+        </div>
+      </div>
+
+    </section>
+
+    <!-- =========================================================================
+         TAB 2: LOAN OFFICER UNDERWRITING COCKPIT
+         ========================================================================= -->
+    <section id="officer-view" class="tab-section" style="display: none;">
+      <div class="grid-2">
+
+        <!-- Left: Applicant Details Form -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">
+                <span>📝</span> Applicant Underwriting Intake
+              </div>
+              <div class="card-subtitle">Inspect and customize applicant variables for instant scoring</div>
+            </div>
+          </div>
+
+          <form id="applicant-form">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Full Name / Reference</label>
+                <input type="text" id="input-name" class="form-control" value="Ananya Rao">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Gender</label>
+                <select id="input-gender" class="form-control">
+                  <option value="Female">Female</option>
+                  <option value="Male">Male</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Marital Status</label>
+                <select id="input-married" class="form-control">
+                  <option value="Yes">Married (Yes)</option>
+                  <option value="No">Unmarried (No)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Dependents</label>
+                <select id="input-dependents" class="form-control">
+                  <option value="0">0</option>
+                  <option value="1" selected>1</option>
+                  <option value="2">2</option>
+                  <option value="3+">3+</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Education</label>
+                <select id="input-education" class="form-control">
+                  <option value="Graduate" selected>Graduate</option>
+                  <option value="Not Graduate">Not Graduate</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Self-Employed / Profession</label>
+                <select id="input-self-employed" class="form-control">
+                  <option value="Yes" selected>Yes (Business / Artisan)</option>
+                  <option value="No">No (Salaried)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Applicant Monthly Income (₹)</label>
+                <input type="number" id="input-app-income" class="form-control" value="18000">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Co-Applicant Monthly Income (₹)</label>
+                <input type="number" id="input-coapp-income" class="form-control" value="14000">
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Loan Amount (in Thousands ₹)</label>
+                <input type="number" id="input-loan-amount" class="form-control" value="110">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Tenure (Months)</label>
+                <input type="number" id="input-loan-term" class="form-control" value="360">
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Credit Bureau History</label>
+                <select id="input-credit-history" class="form-control">
+                  <option value="1" selected>1 (Meets Guidelines / Clean)</option>
+                  <option value="0">0 (Does Not Meet / Default History)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Property Territory</label>
+                <select id="input-property-area" class="form-control">
+                  <option value="Rural" selected>Rural Bharat</option>
+                  <option value="Semiurban">Semi-Urban</option>
+                  <option value="Urban">Urban Metro</option>
+                </select>
+              </div>
+            </div>
+          </form>
+        </div>
+
+        <!-- Right: Underwriting Metrics & SHAP Waterfall -->
+        <div>
+          <!-- Underwriting Ratios -->
+          <div class="grid-4" style="margin-bottom: 1.25rem;">
+            <div class="metric-box">
+              <div id="metric-officer-prob" class="metric-val" style="color: #064E3B;">74%</div>
+              <div class="metric-name">ML Likelihood</div>
+            </div>
+            <div class="metric-box">
+              <div id="metric-officer-dti" class="metric-val" style="color: #10B981;">1%</div>
+              <div class="metric-name">DTI Burden</div>
+            </div>
+            <div class="metric-box">
+              <div id="metric-officer-emi" class="metric-val" style="color: #64748B;">₹306/mo</div>
+              <div class="metric-name">Estimated EMI</div>
+            </div>
+            <div class="metric-box">
+              <div id="metric-officer-lti" class="metric-val" style="color: #C2822B;">0.3x</div>
+              <div class="metric-name">Loan-to-Income</div>
+            </div>
+          </div>
+
+          <!-- SHAP Feature Attribution Waterfall -->
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">
+                  <span>🌊</span> SHAP / Feature Attribution Waterfall
+                </div>
+                <div class="card-subtitle">Marginal log-odds contribution of each variable to this specific decision</div>
+              </div>
+              <div style="font-size: 0.75rem; color: #64748B;">
+                <span style="color: #10B981;">● Approval (+%)</span> &nbsp;
+                <span style="color: #EF4444;">● Risk (-%)</span>
+              </div>
+            </div>
+
+            <div id="waterfall-container">
+              <!-- Injected via JavaScript -->
+            </div>
+          </div>
+
+          <!-- Officer Override & Decision Action Panel -->
+          <div class="card" style="margin-top: 1.25rem;">
+            <div class="card-header">
+              <div>
+                <div class="card-title">
+                  <span>🛡️</span> Officer Action & Regulatory Audit
+                </div>
+                <div class="card-subtitle">Authorize sanction, apply Mission Bharat subsidy, or record adverse action</div>
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+              <button id="btn-officer-approve" class="btn" style="background: #10B981; color: white;">
+                ✓ Sanction Loan
+              </button>
+              <button id="btn-officer-conditional" class="btn btn-saffron">
+                ⚡ Mission Bharat Rural Subvention Pass
+              </button>
+              <button id="btn-officer-reject" class="btn" style="background: #EF4444; color: white;">
+                ✕ Adverse Action (Decline)
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Audit Trail Table -->
+      <div class="card" style="margin-top: 1.5rem;">
+        <div class="card-header">
+          <div>
+            <div class="card-title">
+              <span>📋</span> Underwriter Decision & Compliance Audit Log
+            </div>
+            <div class="card-subtitle">Complete chronological trail for internal RBI compliance inspection</div>
+          </div>
+        </div>
+        <table class="fairness-table">
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Applicant ID</th>
+              <th>Action Recorded</th>
+              <th>Underwriter Regulatory Justification</th>
+            </tr>
+          </thead>
+          <tbody id="audit-table-body">
+            <!-- Injected via JavaScript -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         TAB 3: MODEL ACCURACY & PERFORMANCE REPORT (DELIVERABLE 1)
+         ========================================================================= -->
+    <section id="model-view" class="tab-section" style="display: none;">
+      <!-- Top Metrics Overview Grid -->
+      <div class="grid-4" style="margin-bottom: 1.5rem;">
+        <div class="metric-box">
+          <div class="metric-val" style="color: #10B981;">79.97%</div>
+          <div class="metric-name">Overall Model Accuracy</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-val" style="color: #064E3B;">80.20%</div>
+          <div class="metric-name">Precision (Sanction Quality)</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-val" style="color: #C2822B;">94.08%</div>
+          <div class="metric-name">Recall / Sensitivity</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-val" style="color: #F59E0B;">0.784</div>
+          <div class="metric-name">ROC-AUC Discriminator</div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <!-- Interactive Confusion Matrix -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">
+                <span>🎯</span> Confusion Matrix (N = 614 Real Loans)
+              </div>
+              <div class="card-subtitle">Empirical validation on Bharat lending historical dataset</div>
+            </div>
+            <div class="badge badge-success">Evaluated</div>
+          </div>
+
+          <div class="confusion-grid">
+            <div></div>
+            <div class="cm-header">Predicted Approved (Y)</div>
+            <div class="cm-header">Predicted Rejected (N)</div>
+
+            <div class="cm-header" style="writing-mode: vertical-rl; transform: rotate(180deg);">
+              Actual Approved (422)
+            </div>
+            <div class="cm-cell cm-tp">
+              <div class="cm-num">397</div>
+              <div class="cm-lbl">True Positive (TP)</div>
+              <div style="font-size: 0.7rem; color: #15803D; margin-top: 4px;">Accurately Approved (94.1%)</div>
+            </div>
+            <div class="cm-cell cm-fn">
+              <div class="cm-num">25</div>
+              <div class="cm-lbl">False Negative (FN)</div>
+              <div style="font-size: 0.7rem; color: #B91C1C; margin-top: 4px;">Creditworthy Missed (5.9%)</div>
+            </div>
+
+            <div class="cm-header" style="writing-mode: vertical-rl; transform: rotate(180deg);">
+              Actual Rejected (192)
+            </div>
+            <div class="cm-cell cm-fp">
+              <div class="cm-num">98</div>
+              <div class="cm-lbl">False Positive (FP)</div>
+              <div style="font-size: 0.7rem; color: #B45309; margin-top: 4px;">Risky Sanctions</div>
+            </div>
+            <div class="cm-cell cm-tn">
+              <div class="cm-num">94</div>
+              <div class="cm-lbl">True Negative (TN)</div>
+              <div style="font-size: 0.7rem; color: #064E3B; margin-top: 4px;">Accurately Identified Risk</div>
+            </div>
+          </div>
+
+          <div style="margin-top: 1.25rem; font-size: 0.8rem; color: #64748B; background: #F8FAFC; padding: 0.75rem; border-radius: 6px;">
+            <strong>Underwriter Takeaway:</strong> With a <strong>94.08% Recall</strong>, the model ensures almost no creditworthy citizen is arbitrarily denied access to capital, prioritizing financial inclusion.
+          </div>
+        </div>
+
+        <!-- Global Feature Importance Ranking -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">
+                <span>📊</span> Global Feature Importance & Polarities
+              </div>
+              <div class="card-subtitle">Normalized feature weights across entire Bharat loan portfolio</div>
+            </div>
+          </div>
+
+          <div id="feature-importance-chart">
+            <!-- Injected via JavaScript -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Model Specs & Governance -->
+      <div class="card" style="margin-top: 1.5rem;">
+        <div class="card-header">
+          <div>
+            <div class="card-title">
+              <span>🏛️</span> Model Architecture & Regulatory Governance Summary
+            </div>
+            <div class="card-subtitle">Compliance documentation for RBI and Fair Lending Auditing Authorities</div>
+          </div>
+        </div>
+
+        <div class="grid-3" style="font-size: 0.85rem;">
+          <div style="background: #F8FAFC; padding: 1rem; border-radius: 8px;">
+            <strong style="color: #064E3B;">Algorithm:</strong>
+            <p style="color: #475569; margin-top: 4px;">Calibrated L2-Regularized Logistic Regression with explicit weight normalization. Offers complete mathematical transparency over black-box deep learning.</p>
+          </div>
+          <div style="background: #F8FAFC; padding: 1rem; border-radius: 8px;">
+            <strong style="color: #064E3B;">Explainability Mechanism:</strong>
+            <p style="color: #475569; margin-top: 4px;">Linear additive SHAP-congruent attribution decomposing raw log-odds into marginal feature percentage points for applicants and loan officers.</p>
+          </div>
+          <div style="background: #F8FAFC; padding: 1rem; border-radius: 8px;">
+            <strong style="color: #064E3B;">Fair Lending Safeguards:</strong>
+            <p style="color: #475569; margin-top: 4px;">Mandatory 80% Disparate Impact Ratio testing, Demographic Parity evaluation, and Equal Opportunity TPR matching across rural and gender strata.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         TAB 4: FAIRNESS COMPARISON ACROSS GROUPS (DELIVERABLE 3 - MISSION BHARAT)
+         ========================================================================= -->
+    <section id="fairness-view" class="tab-section" style="display: none;">
+      <!-- Affirmative Action Control Card -->
+      <div class="card" style="background: linear-gradient(135deg, #064E3B 0%, #032C21 100%); color: #FFFFFF; margin-bottom: 1.5rem; border: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+          <div>
+            <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #F8E7C9; letter-spacing: 0.08em;">
+              Mission Bharat Equity Intervention
+            </div>
+            <h2 style="font-size: 1.35rem; font-weight: 800; margin-top: 2px;">
+              Affirmative Financial Inclusion Calibration
+            </h2>
+            <p style="font-size: 0.85rem; color: #CBD5E1; margin-top: 4px; max-width: 700px;">
+              Standard legacy banking models penalize rural and thin-file borrowers due to lack of formal commercial credit tracks. Toggle the Mission Bharat calibration engine to offset structural geographic disparities.
+            </p>
+          </div>
+          <div style="display: flex; align-items: center; gap: 12px; background: rgba(255, 255, 255, 0.1); padding: 0.75rem 1.25rem; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.2);">
+            <label style="font-weight: 700; font-size: 0.9rem; cursor: pointer;" for="affirmative-toggle">
+              Enable Mission Bharat Calibration:
+            </label>
+            <input type="checkbox" id="affirmative-toggle" style="width: 22px; height: 22px; cursor: pointer;">
+          </div>
+        </div>
+      </div>
+
+      <!-- Core Metrics Table -->
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">
+              <span>⚖️</span> Demographic Parity & Disparate Impact Audit Table
+            </div>
+            <div class="card-subtitle">Evaluating compliance against the 80% (Four-Fifths) Fair Lending Rule and TPR Parity</div>
+          </div>
+        </div>
+
+        <table class="fairness-table">
+          <thead>
+            <tr>
+              <th>Protected Category</th>
+              <th>Demographic Group</th>
+              <th>Sample Size (N)</th>
+              <th>Approval Rate</th>
+              <th>Equal Opp. TPR (Recall)</th>
+              <th>Disparate Impact Ratio</th>
+              <th>Regulatory Status</th>
+            </tr>
+          </thead>
+          <tbody id="fairness-table-body">
+            <!-- Injected via JavaScript -->
+          </tbody>
+        </table>
+
+        <!-- Regulatory Explanation Callout -->
+        <div style="margin-top: 1.5rem; display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; font-size: 0.82rem;">
+          <div style="background: #F8FAFC; border: 1px solid #E2E8F0; padding: 1rem; border-radius: 8px;">
+            <strong style="color: #064E3B;">Disparate Impact Ratio (DIR):</strong>
+            <p style="color: #64748B; margin-top: 4px;">
+              Selection rate of unprivileged group divided by privileged group. A ratio <strong>&ge; 0.80</strong> complies with the EEOC / Fair Housing four-fifths standard.
+            </p>
+          </div>
+          <div style="background: #F8FAFC; border: 1px solid #E2E8F0; padding: 1rem; border-radius: 8px;">
+            <strong style="color: #064E3B;">Equal Opportunity (TPR Parity):</strong>
+            <p style="color: #64748B; margin-top: 4px;">
+              True Positive Rate equality guarantees that creditworthy applicants from rural regions have an equal opportunity of being approved as urban peers.
+            </p>
+          </div>
+          <div style="background: #F8FAFC; border: 1px solid #E2E8F0; padding: 1rem; border-radius: 8px;">
+            <strong style="color: #064E3B;">Mission Bharat Impact:</strong>
+            <p style="color: #64748B; margin-top: 4px;">
+              Enabling calibration raises rural approval from <strong>71.5% to 84.1%</strong>, elevating DIR from 0.83 to 0.97 and eliminating systematic geographic exclusion.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         TAB 5: HISTORICAL PORTFOLIO EXPLORER (614 LOANS)
+         ========================================================================= -->
+    <section id="portfolio-view" class="tab-section" style="display: none;">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">
+              <span>📁</span> Historical Loan Applications (Bharat Lending Pool)
+            </div>
+            <div class="card-subtitle">Search, filter and inspect any of the 614 actual historical borrower files</div>
+          </div>
+          <div id="portfolio-total-count" style="font-size: 0.82rem; font-weight: 600; color: #64748B;">
+            Showing 614 applications
+          </div>
+        </div>
+
+        <!-- Filter Bar -->
+        <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem;">
+          <input 
+            type="text" 
+            placeholder="Search by Loan ID or Region (e.g. LP001003, Rural)..." 
+            class="form-control" 
+            style="flex: 1; min-width: 240px;"
+            oninput="filterPortfolioSearch(this.value)"
+          >
+          <div style="display: flex; gap: 0.5rem;">
+            <button class="btn btn-outline" onclick="setPortfolioFilter('all')">All</button>
+            <button class="btn btn-outline" onclick="setPortfolioFilter('approved')">Approved</button>
+            <button class="btn btn-outline" onclick="setPortfolioFilter('rejected')">Rejected</button>
+            <button class="btn btn-outline" onclick="setPortfolioFilter('rural')">Rural</button>
+            <button class="btn btn-outline" onclick="setPortfolioFilter('female')">Women</button>
+          </div>
+        </div>
+
+        <!-- Table -->
+        <table class="fairness-table">
+          <thead>
+            <tr>
+              <th>Loan ID</th>
+              <th>Gender</th>
+              <th>Property Area</th>
+              <th>Household Income</th>
+              <th>Requested Loan</th>
+              <th>Bureau History</th>
+              <th>ML Likelihood</th>
+              <th>Predicted Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="portfolio-table-body">
+            <!-- Injected via JavaScript -->
+          </tbody>
+        </table>
+
+        <!-- Pagination -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #E2E8F0;">
+          <button class="btn btn-outline" onclick="changePortfolioPage(-1)">← Previous</button>
+          <span id="portfolio-page-indicator" style="font-size: 0.85rem; font-weight: 600; color: #475569;">Page 1 / 62</span>
+          <button class="btn btn-outline" onclick="changePortfolioPage(1)">Next →</button>
+        </div>
+      </div>
+    </section>
+
+  
+    <!-- =========================================================================
+         TAB 0: LOAN FILLUP APPLICATION FORM (WITH CIBIL & DATABASE STORAGE)
+         ========================================================================= -->
+    <section id="apply-view" class="tab-section" style="display: none;">
+      <div class="card" style="margin-bottom: 1.5rem; background: linear-gradient(135deg, #064E3B 0%, #032C21 100%); color: #FFFFFF; border: 2px solid #F8E7C9;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+          <div>
+            <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #F8E7C9; letter-spacing: 0.08em;">
+              Mission Bharat • Direct Borrower Application Portal
+            </div>
+            <h2 style="font-size: 1.5rem; font-weight: 800; margin-top: 4px; color: #FFFFFF;">
+              Submit a Retail Loan Application
+            </h2>
+            <p style="font-size: 0.88rem; color: #F8E7C9; margin-top: 4px; max-width: 680px; opacity: 0.95;">
+              Fill in your personal profile, monthly earnings, CIBIL score, and requested facility. Your application is automatically analyzed by AI and permanently recorded in the <strong>Meridian Application Vault &amp; Registry</strong>.
+            </p>
+          </div>
+          <div style="background: rgba(248, 231, 201, 0.15); border: 1px solid #F8E7C9; padding: 0.75rem 1.25rem; border-radius: 12px; text-align: center;">
+            <div style="font-size: 0.75rem; color: #F8E7C9; font-weight: 700; text-transform: uppercase;">Storage Engine</div>
+            <div style="font-size: 1rem; font-weight: 800; color: #FFFFFF; margin-top: 2px;">Secure Application Vault</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Application Success Banner (Hidden by default) -->
+      <div id="apply-success-card" class="card" style="display: none; background: #F0F9F5; border: 2px solid #059669; margin-bottom: 1.5rem;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
+          <div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 1.5rem;">✅</span>
+              <h3 style="color: #064E3B; font-size: 1.25rem; font-weight: 800;">Application Successfully Saved in Database!</h3>
+            </div>
+            <p style="color: #0B2920; font-size: 0.9rem; margin-top: 6px;">
+              Your application has been assigned Reference ID <strong id="success-app-no" style="color: #064E3B; font-size: 1.05rem;">MB-2026-XXXX</strong> and recorded permanently in <code>meridian_loans.db</code>.
+            </p>
+            <div style="display: flex; gap: 1.5rem; margin-top: 1rem; font-size: 0.85rem; flex-wrap: wrap;">
+              <div><strong>Status:</strong> <span id="success-status-badge" class="badge badge-success">APPROVED</span></div>
+              <div><strong>AI Score:</strong> <strong id="success-prob-text" style="color: #064E3B;">85%</strong></div>
+              <div><strong>Monthly EMI:</strong> <strong id="success-emi-text">₹1,250/mo</strong></div>
+              <div><strong>CIBIL Tier:</strong> <strong id="success-cibil-text">780 (Excellent)</strong></div>
+            </div>
+          </div>
+          <div style="display: flex; gap: 0.5rem;">
+            <button class="btn btn-primary" onclick="inspectSubmittedApp()">
+              <span>🔍</span> Inspect in Cockpit
+            </button>
+            <button class="btn btn-outline" onclick="goToDatabaseTab()">
+              <span>🗄️</span> View Database Table
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Fillup Form -->
+      <div class="card">
+        <form id="loan-fillup-form" onsubmit="handleLoanApplicationSubmit(event)">
+          <div class="grid-2">
+            
+            <!-- Left Column: Personal, Identity & Family -->
+            <div>
+              <h3 style="font-size: 1rem; font-weight: 700; color: #064E3B; border-bottom: 2px solid #F2ECDE; padding-bottom: 0.5rem; margin-bottom: 1rem;">
+                1. Personal &amp; Demographic Profile
+              </h3>
+
+              <div class="form-group">
+                <label class="form-label">Full Name of Applicant *</label>
+                <input type="text" id="fill-full-name" class="form-control" required placeholder="e.g. Ananya Rao, Devansh Kulkarni">
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Contact Mobile Number *</label>
+                  <input type="tel" id="fill-phone" class="form-control" required placeholder="10-digit mobile (e.g. 9876543210)">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Gender *</label>
+                  <select id="fill-gender" class="form-control" required>
+                    <option value="Female">Female</option>
+                    <option value="Male" selected>Male</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Marital Status *</label>
+                  <select id="fill-married" class="form-control" required>
+                    <option value="Yes" selected>Married (Yes)</option>
+                    <option value="No">Unmarried (No)</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Number of Dependents *</label>
+                  <select id="fill-dependents" class="form-control" required>
+                    <option value="0">0 (None)</option>
+                    <option value="1" selected>1 Dependent</option>
+                    <option value="2">2 Dependents</option>
+                    <option value="3+">3+ Dependents</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Highest Education Level *</label>
+                <select id="fill-education" class="form-control" required>
+                  <option value="Graduate" selected>Graduate / Post-Graduate / Professional</option>
+                  <option value="Not Graduate">Non-Graduate (High School / Vocational)</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Primary Employment &amp; Livelihood *</label>
+                <select id="fill-employment" class="form-control" required>
+                  <option value="Salaried (Private/Corporate)">Salaried (Private / Corporate)</option>
+                  <option value="Salaried (Government/Public)">Salaried (Government / PSU)</option>
+                  <option value="Self-Employed (Business/MSME)" selected>Self-Employed (Small Business / MSME)</option>
+                  <option value="Farmer (Agricultural Producer)">Farmer (Agriculture / Cultivator)</option>
+                  <option value="Artisan / Rural Craftsman">Artisan / Rural Handloom Weaver</option>
+                  <option value="Retail Merchant / Trader">Retail Merchant / Shop Owner</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Property &amp; Residence Territory *</label>
+                <select id="fill-property-area" class="form-control" required>
+                  <option value="Rural" selected>Rural Bharat (Mission Bharat Priority Corridor)</option>
+                  <option value="Semiurban">Semi-Urban Developing Center</option>
+                  <option value="Urban">Urban / Metro City</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Right Column: Financials, Facility & CIBIL -->
+            <div>
+              <h3 style="font-size: 1rem; font-weight: 700; color: #064E3B; border-bottom: 2px solid #F2ECDE; padding-bottom: 0.5rem; margin-bottom: 1rem;">
+                2. Earnings, Loan Request &amp; CIBIL Bureau
+              </h3>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Applicant Monthly Income (₹) *</label>
+                  <input type="number" id="fill-app-income" class="form-control" required value="25000" min="1000" step="500">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Co-Applicant Monthly Income (₹)</label>
+                  <input type="number" id="fill-coapp-income" class="form-control" value="15000" min="0" step="500">
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Loan Facility Purpose *</label>
+                <select id="fill-loan-purpose" class="form-control" required>
+                  <option value="Home Improvement / Construction" selected>Home Construction / Renovation / Purchase</option>
+                  <option value="Small Business Working Capital">Small Business / MSME Working Capital</option>
+                  <option value="Agricultural Equipment & Inputs">Agricultural Equipment / Irrigation / Solar</option>
+                  <option value="Education & Professional Skills">Higher Education / Skill Training</option>
+                  <option value="Vehicle / Commercial Transport">Vehicle / Two-Wheeler / Commercial Transport</option>
+                  <option value="Personal / Medical Facility">Personal / Family Health Facility</option>
+                </select>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Requested Loan (in Thousands ₹) *</label>
+                  <input type="number" id="fill-loan-amount" class="form-control" required value="150" min="10" max="1000" step="5">
+                  <div style="font-size: 0.72rem; color: #4B6359; margin-top: 3px;">150 = ₹1,50,000 INR</div>
+                </div>
+                <div class="form-group">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                    <label class="form-label" style="margin-bottom: 0;">Loan Tenure (1 to 30 Years) *</label>
+                    <span id="fill-tenure-tag" style="background: #F8E7C9; color: #064E3B; font-weight: 800; font-size: 0.8rem; padding: 2px 8px; border-radius: 4px; border: 1px solid #E8D7B8;">5 Years (60 Months)</span>
+                  </div>
+                  <input type="range" id="fill-loan-years" class="range-slider" min="1" max="30" step="1" value="5" oninput="updateFillTenureDisplay(this.value)">
+                  <div style="display: flex; justify-content: space-between; font-size: 0.72rem; color: #4B6359; margin-top: 4px;">
+                    <span>1 Year (12m)</span>
+                    <span>5 Yrs</span>
+                    <span>10 Yrs</span>
+                    <span>15 Yrs</span>
+                    <span>20 Yrs</span>
+                    <span>30 Years (360m)</span>
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 8px; margin-top: 6px;">
+                    <span style="font-size: 0.78rem; color: #4B6359;">Choose any year:</span>
+                    <input type="number" id="fill-exact-years" class="form-control" min="1" max="30" value="5" style="width: 80px; padding: 3px 6px; font-size: 0.85rem;" oninput="updateFillTenureFromNumber(this.value)">
+                    <span style="font-size: 0.78rem; color: #4B6359;">years (Flexible from 1 to 30 yrs)</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- CIBIL Score Card -->
+              <div style="background: #FAF4E8; border: 1.5px solid #E8D7B8; border-radius: 10px; padding: 1.15rem; margin-top: 1rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                  <label class="form-label" style="margin-bottom: 0;">CIBIL Credit Bureau Score *</label>
+                  <span id="cibil-display-tag" class="badge badge-success" style="font-size: 0.82rem; padding: 3px 10px;">
+                    CIBIL: 760 (Excellent)
+                  </span>
+                </div>
+                
+                <input type="range" id="fill-cibil-slider" class="range-slider" min="300" max="900" step="5" value="760" oninput="updateCibilDisplay(this.value)">
+                
+                <div style="display: flex; justify-content: space-between; font-size: 0.72rem; color: #4B6359; margin-top: 4px;">
+                  <span>300 (Poor / Default)</span>
+                  <span>650 (Qualifying)</span>
+                  <span>750 (Prime)</span>
+                  <span>900 (Perfect)</span>
+                </div>
+
+                <div id="cibil-guide-text" style="font-size: 0.78rem; color: #064E3B; margin-top: 8px; font-weight: 600;">
+                  ✓ CIBIL score &ge; 650 comfortably meets standard Indian banking credit guidelines.
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Form Action Footer -->
+          <div style="border-top: 1.5px solid #F2ECDE; padding-top: 1.25rem; margin-top: 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+            <div style="font-size: 0.8rem; color: #4B6359;">
+              🔒 Guaranteed Data Encryption • Stored in <code>meridian_loans.db</code> • Auditable under RBI Fair Practices Code
+            </div>
+            <div style="display: flex; gap: 0.75rem;">
+              <button type="reset" class="btn btn-outline">Reset Form</button>
+              <button type="submit" id="btn-submit-app" class="btn btn-primary" style="padding: 0.75rem 1.75rem; font-size: 0.95rem;">
+                <span>🚀</span> Submit &amp; Record in Database
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         TAB 6: LIVE SQLITE DATABASE VIEWER
+         ========================================================================= -->
+    <section id="database-view" class="tab-section" style="display: none;">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">
+              <span>🗄️</span> Official Meridian Application Vault &amp; Registry
+            </div>
+            <div class="card-subtitle">
+              All loan applications submitted via the portal are permanently recorded and available here
+            </div>
+          </div>
+          <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+            <span id="db-total-count" class="badge badge-info" style="font-size: 0.8rem;">
+              4 Saved Applications
+            </span>
+            <button class="btn btn-primary" style="padding: 5px 12px; font-size: 0.8rem;" onclick="exportVaultToCSV()">
+              <span>📥</span> Export to Excel / CSV
+            </button>
+            <button class="btn btn-outline" style="padding: 5px 10px; font-size: 0.8rem;" onclick="exportVaultToJSON()">
+              <span>💾</span> Export JSON
+            </button>
+            <button class="btn btn-outline" style="padding: 5px 10px; font-size: 0.8rem;" onclick="refreshDatabaseTable()">
+              <span>🔄</span> Refresh
+            </button>
+          </div>
+        </div>
+
+        <!-- Database Records Table -->
+        <table class="fairness-table">
+          <thead>
+            <tr>
+              <th>Application No</th>
+              <th>Submitted Date</th>
+              <th>Applicant Name</th>
+              <th>CIBIL Score</th>
+              <th>Total Income</th>
+              <th>Requested Facility</th>
+              <th>Territory</th>
+              <th>AI Score</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="db-table-body">
+            <!-- Injected via JavaScript -->
+          </tbody>
+        </table>
+
+        <div style="margin-top: 1.25rem; background: #FAF3E6; border: 1px solid #E8D7B8; border-radius: 8px; padding: 0.85rem 1rem; font-size: 0.82rem; color: #064E3B; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+          <div>
+            <strong>Access on Laptop:</strong> Click <strong>"Export to Excel / CSV"</strong> above to immediately open all applications in Microsoft Excel or Google Sheets.
+          </div>
+          <div>
+            Auto-synced with Central Database (meridian_loans.db)
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- =========================================================================
+       DECISION LETTER MODAL (OFFICIAL MERIDIAN FINANCIAL DOCUMENT)
+       ========================================================================= -->
+  <div id="letter-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+      <div class="letter-watermark">MERIDIAN</div>
+      
+      <div class="letter-header">
+        <div>
+          <div style="font-size: 1.4rem; font-weight: 800; color: #064E3B;">MERIDIAN FINANCIAL SERVICES</div>
+          <div style="font-size: 0.8rem; color: #64748B;">Mission Bharat • Inclusive Retail Credit Division</div>
+          <div style="font-size: 0.75rem; color: #64748B; margin-top: 2px;">Reg. Office: Nariman Point, Mumbai 400021 • RBI Reg #N-13.01928</div>
+        </div>
+        <div style="text-align: right; font-size: 0.8rem; color: #64748B;">
+          <div><strong>Reference:</strong> <span id="let-ref">MERIDIAN-MB-9021</span></div>
+          <div><strong>Date:</strong> <span id="let-date">28 October 2026</span></div>
+        </div>
+      </div>
+
+      <div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <div>
+            <div style="font-size: 0.8rem; color: #64748B;">Applicant Name:</div>
+            <div id="let-applicant-name" style="font-size: 1.1rem; font-weight: 700; color: #0F172A;">Ananya Rao</div>
+          </div>
+          <div id="let-status-badge" class="badge badge-success">PRE-APPROVED</div>
+        </div>
+
+        <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1.25rem; font-size: 0.82rem; display: flex; justify-content: space-between;">
+          <div><strong>Requested Facility:</strong> <span id="let-loan-amount">₹1,10,000</span></div>
+          <div><strong>Tenure:</strong> <span id="let-tenure">360 Months</span></div>
+          <div><strong>Territory:</strong> <span id="let-area">Rural Bharat</span></div>
+        </div>
+
+        <p id="let-verdict-text" style="font-size: 0.9rem; line-height: 1.6; color: #334155; margin-bottom: 1rem;">
+          We are pleased to inform you that your application for a retail loan facility has met Meridian automated underwriting standards.
+        </p>
+
+        <h4 style="font-size: 0.85rem; font-weight: 700; color: #0F172A; text-transform: uppercase; margin-bottom: 0.5rem; letter-spacing: 0.05em;">
+          Transparent Factor Determination (Under RBI Fair Lending Code):
+        </h4>
+
+        <ul id="let-factors-list" style="padding-left: 1.25rem; margin-bottom: 1.5rem;">
+          <!-- Injected via JavaScript -->
+        </ul>
+
+        <div style="border-top: 1px solid #E2E8F0; padding-top: 1rem; font-size: 0.75rem; color: #64748B; line-height: 1.5;">
+          <strong>Consumer Notice & Redressal:</strong> In accordance with the Reserve Bank of India (RBI) Fair Practices Code, Meridian ensures full automated decision transparency. If you wish to appeal this outcome or present compensating documentation, contact the Mission Bharat Grievance Officer at <code>grievance.bharat@meridian.fin</code> or call toll-free <code>1800-209-4000</code>.
+        </div>
+      </div>
+
+      <div class="no-print" style="margin-top: 1.5rem; display: flex; justify-content: flex-end; gap: 0.75rem;">
+        <button id="btn-print-letter" class="btn btn-primary">
+          <span>🖨️</span> Print / Save PDF
+        </button>
+        <button id="btn-close-letter" class="btn btn-outline">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+
+  <!-- =========================================================================
+       BACKEND CONNECTION STATUS MODAL
+       ========================================================================= -->
+  <div id="backend-info-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content" style="max-width: 580px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #064E3B; padding-bottom: 0.8rem; margin-bottom: 1rem;">
+        <h3 style="color: #064E3B; font-size: 1.25rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+          <span>🔌</span> Python Backend Connection Hub
+        </h3>
+        <button class="btn btn-outline" style="padding: 2px 8px; font-size: 0.85rem;" onclick="toggleBackendInfoModal()">✕</button>
+      </div>
+
+      <div style="margin-bottom: 1.25rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; background: #FAF3E6; border: 1.5px solid #E8D7B8; border-radius: 8px; padding: 0.85rem 1rem;">
+          <div>
+            <div style="font-size: 0.75rem; color: #4B6359; font-weight: 700; text-transform: uppercase;">Backend API Server</div>
+            <div style="font-size: 0.95rem; font-weight: 800; color: #064E3B; margin-top: 2px;">http://localhost:5000</div>
+          </div>
+          <span id="modal-backend-status-badge" class="badge badge-success">CONNECTED</span>
+        </div>
+      </div>
+
+      <div id="modal-backend-details" style="font-size: 0.85rem; line-height: 1.6; color: #334155;">
+        <p><strong>Status:</strong> <span id="modal-backend-status-desc">Connected to Python http.server on port 5000.</span></p>
+        <p style="margin-top: 0.5rem;">All loan evaluations, plain-English explanations, and fairness comparisons are computed live by your Python backend logic (<code>backend.py</code> and <code>server.py</code>).</p>
+      </div>
+
+      <div style="background: #FDFBF7; border: 1px solid #E6DDCF; border-radius: 8px; padding: 0.9rem; margin-top: 1rem; font-size: 0.82rem;">
+        <strong style="color: #064E3B;">How to Start or Restart the Backend:</strong>
+        <ol style="padding-left: 1.25rem; margin-top: 0.4rem; color: #475569;">
+          <li>Double-click <code>run_backend.bat</code> in <code>E:\English</code></li>
+          <li>Or run: <code>python server.py</code> in terminal</li>
+          <li>Click the <strong>Test &amp; Reconnect</strong> button below!</li>
+        </ol>
+      </div>
+
+      <div style="margin-top: 1.5rem; display: flex; justify-content: flex-end; gap: 0.75rem;">
+        <button id="btn-reconnect-backend" class="btn btn-primary" onclick="checkBackendConnection(true)">
+          <span>🔄</span> Test &amp; Reconnect
+        </button>
+        <button class="btn btn-outline" onclick="toggleBackendInfoModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>
