@@ -1,14 +1,8 @@
-/**
- * Meridian Financial Services - MISSION BHARAT
- * Explainable Loan Decision System (Core JavaScript Engine)
- * Connected with Python Backend (http://localhost:5000), SQLite Database & CSV Exporter
- */
-
-// Application State
 const state = {
-  currentRole: 'applicant', // 'applicant' or 'officer'
-  currentLang: localStorage.getItem('meridian_lang') || 'en', // 'en' or 'hi'
+  currentRole: 'applicant', 
+  currentLang: localStorage.getItem('meridian_lang') || 'en', 
   currentTab: 'apply-view',
+  hasApplied: false,
   affirmativeMode: false,
   backendConnected: false,
   apiBase: 'http://localhost:5000',
@@ -24,8 +18,8 @@ const state = {
     salary_slip: 'Yes',
     applicant_income: 75000,
     coapplicant_income: 20000,
-    loan_amount: 250, // in thousands (₹2,50,000)
-    term: 84, // 7 years (84 months)
+    loan_amount: 250, 
+    term: 84, 
     cibil_score: 780,
     credit_history: 1,
     property_area: 'Semiurban',
@@ -52,13 +46,109 @@ const state = {
   portfolioSearch: ''
 };
 
-// =============================================================================
-// COMPREHENSIVE BILINGUAL TRANSLATION DICTIONARY
-// =============================================================================
+const DEFAULT_BASELINE_APPLICATIONS = [
+  {
+    application_no: 'MB-2026-1001',
+    created_at: '2026-10-28 14:30:00',
+    full_name: 'Ananya Rao',
+    gender: 'Female',
+    marital_status: 'No',
+    dependents: '0',
+    education: 'Graduate',
+    employment_type: 'Private Sector (Salaried)',
+    salary_slip: 'Yes',
+    applicant_income: 95000,
+    coapplicant_income: 0,
+    loan_amount: 350,
+    loan_term_months: 84,
+    property_area: 'Urban',
+    loan_purpose: 'Home Improvement / Construction',
+    cibil_score: 810,
+    credit_history: 1,
+    approval_likelihood: 98,
+    monthly_emi: 4166,
+    dti_percent: 4.38,
+    status: 'Approved',
+    officer_notes: 'Prime applicant with strong savings and clear credit track record.'
+  },
+  {
+    application_no: 'MB-2026-1002',
+    created_at: '2026-10-28 16:15:00',
+    full_name: 'Devansh Kulkarni',
+    gender: 'Male',
+    marital_status: 'Yes',
+    dependents: '2',
+    education: 'Graduate',
+    employment_type: 'Freelancing / Self-Employed',
+    salary_slip: 'No',
+    applicant_income: 75000,
+    coapplicant_income: 20000,
+    loan_amount: 250,
+    loan_term_months: 120,
+    property_area: 'Semiurban',
+    loan_purpose: 'Small Business Working Capital',
+    cibil_score: 755,
+    credit_history: 1,
+    approval_likelihood: 96,
+    monthly_emi: 2083,
+    dti_percent: 2.19,
+    status: 'Approved',
+    officer_notes: 'Self-employed IT freelancer with high co-applicant support.'
+  },
+  {
+    application_no: 'MB-2026-1003',
+    created_at: '2026-10-28 18:45:00',
+    full_name: 'Kavya Nair',
+    gender: 'Female',
+    marital_status: 'Yes',
+    dependents: '1',
+    education: 'Graduate',
+    employment_type: 'Government / PSU Employee',
+    salary_slip: 'Yes',
+    applicant_income: 48000,
+    coapplicant_income: 18000,
+    loan_amount: 180,
+    loan_term_months: 60,
+    property_area: 'Rural',
+    loan_purpose: 'Agricultural Equipment & Inputs',
+    cibil_score: 760,
+    credit_history: 1,
+    approval_likelihood: 98,
+    monthly_emi: 3000,
+    dti_percent: 4.54,
+    status: 'Approved',
+    officer_notes: 'Rural agri-business loan backed by public sector employment.'
+  },
+  {
+    application_no: 'MB-2026-1004',
+    created_at: '2026-10-28 20:20:00',
+    full_name: 'Rohan Mehta',
+    gender: 'Male',
+    marital_status: 'Yes',
+    dependents: '3+',
+    education: 'Not Graduate',
+    employment_type: 'Informal / Cash Economy',
+    salary_slip: 'No',
+    applicant_income: 28000,
+    coapplicant_income: 0,
+    loan_amount: 400,
+    loan_term_months: 24,
+    property_area: 'Rural',
+    loan_purpose: 'Personal / Medical Facility',
+    cibil_score: 580,
+    credit_history: 0,
+    approval_likelihood: 12,
+    monthly_emi: 16666,
+    dti_percent: 59.52,
+    status: 'Rejected',
+    officer_notes: 'High DTI (60%) and prior default history. Advised credit rehabilitation.'
+  }
+];
+
 const I18N = {
   en: {
     lang_btn: "🇮🇳 हिन्दी (Hindi)",
-    brand_title: "Meridian Financial Services",
+    brand_title: "Meridian FairLend AI",
     brand_badge: "Mission Bharat",
     brand_sub: "AI-Powered Explainable Lending & Demographic Equity Platform",
     nav_apply: "📝 1. Apply for a Loan",
@@ -108,17 +198,26 @@ const I18N = {
     strengths_title: "Top Factors Working In Your Favor",
     frictions_title: "Top Barriers Influencing This Outcome",
     roadmap_title: "Personalized Eligibility Roadmap",
-    btn_open_letter: "📄 View & Download Official Decision Letter",
+    btn_open_letter: "View & Download Official Sanction Letter",
+    prompt_apply_letter: "Apply for a loan to generate and download your official RBI-compliant Sanction Letter.",
+    btn_apply_loan_link: "Apply for Loan →",
     approved_title: "Likely to be Approved",
     conditional_title: "Borderline / Needs Review",
     rejected_title: "High Risk / Unlikely to be Approved",
     approved_desc: "Your credit and financial profile comfortably satisfies Meridian Mission Bharat underwriting benchmarks.",
     conditional_desc: "Your application is near the approval threshold. Minor adjustments or guarantor backing will secure an offer.",
-    rejected_desc: "Current risk markers exceed credit policy guidelines. Review the specific factors and remediation plan below."
+    rejected_desc: "Current risk markers exceed credit policy guidelines. Review the specific factors and remediation plan below.",
+    footer_eyebrow: "MISSION BHARAT • THE BIGGER PICTURE",
+    footer_heading: "India's Credit Inclusion Snapshot",
+    footer_subtitle: "Progress is real. Access to fair, understandable credit still matters.",
+    footer_mission_badge: "OUR MISSION",
+    footer_mission_statement: "Make every credit decision easier to understand.",
+    footer_mission_supporting: "Explain the decision. Identify improvement opportunities. Evaluate fairness responsibly.",
+    footer_disclaimer: "© 2026 Meridian FairLend. Operating in compliance with the Reserve Bank of India (RBI) Regulatory Framework for Digital Lending."
   },
   hi: {
     lang_btn: "🇬🇧 English",
-    brand_title: "मेरिडियन फाइनेंशियल सर्विसेज",
+    brand_title: "मेरिडियन फेयरलेंड एआई (Meridian FairLend AI)",
     brand_badge: "मिशन भारत",
     brand_sub: "एआई-संचालित पारदर्शी ऋण निर्णय एवं सामाजिक समानता मंच",
     nav_apply: "📝 1. ऋण के लिए आवेदन करें",
@@ -168,19 +267,25 @@ const I18N = {
     strengths_title: "आपके पक्ष में प्रमुख सकारात्मक कारक",
     frictions_title: "स्वीकृति में प्रमुख बाधाएं / जोखिम कारक",
     roadmap_title: "ऋण पात्रता सुधारने की चरणबद्ध योजना",
-    btn_open_letter: "📄 आधिकारिक ऋण स्वीकृति पत्र देखें एवं डाउनलोड करें",
+    btn_open_letter: "आधिकारिक ऋण स्वीकृति पत्र देखें एवं डाउनलोड करें",
+    prompt_apply_letter: "अपना आधिकारिक स्वीकृति पत्र डाउनलोड करने के लिए ऋण आवेदन जमा करें।",
+    btn_apply_loan_link: "ऋण आवेदन करें →",
     approved_title: "ऋण स्वीकृत होने की प्रबल संभावना",
     conditional_title: "समीक्षाधीन / संदेहास्पद स्थिति",
     rejected_title: "उच्च जोखिम / वर्तमान में स्वीकृति कठिन",
     approved_desc: "आपका वित्तीय एवं क्रेडिट प्रोफाइल मेरिडियन मिशन भारत के ऋण मानकों के सर्वथा अनुकूल है।",
     conditional_desc: "आपका आवेदन स्वीकृति सीमा के अत्यंत निकट है। थोड़े सुधार या सह-आवेदक से ऋण तुरंत स्वीकृत हो सकता है।",
-    rejected_desc: "वर्तमान जोखिम संकेत बैंक की नीतियों से अधिक हैं। नीचे दिए गए कारणों और सुधार योजना का अवलोकन करें।"
+    rejected_desc: "वर्तमान जोखिम संकेत बैंक की नीतियों से अधिक हैं। नीचे दिए गए कारणों और सुधार योजना का अवलोकन करें।",
+    footer_eyebrow: "मिशन भारत • वृहद परिप्रेक्ष्य",
+    footer_heading: "भारत में वित्तीय समावेशन की वास्तविक स्थिति",
+    footer_subtitle: "प्रगति वास्तविक है। पारदर्शी एवं न्यायसंगत ऋण तक सभी की पहुंच अभी भी अत्यंत आवश्यक है।",
+    footer_mission_badge: "हमारा संकल्प",
+    footer_mission_statement: "प्रत्येक ऋण निर्णय को समझने में सरल एवं पारदर्शी बनाना।",
+    footer_mission_supporting: "निर्णय का स्पष्ट कारण बताएं। सुधार के अवसर पहचानें। निष्पक्षता का जिम्मेदारी से मूल्यांकन करें।",
+    footer_disclaimer: "© 2026 मेरिडियन फेयरलेंड। भारतीय रिज़र्व बैंक (RBI) डिजिटल लेंडिंग दिशा-निर्देशों के पूर्णतः अनुपालन में संचालित।"
   }
 };
 
-// =============================================================================
-// BACKEND API CONNECTION & HEALTH CHECK
-// =============================================================================
 async function checkBackendConnection(showNotification = false) {
   const badgeText = document.getElementById('backend-status-text');
   const pulseDot = document.getElementById('backend-pulse-dot');
@@ -209,7 +314,7 @@ async function checkBackendConnection(showNotification = false) {
       return true;
     }
   } catch (err) {
-    // Offline / Standalone Fallback
+
   }
 
   state.backendConnected = false;
@@ -223,9 +328,6 @@ async function checkBackendConnection(showNotification = false) {
   return false;
 }
 
-// =============================================================================
-// BILINGUAL TOGGLE FUNCTION
-// =============================================================================
 window.toggleLanguage = function() {
   state.currentLang = state.currentLang === 'en' ? 'hi' : 'en';
   try {
@@ -241,11 +343,9 @@ function applyTranslations() {
   const lang = state.currentLang;
   const dict = I18N[lang] || I18N.en;
 
-  // 1. Language Toggle Button text
   const langBtn = document.getElementById('lang-toggle-btn');
   if (langBtn) langBtn.innerText = dict.lang_btn;
 
-  // 2. Navigation items
   const setText = (selector, text) => {
     const el = document.querySelector(selector);
     if (el) el.innerHTML = text;
@@ -259,7 +359,6 @@ function applyTranslations() {
   setText('[data-tab="fairness-view"]', `${dict.nav_fairness} <span class="tag">80% Rule</span>`);
   setText('[data-tab="portfolio-view"]', dict.nav_portfolio);
 
-  // 3. Application Form
   const setElText = (id, text) => {
     const el = document.getElementById(id);
     if (el) el.innerText = text;
@@ -290,7 +389,6 @@ function applyTranslations() {
   const submitBtn = document.getElementById('fill-submit-btn');
   if (submitBtn) submitBtn.innerHTML = `<span>🚀</span> ${dict.btn_submit_app}`;
 
-  // 4. What-If Simulator
   setElText('sim-main-title', dict.sim_title);
   setElText('sim-main-sub', dict.sim_sub);
   setElText('lbl-sim-likelihood', dict.lbl_sim_likelihood);
@@ -306,17 +404,23 @@ function applyTranslations() {
   setElText('txt-apply-whatif', dict.btn_apply_whatif);
   setElText('txt-reset-whatif', dict.btn_reset_whatif);
 
-  // 5. Decision Report Titles
   setElText('lbl-strengths-title', dict.strengths_title);
   setElText('lbl-frictions-title', dict.frictions_title);
   setElText('lbl-roadmap-title', dict.roadmap_title);
   const openLetterBtn = document.getElementById('btn-open-letter');
   if (openLetterBtn) openLetterBtn.innerHTML = `<span>📄</span> ${dict.btn_open_letter}`;
+  if (dict.prompt_apply_letter) setElText('prompt-apply-text', dict.prompt_apply_letter);
+  if (dict.btn_apply_loan_link) setElText('btn-apply-loan-link', dict.btn_apply_loan_link);
+
+  if (dict.footer_eyebrow) setElText('footer-eyebrow', dict.footer_eyebrow);
+  if (dict.footer_heading) setElText('footer-heading', dict.footer_heading);
+  if (dict.footer_subtitle) setElText('footer-subtitle', dict.footer_subtitle);
+  if (dict.footer_mission_badge) setElText('footer-mission-badge', dict.footer_mission_badge);
+  if (dict.footer_mission_statement) setElText('footer-mission-statement', dict.footer_mission_statement);
+  if (dict.footer_mission_supporting) setElText('footer-mission-supporting', dict.footer_mission_supporting);
+  if (dict.footer_disclaimer) setElText('footer-disclaimer', dict.footer_disclaimer);
 }
 
-// =============================================================================
-// SALARY SLIP TOGGLE HANDLER (APPLICATION FORM)
-// =============================================================================
 window.setSalarySlipChoice = function(val) {
   const hidden = document.getElementById('fill-salary-slip');
   if (hidden) hidden.value = val;
@@ -366,9 +470,6 @@ window.setSalarySlipChoice = function(val) {
   }
 };
 
-// =============================================================================
-// SALARY SLIP TOGGLE HANDLER (WHAT-IF SIMULATOR)
-// =============================================================================
 window.setSimSalarySlip = function(hasSlip) {
   state.simulated.salary_slip = hasSlip;
   const btnYes = document.getElementById('sim-btn-slip-yes');
@@ -416,9 +517,6 @@ window.setSimSalarySlip = function(hasSlip) {
   updateSimulationUI();
 };
 
-// =============================================================================
-// UNDERWRITING CALCULATION ENGINE
-// =============================================================================
 function computePrediction(appData) {
   const appInc = parseFloat(appData.applicant_income || 0);
   const coappInc = parseFloat(appData.coapplicant_income || 0);
@@ -445,7 +543,6 @@ function computePrediction(appData) {
   let scorePoints = 50.0;
   const contributions = {};
 
-  // 1. CIBIL Bureau Credit Score
   let cibilImpact = 0;
   if (cibil >= 780) cibilImpact = 32.0;
   else if (cibil >= 720) cibilImpact = 24.0;
@@ -457,7 +554,6 @@ function computePrediction(appData) {
   scorePoints += cibilImpact;
   contributions['credit_history'] = { impact: cibilImpact, pct_impact: cibilImpact };
 
-  // 2. Debt-to-Income / EMI Burden (FOIR)
   let dtiImpact = 0;
   if (dtiPercent <= 15.0) dtiImpact = 18.0;
   else if (dtiPercent <= 30.0) dtiImpact = 12.0;
@@ -468,7 +564,6 @@ function computePrediction(appData) {
   scorePoints += dtiImpact;
   contributions['dti_ratio'] = { impact: dtiImpact, pct_impact: dtiImpact };
 
-  // 3. Income to Loan Coverage Ratio
   const annualIncome = totInc * 12.0;
   const coverageRatio = annualIncome / Math.max(1.0, loanAmtInr);
   let covImpact = 0;
@@ -480,7 +575,6 @@ function computePrediction(appData) {
   scorePoints += covImpact;
   contributions['income_coverage'] = { impact: covImpact, pct_impact: covImpact };
 
-  // 4. Joint Co-Applicant Strength
   let coappImpact = 0;
   if (coappInc > 0) {
     coappImpact = 8.0;
@@ -488,7 +582,6 @@ function computePrediction(appData) {
   }
   contributions['coapplicant'] = { impact: coappImpact, pct_impact: coappImpact };
 
-  // 5. Salary Slip Verification & Employment Diversity (Mission Bharat Gig / Freelance Policy)
   const salarySlip = String(appData.salary_slip || 'Yes').trim().toLowerCase();
   const empType = String(appData.employment_type || '').toLowerCase();
   const isFreelance = empType.includes('freelanc') || empType.includes('gig') || empType.includes('contract');
@@ -497,7 +590,7 @@ function computePrediction(appData) {
   if (salarySlip === 'yes' || salarySlip === 'true' || salarySlip === '1') {
     slipImpact = 5.0;
   } else {
-    // If no salary slip: Freelancers and small businesses are evaluated via 6-month bank statement
+
     if (isFreelance || empType.includes('self') || empType.includes('farm')) {
       slipImpact = 0.0;
     } else {
@@ -507,17 +600,15 @@ function computePrediction(appData) {
   scorePoints += slipImpact;
   contributions['salary_slip'] = { impact: slipImpact, pct_impact: slipImpact };
 
-  // 6. Freelance & Employment Inclusion Bonus
   let empImpact = 1.0;
   if (isFreelance) {
-    empImpact = 3.0; // Mission Bharat Digital Gig Economy Contributor Bonus
+    empImpact = 3.0; 
   } else if (empType.includes('salaried')) {
     empImpact = 3.0;
   }
   scorePoints += empImpact;
   contributions['employment_type'] = { impact: empImpact, pct_impact: empImpact };
 
-  // 7. Mission Bharat Geographic Equity
   const area = String(appData.property_area || 'Rural').toLowerCase();
   let areaImpact = 2.0;
   if (area === 'semiurban') areaImpact = 4.0;
@@ -526,7 +617,6 @@ function computePrediction(appData) {
   scorePoints += areaImpact;
   contributions['property_area'] = { impact: areaImpact, pct_impact: areaImpact };
 
-  // Final approval score
   const finalScore = Math.max(2, Math.min(98, Math.round(scorePoints)));
 
   let status = 'approved';
@@ -550,7 +640,6 @@ function computePrediction(appData) {
   };
 }
 
-// Plain-Language Explanations Generator
 function generatePlainLanguageExplanations(predResult, appData, lang = 'en') {
   const dict = I18N[lang] || I18N.en;
   const cibil = predResult.cibil_score || (Number(appData.credit_history) === 1 ? 750 : 540);
@@ -563,7 +652,6 @@ function generatePlainLanguageExplanations(predResult, appData, lang = 'en') {
   const frictions = [];
   const actions = [];
 
-  // 1. CIBIL Credit History
   if (cibil >= 720) {
     strengths.push({
       title: lang === 'hi' ? "उच्च सिबिल क्रेडिट प्रतिष्ठा (प्राइम)" : "High Credit Trust (Prime CIBIL)",
@@ -585,7 +673,6 @@ function generatePlainLanguageExplanations(predResult, appData, lang = 'en') {
     actions.push(lang === 'hi' ? "पुराने बकाये का निपटान करें: क्रेडिट ब्यूरो में पिछले बकाये का भुगतान कर एनओसी प्राप्त करें।" : "Clear outstanding overdue payments on prior credit facilities or obtain a No-Objection Certificate (NOC).");
   }
 
-  // 2. Monthly EMI & Repayment Burden (DTI)
   if (dti <= 30.0) {
     strengths.push({
       title: lang === 'hi' ? "संतुलित ऋण-आय अनुपात" : "Comfortable Monthly Debt Burden",
@@ -607,7 +694,6 @@ function generatePlainLanguageExplanations(predResult, appData, lang = 'en') {
     actions.push(lang === 'hi' ? "ऋण अवधि बढ़ाएं: टेन्योर 1 से 30 वर्ष के बीच बढ़ाकर मासिक किस्त कम करें।" : "Extend loan tenure (e.g. increase years from 1 to 30) or reduce loan amount to lower monthly EMI below 40%.");
   }
 
-  // 3. Salary Slip & Documentation
   if (salarySlip === 'Yes') {
     strengths.push({
       title: lang === 'hi' ? "सत्यापित आय (वेतन पर्ची संलग्न)" : "Verified Income (Salary Slip)",
@@ -632,7 +718,6 @@ function generatePlainLanguageExplanations(predResult, appData, lang = 'en') {
     }
   }
 
-  // 4. Primary Employment: Freelancing Inclusion
   if (isFreelance) {
     strengths.push({
       title: lang === 'hi' ? "डिजिटल अर्थव्यवस्था योगदानकर्ता (फ्रीलांसिंग)" : "Digital Gig Economy Contributor",
@@ -641,7 +726,6 @@ function generatePlainLanguageExplanations(predResult, appData, lang = 'en') {
     });
   }
 
-  // 5. Co-Applicant Strength
   const coapp = parseFloat(appData.coapplicant_income || 0);
   if (coapp > 0) {
     strengths.push({
@@ -665,9 +749,6 @@ function generatePlainLanguageExplanations(predResult, appData, lang = 'en') {
   };
 }
 
-// =============================================================================
-// LOAN APPLICATION SUBMISSION HANDLER
-// =============================================================================
 window.handleLoanApplicationSubmit = async function(event) {
   if (event) event.preventDefault();
 
@@ -702,7 +783,6 @@ window.handleLoanApplicationSubmit = async function(event) {
   let prediction = null;
   let explanation = null;
 
-  // Attempt to save through Python Backend & SQLite Database
   if (state.backendConnected) {
     try {
       const response = await fetch(`${state.apiBase}/api/apply`, {
@@ -722,7 +802,6 @@ window.handleLoanApplicationSubmit = async function(event) {
     }
   }
 
-  // Local fallback
   if (!savedRecord) {
     const randomId = Math.floor(1000 + Math.random() * 9000);
     const appNo = `MB-2026-${randomId}`;
@@ -760,12 +839,24 @@ window.handleLoanApplicationSubmit = async function(event) {
 
     try {
       const existing = JSON.parse(localStorage.getItem('meridian_saved_apps') || '[]');
-      existing.unshift(savedRecord);
-      localStorage.setItem('meridian_saved_apps', JSON.stringify(existing));
+      const existingMap = new Map();
+      DEFAULT_BASELINE_APPLICATIONS.forEach(a => existingMap.set(a.application_no, a));
+      if (Array.isArray(existing)) {
+        existing.forEach(a => { if (a && a.application_no) existingMap.set(a.application_no, a); });
+      }
+      existingMap.set(savedRecord.application_no, savedRecord);
+      const updatedList = Array.from(existingMap.values());
+      updatedList.sort((a, b) => {
+        const timeA = a.created_at || '';
+        const timeB = b.created_at || '';
+        if (timeA && timeB && timeA !== timeB) return timeB.localeCompare(timeA);
+        return (b.application_no || '').localeCompare(a.application_no || '');
+      });
+      localStorage.setItem('meridian_saved_apps', JSON.stringify(updatedList));
     } catch (e) {}
   }
 
-  // Update State with the submitted applicant
+  state.hasApplied = true;
   state.lastSubmittedApp = { ...formData, ...savedRecord };
   state.currentApplicant = {
     id: savedRecord.application_no,
@@ -787,7 +878,6 @@ window.handleLoanApplicationSubmit = async function(event) {
     loan_purpose: formData.loan_purpose
   };
 
-  // Synchronize What-If Simulator with submitted values
   state.simulated = {
     loan_amount: formData.loan_amount,
     coapplicant_income: formData.coapplicant_income,
@@ -797,14 +887,12 @@ window.handleLoanApplicationSubmit = async function(event) {
     salary_slip: formData.salary_slip === 'Yes'
   };
 
-  // Sync Simulator UI controls
   setSliderVal('sim-slider-loan', state.simulated.loan_amount);
   setSliderVal('sim-slider-coapp', state.simulated.coapplicant_income);
   setSliderVal('sim-slider-term', Math.round(state.simulated.term / 12));
   setSliderVal('sim-slider-cibil', state.simulated.cibil_score);
   setSimSalarySlip(state.simulated.salary_slip);
 
-  // Update UI and database table
   updateUI();
   updateSimulationUI();
   refreshDatabaseTable();
@@ -814,14 +902,12 @@ window.handleLoanApplicationSubmit = async function(event) {
     submitBtn.innerHTML = `<span>🚀</span> ${I18N[state.currentLang]?.btn_submit_app || 'Submit Application'}`;
   }
 
-  // Switch straight to the Decision Report page as requested!
   const reportTab = document.querySelector('[data-tab="applicant-view"]');
   if (reportTab) {
     reportTab.click();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  // Display persistent and beautiful in-page banner on the Decision Report
   const banner = document.getElementById('submission-alert-banner');
   const bannerAppNo = document.getElementById('banner-app-no');
   if (banner) {
@@ -830,20 +916,15 @@ window.handleLoanApplicationSubmit = async function(event) {
   }
 };
 
-// =============================================================================
-// WHAT-IF SIMULATOR ACTIONS (APPLY SCENARIO & RESET)
-// =============================================================================
 window.applyWhatIfScenario = function() {
   const sim = state.simulated;
 
-  // Apply simulated variables to active applicant
   state.currentApplicant.loan_amount = sim.loan_amount;
   state.currentApplicant.coapplicant_income = sim.coapplicant_income;
   state.currentApplicant.term = sim.term;
   state.currentApplicant.cibil_score = sim.cibil_score;
   state.currentApplicant.salary_slip = sim.salary_slip ? 'Yes' : 'No';
 
-  // Update input form controls
   setValue('fill-loan-amount', sim.loan_amount);
   setValue('fill-coapp-income', sim.coapplicant_income);
   const years = Math.round(sim.term / 12);
@@ -853,10 +934,8 @@ window.applyWhatIfScenario = function() {
   updateCibilDisplay(sim.cibil_score);
   setSalarySlipChoice(sim.salary_slip ? 'Yes' : 'No');
 
-  // Recalculate full decision and update UI
   updateUI();
 
-  // Scroll to decision banner with visual highlight
   const heroCard = document.getElementById('decision-hero-card');
   if (heroCard) {
     heroCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -898,9 +977,6 @@ window.resetWhatIfToBaseline = function() {
   updateSimulationUI();
 };
 
-// =============================================================================
-// WHAT-IF SIMULATOR REAL-TIME CALCULATOR
-// =============================================================================
 function updateSimulationUI() {
   const baseApp = state.currentApplicant;
   const sim = state.simulated;
@@ -941,7 +1017,6 @@ function updateSimulationUI() {
     simStatusEl.className = `badge badge-${simPred.status === 'approved' ? 'success' : simPred.status === 'conditional' ? 'warning' : 'danger'}`;
   }
 
-  // Update Live Metrics in Simulator
   const emiEl = document.getElementById('sim-metric-emi');
   const dtiEl = document.getElementById('sim-metric-dti');
   const cibilEl = document.getElementById('sim-metric-cibil');
@@ -962,7 +1037,6 @@ function updateSimulationUI() {
       : (state.currentLang === 'hi' ? 'बैंक स्टेटमेंट सत्यापन' : 'Bank Statement Verified');
   }
 
-  // Dynamic Underwriting Insight Box
   const tipEl = document.getElementById('sim-smart-tip');
   if (tipEl) {
     if (simPred.approvalPercent >= 75) {
@@ -997,9 +1071,6 @@ function updateSimulationUI() {
   }
 }
 
-// =============================================================================
-// LAPTOP DIRECT ACCESS: EXPORT TO CSV / EXCEL & JSON
-// =============================================================================
 window.exportVaultToCSV = function() {
   const apps = state.savedDatabaseApps.length > 0 ? state.savedDatabaseApps : [
     state.currentApplicant
@@ -1046,118 +1117,92 @@ window.exportVaultToJSON = function() {
   document.body.removeChild(link);
 };
 
-// Refresh Database Table
 window.refreshDatabaseTable = async function() {
   const tbody = document.getElementById('db-table-body');
   const countBadge = document.getElementById('db-total-count');
   if (!tbody) return;
 
-  let apps = [];
+  const appMap = new Map();
+
+  DEFAULT_BASELINE_APPLICATIONS.forEach(app => {
+    appMap.set(app.application_no, { ...app });
+  });
+
+  try {
+    const localStored = JSON.parse(localStorage.getItem('meridian_saved_apps') || '[]');
+    if (Array.isArray(localStored)) {
+      localStored.forEach(app => {
+        if (app && app.application_no) {
+          appMap.set(app.application_no, { ...(appMap.get(app.application_no) || {}), ...app });
+        }
+      });
+    }
+  } catch (e) {}
 
   if (state.backendConnected) {
     try {
       const response = await fetch(`${state.apiBase}/api/saved-applications`);
       if (response.ok) {
         const data = await response.json();
-        apps = data.applications || [];
+        if (data.applications && Array.isArray(data.applications)) {
+          data.applications.forEach(app => {
+            if (app && app.application_no) {
+              appMap.set(app.application_no, { ...(appMap.get(app.application_no) || {}), ...app });
+            }
+          });
+        }
       }
     } catch (e) {}
   }
 
-  // Local fallback if backend is offline
-  if (apps.length === 0) {
-    try {
-      apps = JSON.parse(localStorage.getItem('meridian_saved_apps') || '[]');
-    } catch (e) {}
+  let allApps = Array.from(appMap.values());
+
+  allApps.sort((a, b) => {
+    const timeA = a.created_at || '';
+    const timeB = b.created_at || '';
+    if (timeA && timeB && timeA !== timeB) return timeB.localeCompare(timeA);
+    return (b.application_no || '').localeCompare(a.application_no || '');
+  });
+
+  state.savedDatabaseApps = allApps;
+
+  try {
+    localStorage.setItem('meridian_saved_apps', JSON.stringify(allApps));
+  } catch (e) {}
+
+  if (countBadge) {
+    countBadge.innerText = `${allApps.length} Saved Applications (Old + New)`;
   }
 
-  // Preload default samples if empty
-  if (apps.length === 0) {
-    apps = [
-      {
-        application_no: 'MB-2026-1001',
-        created_at: '2026-10-28 14:30:00',
-        full_name: 'Ananya Rao',
-        cibil_score: 810,
-        salary_slip: 'Yes',
-        applicant_income: 95000,
-        coapplicant_income: 0,
-        loan_amount: 350,
-        loan_term_months: 84,
-        property_area: 'Urban',
-        approval_likelihood: 98,
-        status: 'Approved'
-      },
-      {
-        application_no: 'MB-2026-1002',
-        created_at: '2026-10-28 16:15:00',
-        full_name: 'Devansh Kulkarni',
-        cibil_score: 755,
-        salary_slip: 'No',
-        applicant_income: 75000,
-        coapplicant_income: 20000,
-        loan_amount: 250,
-        loan_term_months: 120,
-        property_area: 'Semiurban',
-        approval_likelihood: 96,
-        status: 'Approved'
-      },
-      {
-        application_no: 'MB-2026-1003',
-        created_at: '2026-10-28 18:45:00',
-        full_name: 'Kavya Nair',
-        cibil_score: 760,
-        salary_slip: 'Yes',
-        applicant_income: 48000,
-        coapplicant_income: 18000,
-        loan_amount: 180,
-        loan_term_months: 60,
-        property_area: 'Rural',
-        approval_likelihood: 98,
-        status: 'Approved'
-      },
-      {
-        application_no: 'MB-2026-1004',
-        created_at: '2026-10-28 20:20:00',
-        full_name: 'Rohan Mehta',
-        cibil_score: 580,
-        salary_slip: 'No',
-        applicant_income: 28000,
-        coapplicant_income: 0,
-        loan_amount: 400,
-        loan_term_months: 24,
-        property_area: 'Rural',
-        approval_likelihood: 12,
-        status: 'Rejected'
-      }
-    ];
-  }
-
-  state.savedDatabaseApps = apps;
-  if (countBadge) countBadge.innerText = `${apps.length} Saved Applications`;
-
-  tbody.innerHTML = apps.map(app => {
+  tbody.innerHTML = allApps.map(app => {
     const badge = app.status === 'Approved' ? 'badge-success' : app.status === 'Conditional' ? 'badge-warning' : 'badge-danger';
-    const cibilClass = app.cibil_score >= 750 ? 'badge-success' : app.cibil_score >= 650 ? 'badge-info' : 'badge-danger';
-    const totInc = (app.applicant_income || 0) + (app.coapplicant_income || 0);
-    const years = Math.round((app.loan_term_months || 60) / 12);
-    const slipTag = (app.salary_slip || 'Yes') === 'Yes' ? '✓ Slip' : '✕ No Slip';
+    const cibilVal = app.cibil_score || (app.credit_history === 1 ? 750 : 540);
+    const cibilClass = cibilVal >= 750 ? 'badge-success' : cibilVal >= 650 ? 'badge-info' : 'badge-danger';
+    const totInc = (parseFloat(app.applicant_income) || 0) + (parseFloat(app.coapplicant_income) || 0);
+    const termMonths = app.loan_term_months || app.term || 60;
+    const years = Math.max(1, Math.round(termMonths / 12));
+    const isSlip = app.salary_slip === 'Yes' || app.salary_slip === true;
+    const slipTag = isSlip 
+      ? '<span style="color: #059669; font-weight: 700;">✓ Slip</span>' 
+      : '<span style="color: #D97706; font-weight: 700;">✕ No Slip</span>';
+    const loanAmt = parseFloat(app.loan_amount) || 150;
+    const loanDisplay = loanAmt > 1000 ? `₹${loanAmt.toLocaleString('en-IN')}` : `₹${(loanAmt * 1000).toLocaleString('en-IN')}`;
 
     return `
       <tr>
         <td style="font-weight: 800; color: #064E3B;">${app.application_no}</td>
-        <td style="font-size: 0.8rem; color: #4B6359;">${app.created_at || 'Today'}</td>
-        <td style="font-weight: 700; color: #0B2920;">${app.full_name}</td>
-        <td><span class="badge ${cibilClass}">${app.cibil_score}</span></td>
-        <td style="font-size: 0.8rem; font-weight: 600;">${slipTag}</td>
+        <td style="font-size: 0.8rem; color: #4B6359;">${app.created_at ? app.created_at.substring(0, 16) : 'Today'}</td>
+        <td style="font-weight: 700; color: #0B2920;">${app.full_name || 'Applicant'}</td>
+        <td><span class="badge ${cibilClass}">${cibilVal}</span></td>
+        <td style="font-size: 0.8rem;">${slipTag}</td>
         <td>₹${totInc.toLocaleString('en-IN')}/mo</td>
-        <td>₹${(app.loan_amount * 1000).toLocaleString('en-IN')} (${years} yrs)</td>
-        <td>${app.property_area}</td>
-        <td><strong>${app.approval_likelihood}%</strong></td>
-        <td><span class="badge ${badge}">${app.status}</span></td>
+        <td>${loanDisplay} (${years} yrs)</td>
+        <td>${app.property_area || 'Urban'}</td>
+        <td><strong>${app.approval_likelihood || 85}%</strong></td>
+        <td><span class="badge ${badge}">${app.status || 'Approved'}</span></td>
         <td>
           <button class="btn btn-outline" style="padding: 4px 8px; font-size: 0.75rem;" onclick="loadDbApplicantById('${app.application_no}')">
-            Inspect
+            🔍 Inspect
           </button>
         </td>
       </tr>
@@ -1166,11 +1211,13 @@ window.refreshDatabaseTable = async function() {
 };
 
 window.loadDbApplicantById = function(appNo) {
-  const found = state.savedDatabaseApps.find(a => a.application_no === appNo);
+  state.hasApplied = true;
+  const found = (state.savedDatabaseApps || []).find(a => a.application_no === appNo) ||
+                DEFAULT_BASELINE_APPLICATIONS.find(a => a.application_no === appNo);
   if (found) {
     state.currentApplicant = {
       id: found.application_no,
-      name: found.full_name,
+      name: found.full_name || 'Applicant',
       gender: found.gender || 'Male',
       married: found.marital_status || 'Yes',
       dependents: String(found.dependents || '0'),
@@ -1178,30 +1225,47 @@ window.loadDbApplicantById = function(appNo) {
       self_employed: (found.employment_type || '').includes('Self') || (found.employment_type || '').includes('Freelanc') ? 'Yes' : 'No',
       employment_type: found.employment_type || 'Freelancing / Gig Economy / Contractor',
       salary_slip: found.salary_slip || 'Yes',
-      applicant_income: found.applicant_income || 25000,
+      applicant_income: found.applicant_income || 35000,
       coapplicant_income: found.coapplicant_income || 0,
-      loan_amount: found.loan_amount || 100,
-      term: found.loan_term_months || 60,
+      loan_amount: found.loan_amount || 150,
+      term: found.loan_term_months || found.term || 60,
       cibil_score: found.cibil_score || 750,
-      credit_history: found.cibil_score >= 650 ? 1 : 0,
-      property_area: found.property_area || 'Rural'
+      credit_history: (found.cibil_score >= 650 || found.credit_history === 1) ? 1 : 0,
+      property_area: found.property_area || 'Rural',
+      status: found.status || 'Approved'
     };
     state.simulated = {
-      loan_amount: found.loan_amount,
-      coapplicant_income: found.coapplicant_income,
-      term: found.loan_term_months,
-      cibil_score: found.cibil_score,
-      credit_history: found.cibil_score >= 650 ? 1 : 0,
+      loan_amount: found.loan_amount || 150,
+      coapplicant_income: found.coapplicant_income || 0,
+      term: found.loan_term_months || found.term || 60,
+      cibil_score: found.cibil_score || 750,
+      credit_history: (found.cibil_score >= 650 || found.credit_history === 1) ? 1 : 0,
       salary_slip: (found.salary_slip || 'Yes') === 'Yes'
     };
     updateUI();
-    document.querySelector('[data-tab="applicant-view"]')?.click();
+    updateSimulationUI();
+    const targetTab = state.currentRole === 'officer' ? 'officer-view' : 'applicant-view';
+    const tabEl = document.querySelector(`[data-tab="${targetTab}"]`);
+    if (tabEl) tabEl.click();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    addAuditLog('VAULT_INSPECT', `Inspected application ${appNo} (${found.full_name}) from central vault`);
   }
 };
 
-// =============================================================================
-// UI RENDERING & COMPONENT SYNCHRONIZATION
-// =============================================================================
+window.goToDatabaseTab = function() {
+  switchRole('officer');
+  const dbTab = document.querySelector('[data-tab="database-view"]');
+  if (dbTab) dbTab.click();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+window.inspectSubmittedApp = function() {
+  const targetTab = state.currentRole === 'officer' ? 'officer-view' : 'applicant-view';
+  const tabBtn = document.querySelector(`[data-tab="${targetTab}"]`);
+  if (tabBtn) tabBtn.click();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
 function updateUI() {
   const applicant = state.currentApplicant;
   const pred = computePrediction(applicant);
@@ -1209,7 +1273,6 @@ function updateUI() {
   const dict = I18N[lang] || I18N.en;
   const explanations = generatePlainLanguageExplanations(pred, applicant, lang);
 
-  // 1. Hero Decision Card
   const heroCard = document.getElementById('decision-hero-card');
   const heroTitle = document.getElementById('hero-decision-title');
   const heroDesc = document.getElementById('hero-decision-desc');
@@ -1237,7 +1300,6 @@ function updateUI() {
     }
   }
 
-  // 2. Strengths List
   const strengthsContainer = document.getElementById('strengths-list');
   if (strengthsContainer) {
     strengthsContainer.innerHTML = explanations.strengths.map(s => `
@@ -1254,7 +1316,6 @@ function updateUI() {
     `).join('');
   }
 
-  // 3. Frictions List
   const frictionsContainer = document.getElementById('frictions-list');
   if (frictionsContainer) {
     if (explanations.frictions.length === 0) {
@@ -1279,7 +1340,6 @@ function updateUI() {
     }
   }
 
-  // 4. Actionable Remediation Roadmap
   const actionsContainer = document.getElementById('actions-container');
   if (actionsContainer) {
     if (explanations.actions.length === 0) {
@@ -1301,7 +1361,27 @@ function updateUI() {
     }
   }
 
-  // 5. Update Officer View metrics
+  const downloadGroup = document.getElementById('letter-download-btn-group');
+  const applyPrompt = document.getElementById('letter-apply-prompt');
+  if (downloadGroup && applyPrompt) {
+    if (state.hasApplied) {
+      downloadGroup.style.display = 'flex';
+      applyPrompt.style.display = 'none';
+    } else {
+      downloadGroup.style.display = 'none';
+      applyPrompt.style.display = 'flex';
+    }
+  }
+
+  const openLetterBtn = document.getElementById('btn-open-letter');
+  if (openLetterBtn && state.hasApplied) {
+    if (pred.status === 'rejected') {
+      openLetterBtn.innerHTML = `<span>📄</span> ${lang === 'hi' ? 'आधिकारिक प्रतिकूल निर्णय सूचना (Adverse Notice)' : 'View & Download Adverse Action Notice'}`;
+    } else {
+      openLetterBtn.innerHTML = `<span>📄</span> ${lang === 'hi' ? 'आधिकारिक ऋण स्वीकृति पत्र देखें एवं डाउनलोड करें' : 'View & Download Official Sanction Letter'}`;
+    }
+  }
+
   renderOfficerMetrics(pred, applicant);
   renderWaterfall(pred);
   syncFormInputs(applicant);
@@ -1328,15 +1408,15 @@ function setValue(id, val) {
 }
 
 function renderOfficerMetrics(pred, applicant) {
-  const setEl = (id, text) => {
+  const setHtml = (id, html) => {
     const el = document.getElementById(id);
-    if (el) el.innerText = text;
+    if (el) el.innerHTML = html;
   };
 
-  setEl('metric-officer-prob', `${pred.approvalPercent}%`);
-  setEl('metric-officer-dti', `${pred.ratios.dtiPct}%`);
-  setEl('metric-officer-emi', `₹${pred.ratios.emi.toLocaleString('en-IN')}/mo`);
-  setEl('metric-officer-lti', `${pred.ratios.ltiRatio}x Annual`);
+  setHtml('metric-officer-prob', `${pred.approvalPercent}%`);
+  setHtml('metric-officer-dti', `${pred.ratios.dtiPct}%`);
+  setHtml('metric-officer-emi', `₹${pred.ratios.emi.toLocaleString('en-IN')}<span style="font-size: 0.72rem; font-weight: 600; opacity: 0.85;">/mo</span>`);
+  setHtml('metric-officer-lti', `${pred.ratios.ltiRatio}x <span style="font-size: 0.72rem; font-weight: 600; opacity: 0.85;">Annual</span>`);
 }
 
 function renderWaterfall(pred) {
@@ -1380,15 +1460,10 @@ function renderWaterfall(pred) {
   }).join('');
 }
 
-// =============================================================================
-// =============================================================================
-// OFFICER LOAN SANCTION (UPDATES SQL DATABASE & EXCEL CSV FILE)
-// =============================================================================
 window.officerSanctionLoan = async function(newStatus, note) {
   const appNo = state.currentApplicant.id || 'MB-2026-1001';
   const applicantName = state.currentApplicant.name || 'Applicant';
 
-  // 1. If Python backend is connected, synchronize SQLite & Excel CSV on disk!
   if (state.backendConnected) {
     try {
       const res = await fetch(`${state.apiBase}/api/officer/sanction`, {
@@ -1408,7 +1483,6 @@ window.officerSanctionLoan = async function(newStatus, note) {
     }
   }
 
-  // 2. Update local state
   state.currentApplicant.status = newStatus;
   const matchingSaved = state.savedDatabaseApps.find(a => a.application_no === appNo);
   if (matchingSaved) {
@@ -1416,7 +1490,6 @@ window.officerSanctionLoan = async function(newStatus, note) {
     matchingSaved.officer_notes = note;
   }
 
-  // 3. Update localStorage fallback
   try {
     const existing = JSON.parse(localStorage.getItem('meridian_saved_apps') || '[]');
     const idx = existing.findIndex(a => a.application_no === appNo);
@@ -1427,24 +1500,19 @@ window.officerSanctionLoan = async function(newStatus, note) {
     }
   } catch (e) {}
 
-  // 4. Record in Audit Log
   addAuditLog(`Officer ${newStatus}`, note);
 
-  // 5. Update UI & refresh Vault table
   updateUI();
   refreshDatabaseTable();
 
-  // 6. User-friendly confirmation
   const alertMsg = state.currentLang === 'hi'
     ? `✅ ऋण निर्णय दर्ज हुआ!\n\nआवेदन: ${appNo}\nआवेदक: ${applicantName}\nस्थिति: ${newStatus}\n\nयह निर्णय SQLite डेटाबेस (meridian_loans.db) और Excel CSV फाइल में तुरंत दर्ज हो गया है!`
     : `✅ Loan Decision Recorded!\n\nApplication No: ${appNo}\nApplicant: ${applicantName}\nStatus: ${newStatus}\n\nUpdated in SQLite database (meridian_loans.db) and Excel CSV file!`;
   alert(alertMsg);
 };
 
-// SETUP EVENT LISTENERS & INITIALIZATION
-// =============================================================================
 function setupEventListeners() {
-  // Navigation tabs
+
   document.querySelectorAll('.nav-item').forEach(item => {
     item.addEventListener('click', () => {
       document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -1468,7 +1536,6 @@ function setupEventListeners() {
     });
   });
 
-  // Role Persona Switcher (Applicant vs Loan Officer)
   document.getElementById('role-applicant')?.addEventListener('click', () => {
     switchRole('applicant');
   });
@@ -1477,7 +1544,6 @@ function setupEventListeners() {
     switchRole('officer');
   });
 
-  // What-If Simulator Sliders (Interactive 4-slider controls)
   document.getElementById('sim-slider-loan')?.addEventListener('input', (e) => {
     const val = Number(e.target.value);
     state.simulated.loan_amount = val;
@@ -1508,7 +1574,6 @@ function setupEventListeners() {
     updateSimulationUI();
   });
 
-  // Decision Letter Modal
   document.getElementById('btn-open-letter')?.addEventListener('click', () => {
     openDecisionLetterModal();
   });
@@ -1521,7 +1586,6 @@ function setupEventListeners() {
     window.print();
   });
 
-  // Officer Underwriting Action Buttons (Linked to SQLite & Excel CSV!)
   document.getElementById('btn-officer-approve')?.addEventListener('click', () => {
     officerSanctionLoan('Approved', 'Sanctioned by Loan Officer - Underwriting criteria satisfied');
   });
@@ -1615,8 +1679,15 @@ window.updateCibilDisplay = function(val) {
   if (guide) guide.innerText = guideText;
 };
 
-// Pre-Sanction Letter Modal
-function openDecisionLetterModal() {
+window.openDecisionLetterModal = function() {
+  if (!state.hasApplied) {
+    alert(state.currentLang === 'hi' 
+      ? "कृपया आधिकारिक स्वीकृति पत्र डाउनलोड करने के लिए पहले ऋण आवेदन जमा करें।" 
+      : "Please submit your loan application first to generate and download your official Sanction Letter.");
+    const applyTab = document.querySelector('[data-tab="apply-view"]');
+    if (applyTab) applyTab.click();
+    return;
+  }
   const modal = document.getElementById('letter-modal');
   if (!modal) return;
 
@@ -1628,19 +1699,90 @@ function openDecisionLetterModal() {
     if (el) el.innerText = text;
   };
 
-  setEl('let-applicant-name', app.name);
-  setEl('let-application-no', app.id);
+  let loanAmtInr = parseFloat(app.loan_amount || 150);
+  if (loanAmtInr <= 1000) loanAmtInr = loanAmtInr * 1000;
+
+  const termMonths = parseFloat(app.term || app.loan_term_months || 60);
+  const years = (termMonths / 12).toFixed(1).replace('.0', '');
+
+  const annualRate = 0.0925;
+  const monthlyRate = annualRate / 12;
+  const emiVal = Math.round(
+    (loanAmtInr * monthlyRate * Math.pow(1 + monthlyRate, termMonths)) /
+    (Math.pow(1 + monthlyRate, termMonths) - 1)
+  ) || pred.ratios.emi;
+
+  const totalRepay = emiVal * termMonths;
+  const totalInterest = Math.max(0, totalRepay - loanAmtInr);
+
+  setEl('let-applicant-name', app.name || 'Applicant');
+  setEl('let-ref', `MERIDIAN-${app.id || 'MB-2026-1001'}`);
   setEl('let-date', new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }));
-  setEl('let-loan-amount', `₹${((app.loan_amount || 150) * 1000).toLocaleString('en-IN')}`);
-  setEl('let-tenure', `${Math.round((app.term || 60) / 12)} Years (${app.term || 60} Months)`);
-  setEl('let-area', app.property_area);
-  setEl('let-emi', `₹${pred.ratios.emi.toLocaleString('en-IN')}/month`);
-  setEl('let-dti', `${pred.ratios.dtiPct}%`);
+  setEl('let-loan-amount', `₹${loanAmtInr.toLocaleString('en-IN')}`);
+  setEl('let-tenure', `${termMonths} Months (${years} Years)`);
+  setEl('let-area', `${app.property_area || 'Urban'} Territory`);
+
+  setEl('kfs-loan-amt', `₹${loanAmtInr.toLocaleString('en-IN')}`);
+  setEl('kfs-apr', '9.25% p.a. (Fixed Reducing per RBI Guidelines)');
+  setEl('kfs-tenure', `${termMonths} Months (${years} Years)`);
+  setEl('kfs-emi', `₹${emiVal.toLocaleString('en-IN')} / month`);
+  setEl('kfs-total-interest', `₹${totalInterest.toLocaleString('en-IN')}`);
+  setEl('kfs-total-repayment', `₹${totalRepay.toLocaleString('en-IN')}`);
 
   const statusBadge = document.getElementById('let-status-badge');
+  const verdictText = document.getElementById('let-verdict-text');
   if (statusBadge) {
-    statusBadge.innerText = pred.status === 'approved' ? 'IN-PRINCIPLE PRE-APPROVED' : pred.status === 'conditional' ? 'CONDITIONAL SANCTION' : 'DECLINED';
-    statusBadge.className = `badge badge-${pred.status === 'approved' ? 'success' : pred.status === 'conditional' ? 'warning' : 'danger'}`;
+    if (pred.status === 'approved') {
+      statusBadge.innerText = 'OFFICIAL IN-PRINCIPLE APPROVAL';
+      statusBadge.className = 'badge badge-success';
+      if (verdictText) {
+        verdictText.innerHTML = `We are pleased to inform you that your application <strong>${app.id || 'MB-2026-1001'}</strong> has satisfied all underwriting benchmarks under the <strong>RBI Fair Practices Code</strong>. Below is your official <strong>Key Fact Statement (KFS)</strong> and explainable eligibility breakdown.`;
+      }
+    } else if (pred.status === 'conditional') {
+      statusBadge.innerText = 'CONDITIONAL IN-PRINCIPLE SANCTION';
+      statusBadge.className = 'badge badge-warning';
+      if (verdictText) {
+        verdictText.innerHTML = `Your application <strong>${app.id || 'MB-2026-1001'}</strong> qualifies for in-principle sanction subject to primary KYC verification or co-guarantor endorsement under the <strong>RBI Digital Lending Guidelines</strong>.`;
+      }
+    } else {
+      statusBadge.innerText = 'ADVERSE ACTION NOTICE (DECLINED)';
+      statusBadge.className = 'badge badge-danger';
+      if (verdictText) {
+        verdictText.innerHTML = `In compliance with the <strong>Reserve Bank of India Fair Practices Code</strong> on automated lending decisions, we provide below the transparent factor determination detailing the specific credit parameters that led to this adverse decision.`;
+      }
+    }
+  }
+
+  const factorsList = document.getElementById('let-factors-list');
+  if (factorsList) {
+    const cibilVal = app.cibil_score || (app.credit_history === 1 ? 750 : 540);
+    const dtiVal = pred.ratios.dtiPct;
+    let items = [];
+
+    if (cibilVal >= 650) {
+      items.push(`<li><strong>Credit Bureau Reliability (CIBIL ${cibilVal}):</strong> Clean bureau repayment record substantially elevated underwriting score (+28.4%).</li>`);
+    } else {
+      items.push(`<li><strong>Credit Bureau Alert (CIBIL ${cibilVal}):</strong> Historical default or subprime score below qualifying threshold (-32.1%).</li>`);
+    }
+
+    if (dtiVal <= 35) {
+      items.push(`<li><strong>Debt-to-Income (DTI ${dtiVal}%):</strong> Requested installment is well within RBI prudential comfort ceiling of 45%.</li>`);
+    } else {
+      items.push(`<li><strong>Debt Burden (DTI ${dtiVal}%):</strong> Monthly installment consumes elevated percentage of household cashflow, presenting leverage risk.</li>`);
+    }
+
+    if (app.salary_slip === 'Yes' || app.salary_slip === true) {
+      items.push(`<li><strong>Income Verifiability:</strong> Formal institutional salary slips validated stable disposable cashflow.</li>`);
+    } else {
+      items.push(`<li><strong>Informal / Freelance Earnings:</strong> Assessed via surrogate cashflow & bank metrics under Mission Bharat Financial Inclusion.</li>`);
+    }
+
+    const explanations = generatePlainLanguageExplanations(pred, app, state.currentLang);
+    if (explanations && explanations.recommendations && explanations.recommendations.length > 0) {
+      items.push(`<li><strong>Remediation / Guidance:</strong> ${explanations.recommendations[0]}</li>`);
+    }
+
+    factorsList.innerHTML = items.join('');
   }
 
   modal.style.display = 'flex';
@@ -1674,20 +1816,176 @@ function renderAuditTable() {
 }
 
 function renderModelPerformanceCharts() {
-  // Handled statically or dynamically from dataset_data.js
+
 }
 
 function renderFairnessCharts() {
-  // Handled statically or dynamically from dataset_data.js
+
 }
 
 function renderPortfolioTable() {
-  // Handled from dataset_data.js historical cases
+  const tbody = document.getElementById('portfolio-table-body');
+  const countLabel = document.getElementById('portfolio-total-count');
+  const pageIndicator = document.getElementById('portfolio-page-indicator');
+  if (!tbody) return;
+
+  if (typeof MERIDIAN_DATASET === 'undefined' || !MERIDIAN_DATASET.records) {
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding: 2rem; color: #DC2626;">Historical dataset not loaded from dataset_data.js</td></tr>`;
+    return;
+  }
+
+  let records = MERIDIAN_DATASET.records;
+
+  const f = state.portfolioFilter || 'all';
+  if (f === 'approved') {
+    records = records.filter(r => r.pred_status === 'Y' || r.actual_status === 'Y');
+  } else if (f === 'rejected') {
+    records = records.filter(r => r.pred_status === 'N' || r.actual_status === 'N');
+  } else if (f === 'rural') {
+    records = records.filter(r => (r.property_area || '').toLowerCase() === 'rural');
+  } else if (f === 'female') {
+    records = records.filter(r => (r.gender || '').toLowerCase() === 'female');
+  }
+
+  const s = (state.portfolioSearch || '').trim().toLowerCase();
+  if (s) {
+    records = records.filter(r => {
+      return (r.id && r.id.toLowerCase().includes(s)) ||
+             (r.property_area && r.property_area.toLowerCase().includes(s)) ||
+             (r.gender && r.gender.toLowerCase().includes(s)) ||
+             (r.education && r.education.toLowerCase().includes(s)) ||
+             (r.self_employed && r.self_employed.toLowerCase().includes(s));
+    });
+  }
+
+  const totalFiltered = records.length;
+  const pageSize = state.portfolioPageSize || 10;
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
+
+  if (state.portfolioPage < 1) state.portfolioPage = 1;
+  if (state.portfolioPage > totalPages) state.portfolioPage = totalPages;
+
+  const startIdx = (state.portfolioPage - 1) * pageSize;
+  const pageRecords = records.slice(startIdx, startIdx + pageSize);
+
+  if (countLabel) {
+    countLabel.innerText = `Showing ${totalFiltered} of ${MERIDIAN_DATASET.records.length} historical applications${f !== 'all' ? ` (Filtered: ${f.toUpperCase()})` : ''}`;
+  }
+  if (pageIndicator) {
+    pageIndicator.innerText = `Page ${state.portfolioPage} / ${totalPages} (${totalFiltered} total)`;
+  }
+
+  if (pageRecords.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding: 2rem; color: #64748B;">No matching records found in historical portfolio.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = pageRecords.map(r => {
+    const isApproved = r.pred_status === 'Y' || r.actual_status === 'Y';
+    const statusBadge = isApproved 
+      ? '<span class="badge badge-success">APPROVED</span>' 
+      : '<span class="badge badge-danger">REJECTED</span>';
+
+    const probVal = r.pred_prob !== undefined ? (r.pred_prob * 100).toFixed(1) : (isApproved ? '85.0' : '22.0');
+    const probColor = probVal >= 70 ? '#059669' : probVal >= 40 ? '#D97706' : '#DC2626';
+
+    const isClean = r.credit_history === 1 || r.credit_history === undefined || r.credit_history === null;
+    const cHistory = isClean 
+      ? '<span class="badge badge-success">Clean (1.0)</span>' 
+      : '<span class="badge badge-danger">Default (0.0)</span>';
+
+    const totalIncome = ((r.applicant_income || 0) + (r.coapplicant_income || 0));
+    const formattedIncome = totalIncome > 0 ? `₹${totalIncome.toLocaleString('en-IN')}` : '₹35,000';
+    const loanAmt = r.loan_amount || 100;
+
+    return `
+      <tr>
+        <td style="font-weight: 800; color: #064E3B;">${r.id}</td>
+        <td>${r.gender || 'Not Disclosed'}</td>
+        <td><span class="badge ${r.property_area === 'Rural' ? 'badge-warning' : 'badge-info'}">${r.property_area || 'Urban'}</span></td>
+        <td>${formattedIncome}</td>
+        <td>₹${loanAmt}k <span style="font-size:0.75rem; color:#64748B;">(₹${(loanAmt * 1000).toLocaleString('en-IN')})</span></td>
+        <td>${cHistory}</td>
+        <td><strong style="color: ${probColor};">${probVal}%</strong></td>
+        <td>${statusBadge}</td>
+        <td>
+          <button class="btn btn-outline" style="padding: 4px 10px; font-size: 0.75rem;" onclick="loadHistoricalCase('${r.id}')">
+            🔍 Inspect &amp; Simulate
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join('');
 }
 
-// =============================================================================
-// INITIAL APPLICATION ENTRYPOINT
-// =============================================================================
+window.setPortfolioFilter = function(filter) {
+  state.portfolioFilter = filter;
+  state.portfolioPage = 1;
+  document.querySelectorAll('#portfolio-view .btn-outline, #portfolio-view .btn-primary').forEach(btn => {
+    const oc = btn.getAttribute('onclick') || '';
+    if (oc.includes(`'${filter}'`)) {
+      btn.className = 'btn btn-primary';
+    } else if (oc.includes('setPortfolioFilter')) {
+      btn.className = 'btn btn-outline';
+    }
+  });
+  renderPortfolioTable();
+};
+
+window.filterPortfolioSearch = function(val) {
+  state.portfolioSearch = (val || '').trim().toLowerCase();
+  state.portfolioPage = 1;
+  renderPortfolioTable();
+};
+
+window.changePortfolioPage = function(delta) {
+  state.portfolioPage += delta;
+  renderPortfolioTable();
+};
+
+window.loadHistoricalCase = function(caseId) {
+  state.hasApplied = true;
+  if (typeof MERIDIAN_DATASET === 'undefined' || !MERIDIAN_DATASET.records) return;
+  const r = MERIDIAN_DATASET.records.find(rec => rec.id === caseId);
+  if (!r) return;
+
+  const appInc = r.applicant_income ? r.applicant_income * 10 : 35000;
+  const coappInc = r.coapplicant_income ? r.coapplicant_income * 10 : 0;
+  const isClean = r.credit_history === 1 || r.credit_history === undefined || r.credit_history === null;
+  const cibil = isClean ? 760 : 540;
+
+  state.currentApplicant = {
+    id: r.id,
+    name: `Historical Borrower (${r.id})`,
+    gender: r.gender || 'Male',
+    married: r.married || 'No',
+    dependents: String(r.dependents || '0'),
+    education: r.education || 'Graduate',
+    self_employed: r.self_employed || 'No',
+    primary_employment: r.self_employed === 'Yes' ? 'Freelancing / Self-Employed' : 'Private Sector (Salaried)',
+    applicant_income: appInc,
+    coapplicant_income: coappInc,
+    loan_amount: r.loan_amount || 150,
+    term: r.term || 360,
+    credit_history: isClean ? 1 : 0,
+    cibil_score: cibil,
+    salary_slip: r.self_employed === 'Yes' ? 'No' : 'Yes',
+    property_area: r.property_area || 'Urban',
+    status: (r.pred_status === 'Y' || r.actual_status === 'Y') ? 'Approved' : 'Rejected'
+  };
+
+  window.resetWhatIfToBaseline();
+  updateUI();
+  updateSimulationUI();
+
+  const targetTab = state.currentRole === 'officer' ? 'officer-view' : 'applicant-view';
+  const tabBtn = document.querySelector(`[data-tab="${targetTab}"]`);
+  if (tabBtn) tabBtn.click();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+
+  addAuditLog('PORTFOLIO_INSPECT', `Inspected historical case ${caseId} (${r.gender}, ${r.property_area}, Loan ₹${r.loan_amount}k)`);
+};
+
 document.addEventListener('DOMContentLoaded', () => {
   setupEventListeners();
   checkBackendConnection();
@@ -1695,5 +1993,6 @@ document.addEventListener('DOMContentLoaded', () => {
   updateUI();
   updateSimulationUI();
   refreshDatabaseTable();
+  renderPortfolioTable();
   renderAuditTable();
 });

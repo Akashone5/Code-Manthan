@@ -1,7 +1,3 @@
-"""
-Meridian Financial Services - Mission Bharat
-Database Viewer & Excel/CSV Exporter
-"""
 import os
 import sys
 import sqlite3
@@ -28,7 +24,7 @@ def view_and_export():
         return
 
     print("=" * 105)
-    print("  MERIDIAN FINANCIAL SERVICES - MISSION BHARAT")
+    print("  MERIDIAN FAIRLEND AI - MISSION BHARAT")
     print("  CENTRAL LOAN APPLICATION DATABASE & REGISTRY")
     print("=" * 105)
     print(f"Total Applications in Vault: {len(rows)}\n")
@@ -50,7 +46,6 @@ def view_and_export():
         status = r['status'] or ''
         print(f"{app_no:<14} | {name:<18} | {cibil:<6} | {slip:<8} | {amt:<11} | {tenure:<8} | {score:<6} | {status:<11}")
 
-    # Export to CSV for Excel / Google Sheets
     with open(EXPORT_CSV, 'w', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
         writer.writerow([

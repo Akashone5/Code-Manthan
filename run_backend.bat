@@ -1,7 +1,7 @@
 @echo off
 title Meridian Mission Bharat Backend Server
 echo ========================================================
-echo   MERIDIAN FINANCIAL SERVICES - MISSION BHARAT
+echo   MERIDIAN FAIRLEND AI - MISSION BHARAT
 echo   Starting Explainable Loan Decision Backend Server...
 echo ========================================================
 echo.

@@ -1,20 +1,3 @@
-"""
-=============================================================================
-MERIDIAN - MISSION BHARAT
-Simple HTTP Backend Server (Port 5000)
-Connected to SQLite3 Database (meridian_loans.db)
-=============================================================================
-
-This server handles:
-1. Loan evaluation & AI prediction (POST /api/predict)
-2. Complete Loan Application submission into Database (POST /api/apply)
-3. Viewing all saved database loan records (GET /api/saved-applications)
-4. Fairness & accuracy compliance audits (GET /api/fairness, GET /api/accuracy)
-
-Zero complex frameworks used - pure standard library!
-=============================================================================
-"""
-
 import http.server
 import socketserver
 import json
@@ -24,38 +7,27 @@ import database
 
 PORT = 5000
 
-# Pre-load sample applicants into memory once at startup
 print("Loading loan dataset...")
 APPLICANTS_DB = load_sample_dataset()
 print(f"Loaded {len(APPLICANTS_DB)} real historical loan records!")
 
-
 class LoanDecisionHandler(http.server.BaseHTTPRequestHandler):
-    """
-    A simple web request handler.
-    Answers requests from the browser or frontend.
-    """
 
     def _set_headers(self, status_code=200, content_type='application/json'):
-        """Helper to send standard HTTP headers with CORS support."""
         self.send_response(status_code)
         self.send_header('Content-Type', content_type)
-        # Enable CORS so any frontend can connect to this backend
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
         self.end_headers()
 
     def do_OPTIONS(self):
-        """Allows browsers to make pre-flight CORS checks."""
         self._set_headers(200)
 
     def do_GET(self):
-        """Handles GET requests (when someone asks for data)."""
         parsed_url = urllib.parse.urlparse(self.path)
         path = parsed_url.path
 
-        # 1. Home / Status Page
         if path == '/' or path == '/api':
             self._set_headers(200, 'text/html')
             saved_apps = database.get_all_saved_applications()
@@ -63,7 +35,7 @@ class LoanDecisionHandler(http.server.BaseHTTPRequestHandler):
             <!DOCTYPE html>
             <html>
             <head>
-                <title>Meridian Backend & Database Server</title>
+                <title>Meridian FairLend AI - Backend & Database Server</title>
                 <style>
                     body {{ font-family: -apple-system, sans-serif; margin: 40px; background: #F7F3EB; color: #064E3B; }}
                     .card {{ background: white; padding: 25px; border-radius: 12px; border: 2px solid #F8E7C9; max-width: 680px; box-shadow: 0 4px 12px rgba(6,78,59,0.08); }}
@@ -74,7 +46,7 @@ class LoanDecisionHandler(http.server.BaseHTTPRequestHandler):
             </head>
             <body>
                 <div class="card">
-                    <h1>Meridian Mission Bharat Backend & DB</h1>
+                    <h1>Meridian FairLend AI - Mission Bharat Backend & DB</h1>
                     <p>Status: <span class="badge">ONLINE &amp; DATABASE CONNECTED</span></p>
                     <p>Database: <code>meridian_loans.db</code> (SQLite3)</p>
                     <p>Total Submitted Applications in DB: <strong>{len(saved_apps)} records</strong></p>
@@ -94,7 +66,6 @@ class LoanDecisionHandler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(welcome_html.encode('utf-8'))
             return
 
-        # 2. Retrieve All Saved Applications from SQLite Database
         elif path == '/api/saved-applications':
             saved_apps = database.get_all_saved_applications()
             self._set_headers(200)
@@ -105,7 +76,6 @@ class LoanDecisionHandler(http.server.BaseHTTPRequestHandler):
             }, indent=2).encode('utf-8'))
             return
 
-        # 3. Retrieve Single Application by Number
         elif path.startswith('/api/application/'):
             app_no = path.split('/')[-1]
             app = database.get_application_by_number(app_no)
@@ -117,14 +87,12 @@ class LoanDecisionHandler(http.server.BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps({'success': False, 'error': 'Application not found'}, indent=2).encode('utf-8'))
             return
 
-        # 4. Fairness Audit Route
         elif path == '/api/fairness':
             fairness_report = check_fairness(APPLICANTS_DB)
             self._set_headers(200)
             self.wfile.write(json.dumps(fairness_report, indent=2).encode('utf-8'))
             return
 
-        # 5. Model Accuracy Report Route
         elif path == '/api/accuracy':
             accuracy_report = {
                 'model_name': 'L2-Regularized Transparent Logistic Model',
@@ -144,7 +112,6 @@ class LoanDecisionHandler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(json.dumps(accuracy_report, indent=2).encode('utf-8'))
             return
 
-        # 6. List Historical CSV Applicants Route
         elif path == '/api/applicants':
             self._set_headers(200)
             self.wfile.write(json.dumps({
@@ -153,13 +120,11 @@ class LoanDecisionHandler(http.server.BaseHTTPRequestHandler):
             }, indent=2).encode('utf-8'))
             return
 
-        # If route not found
         else:
             self._set_headers(404)
             self.wfile.write(json.dumps({'error': 'Endpoint not found'}).encode('utf-8'))
 
     def do_POST(self):
-        """Handles POST requests (submitting loan forms and predictions)."""
         parsed_url = urllib.parse.urlparse(self.path)
         content_length = int(self.headers.get('Content-Length', 0))
         post_body = self.rfile.read(content_length)
@@ -171,13 +136,10 @@ class LoanDecisionHandler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(json.dumps({'error': 'Invalid JSON data'}).encode('utf-8'))
             return
 
-        # ROUTE 1: Full Loan Application Fillup (Saves to Database!)
         if parsed_url.path == '/api/apply':
-            # 1. Translate CIBIL score into credit history indicator
             cibil = int(applicant_data.get('cibil_score', 750))
             credit_hist = 1 if cibil >= 650 else 0
 
-            # 2. Prepare prediction features
             emp_type = str(applicant_data.get('employment_type', 'Salaried'))
             is_self_emp = 'Yes' if any(w in emp_type for w in ['Self', 'Business', 'Farmer', 'Artisan', 'Trader']) else 'No'
 
@@ -199,11 +161,9 @@ class LoanDecisionHandler(http.server.BaseHTTPRequestHandler):
                 'property_area': applicant_data.get('property_area', 'Rural')
             }
 
-            # 3. Calculate AI Decision & Plain-English Explanations
             prediction = predict_loan(predict_input)
             explanation = explain_decision(predict_input, prediction)
 
-            # 4. Save into SQLite Database (meridian_loans.db)
             saved_record = database.save_loan_application(applicant_data, prediction, explanation)
 
             response = {
@@ -218,7 +178,6 @@ class LoanDecisionHandler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(json.dumps(response, indent=2).encode('utf-8'))
             return
 
-        # ROUTE 2: Quick Score Prediction
         elif parsed_url.path == '/api/predict':
             prediction = predict_loan(applicant_data)
             explanation = explain_decision(applicant_data, prediction)
@@ -234,7 +193,6 @@ class LoanDecisionHandler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(json.dumps(response, indent=2).encode('utf-8'))
             return
 
-        # ROUTE 3: Officer Sanction / Status Update (Updates SQLite AND Excel CSV file!)
         elif parsed_url.path == '/api/officer/sanction':
             app_no = applicant_data.get('application_no')
             new_status = applicant_data.get('status', 'Approved')
@@ -257,12 +215,10 @@ class LoanDecisionHandler(http.server.BaseHTTPRequestHandler):
             self._set_headers(404)
             self.wfile.write(json.dumps({'error': 'Endpoint not found'}).encode('utf-8'))
 
-
 def run_server():
-    """Starts the simple HTTP server."""
     with socketserver.TCPServer(("", PORT), LoanDecisionHandler) as httpd:
         print("=" * 65)
-        print(f"  Meridian Mission Bharat Backend & DB Server Started!")
+        print(f"  Meridian FairLend AI Backend & DB Server Started!")
         print(f"  Database: meridian_loans.db (SQLite3)")
         print(f"  Listening on: http://localhost:{PORT}")
         print("  Press Ctrl+C to stop the server anytime.")
@@ -271,7 +227,6 @@ def run_server():
             httpd.serve_forever()
         except KeyboardInterrupt:
             print("\nServer shutting down gracefully.")
-
 
 if __name__ == '__main__':
     run_server()

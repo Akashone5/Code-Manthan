@@ -1,7 +1,7 @@
 @echo off
 title "Meridian Mission Bharat - Database Viewer and Exporter"
 echo ========================================================
-echo   MERIDIAN FINANCIAL SERVICES - MISSION BHARAT
+echo   MERIDIAN FAIRLEND AI - MISSION BHARAT
 echo   Central Loan Application Database Viewer
 echo ========================================================
 echo.

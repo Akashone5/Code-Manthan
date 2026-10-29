@@ -1,10 +1,3 @@
-"""
-Meridian Financial Services - Mission Bharat
-Database Management Module (SQLite)
-Stores and manages all loan applications permanently in `meridian_loans.db`
-and automatically synchronizes with `meridian_loan_applications_export.csv`
-"""
-
 import sqlite3
 import datetime
 import os
@@ -15,19 +8,12 @@ import json
 DB_FILE = os.path.join(os.path.dirname(__file__), 'meridian_loans.db')
 EXPORT_CSV = os.path.join(os.path.dirname(__file__), 'meridian_loan_applications_export.csv')
 
-
 def get_db_connection():
-    """Returns a connection to the SQLite database with dictionary row access and timeout."""
     conn = sqlite3.connect(DB_FILE, timeout=15.0)
     conn.row_factory = sqlite3.Row
     return conn
 
-
 def export_to_csv_file():
-    """
-    Synchronizes all SQLite database applications directly into `meridian_loan_applications_export.csv`
-    so any submission or loan officer sanction immediately appears in Microsoft Excel.
-    """
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -59,9 +45,7 @@ def export_to_csv_file():
     except Exception as e:
         print(f"[WARN] Failed to auto-sync CSV export: {e}")
 
-
 def init_db():
-    """Initializes the database schema and pre-populates initial records if empty."""
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -98,7 +82,6 @@ def init_db():
         )
     ''')
 
-    # Ensure salary_slip column exists in existing database
     cursor.execute("PRAGMA table_info(loan_applications)")
     cols = [col['name'] for col in cursor.fetchall()]
     if 'salary_slip' not in cols:
@@ -111,7 +94,6 @@ def init_db():
     cursor.execute('SELECT COUNT(*) as count FROM loan_applications')
     count = cursor.fetchone()['count']
 
-    # If empty, seed modern tech, freelance and normal records
     if count == 0:
         initial_samples = [
             (
@@ -128,7 +110,7 @@ def init_db():
                 95000,
                 0,
                 350,
-                84, # 7 years
+                84,
                 810,
                 1,
                 'Urban',
@@ -157,7 +139,7 @@ def init_db():
                 75000,
                 20000,
                 250,
-                120, # 10 years
+                120,
                 755,
                 1,
                 'Semiurban',
@@ -186,7 +168,7 @@ def init_db():
                 48000,
                 18000,
                 180,
-                60, # 5 years
+                60,
                 760,
                 1,
                 'Rural',
@@ -215,7 +197,7 @@ def init_db():
                 28000,
                 0,
                 400,
-                24, # 2 years
+                24,
                 580,
                 0,
                 'Rural',
@@ -246,14 +228,9 @@ def init_db():
     conn.commit()
     conn.close()
 
-    # Automatically export to Excel CSV on startup
     export_to_csv_file()
 
-
 def save_loan_application(applicant_data, prediction_result, explanation_result):
-    """
-    Saves a completed loan application form into the database AND automatically updates the Excel CSV export!
-    """
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -319,7 +296,6 @@ def save_loan_application(applicant_data, prediction_result, explanation_result)
     conn.commit()
     conn.close()
 
-    # IMMEDIATELY synchronize with Excel CSV on disk!
     export_to_csv_file()
 
     return {
@@ -340,12 +316,7 @@ def save_loan_application(applicant_data, prediction_result, explanation_result)
         'explanation_summary': explanation_result.get('verdict_summary')
     }
 
-
 def update_application_status(app_no, new_status, officer_note=''):
-    """
-    Updates a loan application status (e.g. Sanctioned/Approved by Loan Officer)
-    in SQLite database (meridian_loans.db) AND immediately updates meridian_loan_applications_export.csv for Excel.
-    """
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
@@ -356,13 +327,10 @@ def update_application_status(app_no, new_status, officer_note=''):
     conn.commit()
     conn.close()
 
-    # Immediately refresh Excel CSV export on disk!
     export_to_csv_file()
     return get_application_by_number(app_no)
 
-
 def get_all_saved_applications():
-    """Retrieves all submitted applications."""
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('SELECT * FROM loan_applications ORDER BY id DESC')
@@ -382,15 +350,12 @@ def get_all_saved_applications():
     conn.close()
     return apps
 
-
 def get_application_by_number(application_no):
-    """Retrieves a single application by reference number."""
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('SELECT * FROM loan_applications WHERE application_no = ?', (application_no,))
     row = cursor.fetchone()
     conn.close()
     return dict(row) if row else None
-
 
 init_db()

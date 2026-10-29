@@ -1,66 +1,34 @@
-"""
-Meridian Financial Services - Mission Bharat
-Core Underwriting & Explainable AI (XAI) Engine
-"""
-
 import math
 import os
 import csv
 
-# =============================================================================
-# 1. UNDERWRITING & SCORING LOGIC
-# =============================================================================
 def predict_loan(applicant):
-    """
-    Evaluates loan applicant data using balanced banking underwriting rules:
-    - CIBIL Bureau Credit Score (300 to 900)
-    - Debt-to-Income / EMI Burden (FOIR)
-    - Income Coverage against requested loan magnitude
-    - Co-applicant joint financial strength
-    - Flexible tenure from 1 to 30 years (12 to 360 months)
-    - Primary Employment (including Freelancing / Gig Economy)
-    - Official Salary Slip verification
-    - Mission Bharat Geographic Inclusion
-
-    Returns:
-    - approval_likelihood (0 to 100%)
-    - status ('Approved', 'Conditional', or 'Rejected')
-    - monthly_emi (estimated monthly repayment)
-    - dti_percent (EMI as percentage of monthly income)
-    - contributions (breakdown of factor impacts)
-    """
     app_inc = float(applicant.get('applicant_income', 0))
     coapp_inc = float(applicant.get('coapplicant_income', 0))
     tot_inc = max(1.0, app_inc + coapp_inc)
 
-    # Loan Amount in INR (if entered in thousands, e.g. 150 = 150,000 INR)
     loan_raw = float(applicant.get('loan_amount', 100))
     if loan_raw <= 1000:
         loan_amt_inr = loan_raw * 1000.0
     else:
         loan_amt_inr = loan_raw
 
-    # Loan Term in Months (from 12 months up to 360 months / 1 to 30 years)
     term_months = float(applicant.get('term', 60) or applicant.get('loan_term_months', 60))
     if term_months <= 0:
         term_months = 60.0
 
-    # Calculate Monthly EMI & Debt-to-Income
     monthly_emi = loan_amt_inr / term_months
     dti_percent = (monthly_emi / tot_inc) * 100.0
 
-    # Read CIBIL Score (defaults to 750 if credit_history is 1, 530 if 0)
     if 'cibil_score' in applicant and applicant['cibil_score']:
         cibil = int(applicant['cibil_score'])
     else:
         ch = float(applicant.get('credit_history', 1))
         cibil = 750 if ch == 1 else 530
 
-    # Base Starting Score
     score_points = 50.0
     contribs = {}
 
-    # 1. CIBIL Bureau Score Evaluation
     if cibil >= 780:
         cibil_impact = 32.0
     elif cibil >= 720:
@@ -76,7 +44,6 @@ def predict_loan(applicant):
     score_points += cibil_impact
     contribs['credit_history'] = cibil_impact
 
-    # 2. Debt-to-Income Ratio (DTI / Repayment Burden)
     if dti_percent <= 15.0:
         dti_impact = 18.0
     elif dti_percent <= 30.0:
@@ -90,7 +57,6 @@ def predict_loan(applicant):
     score_points += dti_impact
     contribs['dti_ratio'] = dti_impact
 
-    # 3. Income to Loan Coverage (Annual Income vs Total Loan Magnitude)
     annual_income = tot_inc * 12.0
     coverage_ratio = annual_income / max(1.0, loan_amt_inr)
     if coverage_ratio >= 2.0:
@@ -104,7 +70,6 @@ def predict_loan(applicant):
     score_points += cov_impact
     contribs['income_coverage'] = cov_impact
 
-    # 4. Joint Co-Applicant Strength
     if coapp_inc > 0:
         coapp_impact = 8.0
         score_points += coapp_impact
@@ -112,7 +77,6 @@ def predict_loan(applicant):
     else:
         contribs['coapplicant'] = 0.0
 
-    # 5. Salary Slip Verification & Employment Diversity (Mission Bharat Gig / Freelance Policy)
     salary_slip = str(applicant.get('salary_slip', 'Yes')).strip().capitalize()
     emp_type = str(applicant.get('employment_type', '')).lower()
     is_freelance = any(w in emp_type for w in ['freelanc', 'gig', 'contract', 'consult'])
@@ -122,18 +86,14 @@ def predict_loan(applicant):
         score_points += slip_impact
         contribs['salary_slip'] = slip_impact
     else:
-        # If no salary slip:
-        # Freelancers and small businesses are supported under alternative digital cash-flow underwriting
         if is_freelance or 'self' in emp_type or 'farm' in emp_type:
-            slip_impact = 0.0 # Neutral: alternative verification applied
+            slip_impact = 0.0
         else:
             slip_impact = -6.0
         score_points += slip_impact
         contribs['salary_slip'] = slip_impact
 
-    # 6. Primary Employment Livelihood Impact
     if is_freelance:
-        # Digital economy diversity bonus under Mission Bharat
         score_points += 3.0
         contribs['employment'] = 3.0
     elif 'salaried' in emp_type:
@@ -143,7 +103,6 @@ def predict_loan(applicant):
         score_points += 1.0
         contribs['employment'] = 1.0
 
-    # 7. Mission Bharat Geographic Equity
     area = str(applicant.get('property_area', 'Rural')).capitalize()
     if area == 'Semiurban':
         score_points += 4.0
@@ -155,7 +114,6 @@ def predict_loan(applicant):
         score_points += 2.0
         contribs['property_area'] = 2.0
 
-    # Clamped 0% to 100% Score
     final_score = int(max(2, min(98, round(score_points))))
 
     if final_score >= 65:
@@ -178,14 +136,7 @@ def predict_loan(applicant):
         'contributions': contribs
     }
 
-
-# =============================================================================
-# 2. PLAIN-ENGLISH EXPLANATION ENGINE
-# =============================================================================
 def explain_decision(applicant, prediction):
-    """
-    Translates underwriting metrics into plain, conversational language.
-    """
     cibil = prediction['cibil_score']
     dti = prediction['dti_percent']
     tot_inc = prediction['total_monthly_income']
@@ -198,7 +149,6 @@ def explain_decision(applicant, prediction):
     negative_factors = []
     recommendations = []
 
-    # 1. CIBIL Bureau Credit History
     if cibil >= 720:
         positive_factors.append({
             'factor': 'High Credit Trust (Prime CIBIL)',
@@ -221,7 +171,6 @@ def explain_decision(applicant, prediction):
             'Clear outstanding overdue payments on prior credit facilities or obtain a No-Objection Certificate (NOC) to lift CIBIL above 680.'
         )
 
-    # 2. Monthly EMI & Repayment Burden (DTI)
     if dti <= 30.0:
         positive_factors.append({
             'factor': 'Comfortable Monthly Debt Burden',
@@ -244,7 +193,6 @@ def explain_decision(applicant, prediction):
             'Extend loan tenure (e.g. increase years) or reduce loan amount by 15-20% to lower monthly EMI below 40% of income.'
         )
 
-    # 3. Income Documentation & Salary Slip Verification
     if salary_slip in ['Yes', 'True', '1']:
         positive_factors.append({
             'factor': 'Verified Income (Salary Slip)',
@@ -271,7 +219,6 @@ def explain_decision(applicant, prediction):
                 'Provide 6-month formal bank account statement or employer certificate in lieu of pay slip.'
             )
 
-    # 4. Employment & Livelihood
     if is_freelance:
         positive_factors.append({
             'factor': 'Freelance / Digital Gig Economy Contributor',
@@ -279,7 +226,6 @@ def explain_decision(applicant, prediction):
             'impact': '+3% Inclusion'
         })
 
-    # 5. Co-Applicant Strength
     coapp = float(applicant.get('coapplicant_income', 0))
     if coapp > 0:
         positive_factors.append({
@@ -298,7 +244,6 @@ def explain_decision(applicant, prediction):
                 'Include an earning spouse or family member as a co-applicant to expand repayment capacity and raise approval chances.'
             )
 
-    # 6. Mission Bharat Geographic Inclusion
     area = str(applicant.get('property_area', 'Rural')).capitalize()
     if area == 'Rural':
         positive_factors.append({
@@ -313,7 +258,6 @@ def explain_decision(applicant, prediction):
             'impact': '+4% Boost'
         })
 
-    # Verdict Summary
     status = prediction['status']
     score = prediction['approval_likelihood']
     if status == 'Approved':
@@ -330,14 +274,7 @@ def explain_decision(applicant, prediction):
         'recommendations': recommendations
     }
 
-
-# =============================================================================
-# 3. GROUP FAIRNESS AUDIT (80% DISPARATE IMPACT RULE)
-# =============================================================================
 def check_fairness(applicants_list):
-    """
-    Computes approval rates across protected groups and checks the 80% Rule.
-    """
     def group_stats(group_key, group_val):
         group_total = 0
         group_approved = 0
@@ -354,18 +291,15 @@ def check_fairness(applicants_list):
             'approval_rate_percent': round(rate, 2)
         }
 
-    # 1. Gender Fairness
     male = group_stats('gender', 'Male')
     female = group_stats('gender', 'Female')
     gender_di = round(female['approval_rate_percent'] / male['approval_rate_percent'], 3) if male['approval_rate_percent'] > 0 else 1.0
 
-    # 2. Geographic Territory Fairness
     semiurban = group_stats('property_area', 'Semiurban')
     rural = group_stats('property_area', 'Rural')
     urban = group_stats('property_area', 'Urban')
     rural_di = round(rural['approval_rate_percent'] / semiurban['approval_rate_percent'], 3) if semiurban['approval_rate_percent'] > 0 else 1.0
 
-    # 3. Education Fairness
     grad = group_stats('education', 'Graduate')
     non_grad = group_stats('education', 'Not Graduate')
     edu_di = round(non_grad['approval_rate_percent'] / grad['approval_rate_percent'], 3) if grad['approval_rate_percent'] > 0 else 1.0
@@ -392,9 +326,7 @@ def check_fairness(applicants_list):
         }
     }
 
-
 def load_sample_dataset(csv_path=None):
-    """Loads historical loan records."""
     if not csv_path:
         csv_path = r'E:\archive\train_u6lujuX_CVtuZ9i (1).csv'
 
