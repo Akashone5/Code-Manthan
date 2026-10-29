@@ -1,20 +1,19 @@
 """
-=============================================================================
-MERIDIAN - MISSION BHARAT
-Central Loan Application Vault (Database Engine)
-=============================================================================
-
-Secure persistent storage for all loan applications.
-Records applicant details, financial metrics, CIBIL scores, and AI decisions.
-=============================================================================
+Meridian Financial Services - Mission Bharat
+Database Management Module (SQLite)
+Stores and manages all loan applications permanently in `meridian_loans.db`
+and automatically synchronizes with `meridian_loan_applications_export.csv`
 """
 
 import sqlite3
+import datetime
 import os
 import random
-import datetime
+import csv
+import json
 
-DB_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'meridian_loans.db')
+DB_FILE = os.path.join(os.path.dirname(__file__), 'meridian_loans.db')
+EXPORT_CSV = os.path.join(os.path.dirname(__file__), 'meridian_loan_applications_export.csv')
 
 
 def get_db_connection():
@@ -22,6 +21,43 @@ def get_db_connection():
     conn = sqlite3.connect(DB_FILE, timeout=15.0)
     conn.row_factory = sqlite3.Row
     return conn
+
+
+def export_to_csv_file():
+    """
+    Synchronizes all SQLite database applications directly into `meridian_loan_applications_export.csv`
+    so any submission or loan officer sanction immediately appears in Microsoft Excel.
+    """
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM loan_applications ORDER BY id DESC")
+        rows = cursor.fetchall()
+
+        with open(EXPORT_CSV, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                'Application No', 'Submission Date', 'Full Name', 'Phone', 'Gender',
+                'Marital Status', 'Dependents', 'Education', 'Employment Type', 'Salary Slip Available',
+                'Monthly Income (INR)', 'Co-Applicant Income (INR)', 'Loan Amount (k)',
+                'Tenure (Months)', 'CIBIL Score', 'Property Area', 'AI Approval Score (%)',
+                'Status', 'Estimated EMI (INR)', 'DTI (%)', 'Explanation Summary', 'Officer Notes'
+            ])
+            for r in rows:
+                slip_val = str(r['salary_slip'] or 'Yes') if 'salary_slip' in r.keys() else 'Yes'
+                writer.writerow([
+                    r['application_no'], r['created_at'], r['full_name'], r['phone'],
+                    r['gender'], r['marital_status'], r['dependents'], r['education'],
+                    r['employment_type'], slip_val,
+                    r['applicant_income'], r['coapplicant_income'],
+                    r['loan_amount'], r['loan_term_months'], r['cibil_score'],
+                    r['property_area'], r['approval_likelihood'], r['status'],
+                    r['monthly_emi'], r['dti_percent'], r['explanation_summary'],
+                    r['officer_notes']
+                ])
+        conn.close()
+    except Exception as e:
+        print(f"[WARN] Failed to auto-sync CSV export: {e}")
 
 
 def init_db():
@@ -41,6 +77,7 @@ def init_db():
             dependents TEXT NOT NULL,
             education TEXT NOT NULL,
             employment_type TEXT NOT NULL,
+            salary_slip TEXT DEFAULT 'Yes',
             applicant_income REAL NOT NULL,
             coapplicant_income REAL NOT NULL,
             loan_amount REAL NOT NULL,
@@ -61,10 +98,20 @@ def init_db():
         )
     ''')
 
+    # Ensure salary_slip column exists in existing database
+    cursor.execute("PRAGMA table_info(loan_applications)")
+    cols = [col['name'] for col in cursor.fetchall()]
+    if 'salary_slip' not in cols:
+        try:
+            cursor.execute("ALTER TABLE loan_applications ADD COLUMN salary_slip TEXT DEFAULT 'Yes'")
+            conn.commit()
+        except Exception:
+            pass
+
     cursor.execute('SELECT COUNT(*) as count FROM loan_applications')
     count = cursor.fetchone()['count']
 
-    # If empty or only old dummy data, seed fresh modern tech/normal records
+    # If empty, seed modern tech, freelance and normal records
     if count == 0:
         initial_samples = [
             (
@@ -77,6 +124,7 @@ def init_db():
                 '0',
                 'Graduate',
                 'Fintech Product Lead (Salaried Tech)',
+                'Yes',
                 95000,
                 0,
                 350,
@@ -89,8 +137,8 @@ def init_db():
                 'Approved',
                 4167,
                 4.4,
-                'Outstanding financial profile with prime CIBIL track record and robust income coverage.',
-                '["High Credit Trust (Prime CIBIL 810)", "Comfortable Debt-to-Income (4.4%)"]',
+                'Outstanding financial profile with prime CIBIL track record and verified salary slip.',
+                '["High Credit Trust (Prime CIBIL 810)", "Comfortable Debt-to-Income (4.4%)", "Verified Income Documentation (Salary Slip)"]',
                 '[]',
                 '["Eligible for Mission Bharat Green Energy Concession"]',
                 'Pre-approved for fast-track digital disbursement'
@@ -104,23 +152,24 @@ def init_db():
                 'Yes',
                 '1',
                 'Graduate',
-                'Cloud Infrastructure Consultant (Self-Employed)',
-                65000,
-                25000,
+                'Freelancing / Gig Economy / Tech Freelancer',
+                'No',
+                75000,
+                20000,
                 250,
                 120, # 10 years
-                740,
+                755,
                 1,
                 'Semiurban',
                 'Commercial Workstation & Cloud Lab',
                 96,
                 'Approved',
                 2083,
-                2.3,
-                'Solid multi-stream income with co-applicant stability and qualifying bureau score.',
-                '["Good Qualifying CIBIL Track (740)", "Joint Co-Applicant Strength", "Semi-Urban Priority"]',
+                2.2,
+                'Solid freelance earnings backed by digital cash-flow analysis under Mission Bharat gig inclusion.',
+                '["Good Qualifying CIBIL Track (755)", "Joint Co-Applicant Strength", "Mission Bharat Gig Inclusivity"]',
                 '[]',
-                '["Proceed to instant KYC verification"]',
+                '["Proceed to instant KYC and 6-month bank statement verification"]',
                 'Sanction letter generated'
             ),
             (
@@ -133,6 +182,7 @@ def init_db():
                 '2',
                 'Graduate',
                 'E-Commerce & Digital MSME Founder',
+                'Yes',
                 48000,
                 18000,
                 180,
@@ -160,7 +210,8 @@ def init_db():
                 'No',
                 '0',
                 'Not Graduate',
-                'Junior Web Developer (Contract Freelance)',
+                'Freelancing / Gig Economy / Tech Freelancer',
+                'No',
                 28000,
                 0,
                 400,
@@ -184,21 +235,24 @@ def init_db():
         cursor.executemany('''
             INSERT INTO loan_applications (
                 application_no, created_at, full_name, phone, gender, marital_status,
-                dependents, education, employment_type, applicant_income, coapplicant_income,
+                dependents, education, employment_type, salary_slip, applicant_income, coapplicant_income,
                 loan_amount, loan_term_months, cibil_score, credit_history, property_area,
                 loan_purpose, approval_likelihood, status, monthly_emi, dti_percent,
                 explanation_summary, positive_factors_json, risk_factors_json,
                 recommendations_json, officer_notes
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', initial_samples)
 
     conn.commit()
     conn.close()
 
+    # Automatically export to Excel CSV on startup
+    export_to_csv_file()
+
 
 def save_loan_application(applicant_data, prediction_result, explanation_result):
     """
-    Saves a completed loan application form into the database.
+    Saves a completed loan application form into the database AND automatically updates the Excel CSV export!
     """
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -211,26 +265,26 @@ def save_loan_application(applicant_data, prediction_result, explanation_result)
     cibil = int(applicant_data.get('cibil_score', 750))
     credit_hist = 1 if cibil >= 650 else 0
 
-    import json
     pos_json = json.dumps([f"{p['factor']}: {p['details']}" for p in explanation_result.get('positive_factors', [])])
     neg_json = json.dumps([f"{n['factor']}: {n['details']}" for n in explanation_result.get('negative_factors', [])])
     rec_json = json.dumps(explanation_result.get('recommendations', []))
 
-    # Support flexible term: could be 'loan_term_months' or 'term' or 'loan_term_years' * 12
     term_months = int(applicant_data.get('loan_term_months', 0) or applicant_data.get('term', 0) or 60)
     if term_months <= 0:
         years = int(applicant_data.get('loan_term_years', 5))
         term_months = years * 12
 
+    salary_slip = str(applicant_data.get('salary_slip', 'Yes')).capitalize()
+
     cursor.execute('''
         INSERT INTO loan_applications (
             application_no, created_at, full_name, phone, gender, marital_status,
-            dependents, education, employment_type, applicant_income, coapplicant_income,
+            dependents, education, employment_type, salary_slip, applicant_income, coapplicant_income,
             loan_amount, loan_term_months, cibil_score, credit_history, property_area,
             loan_purpose, approval_likelihood, status, monthly_emi, dti_percent,
             explanation_summary, positive_factors_json, risk_factors_json,
             recommendations_json, officer_notes
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
         app_no,
         created_at,
@@ -241,6 +295,7 @@ def save_loan_application(applicant_data, prediction_result, explanation_result)
         str(applicant_data.get('dependents', '0')),
         applicant_data.get('education', 'Graduate'),
         applicant_data.get('employment_type', 'Salaried'),
+        salary_slip,
         float(applicant_data.get('applicant_income', 0)),
         float(applicant_data.get('coapplicant_income', 0)),
         float(applicant_data.get('loan_amount', 100)),
@@ -264,12 +319,16 @@ def save_loan_application(applicant_data, prediction_result, explanation_result)
     conn.commit()
     conn.close()
 
+    # IMMEDIATELY synchronize with Excel CSV on disk!
+    export_to_csv_file()
+
     return {
         'id': new_id,
         'application_no': app_no,
         'created_at': created_at,
         'full_name': applicant_data.get('full_name'),
         'cibil_score': cibil,
+        'salary_slip': salary_slip,
         'status': prediction_result.get('status'),
         'approval_likelihood': prediction_result.get('approval_likelihood'),
         'monthly_emi': prediction_result.get('monthly_emi'),
@@ -282,14 +341,33 @@ def save_loan_application(applicant_data, prediction_result, explanation_result)
     }
 
 
+def update_application_status(app_no, new_status, officer_note=''):
+    """
+    Updates a loan application status (e.g. Sanctioned/Approved by Loan Officer)
+    in SQLite database (meridian_loans.db) AND immediately updates meridian_loan_applications_export.csv for Excel.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE loan_applications
+        SET status = ?, officer_notes = ?
+        WHERE application_no = ?
+    ''', (new_status, officer_note, app_no))
+    conn.commit()
+    conn.close()
+
+    # Immediately refresh Excel CSV export on disk!
+    export_to_csv_file()
+    return get_application_by_number(app_no)
+
+
 def get_all_saved_applications():
     """Retrieves all submitted applications."""
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('SELECT * FROM loan_applications ORDER BY id DESC')
     rows = cursor.fetchall()
-    
-    import json
+
     apps = []
     for r in rows:
         d = dict(r)
@@ -300,7 +378,7 @@ def get_all_saved_applications():
         except Exception:
             pass
         apps.append(d)
-        
+
     conn.close()
     return apps
 

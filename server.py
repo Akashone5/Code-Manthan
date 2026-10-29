@@ -188,10 +188,13 @@ class LoanDecisionHandler(http.server.BaseHTTPRequestHandler):
                 'dependents': applicant_data.get('dependents', '0'),
                 'education': applicant_data.get('education', 'Graduate'),
                 'self_employed': is_self_emp,
+                'employment_type': emp_type,
+                'salary_slip': applicant_data.get('salary_slip', 'Yes'),
                 'applicant_income': float(applicant_data.get('applicant_income', 0)),
                 'coapplicant_income': float(applicant_data.get('coapplicant_income', 0)),
                 'loan_amount': float(applicant_data.get('loan_amount', 100)),
                 'term': float(applicant_data.get('loan_term_months', 360)),
+                'cibil_score': cibil,
                 'credit_history': credit_hist,
                 'property_area': applicant_data.get('property_area', 'Rural')
             }
@@ -229,6 +232,25 @@ class LoanDecisionHandler(http.server.BaseHTTPRequestHandler):
 
             self._set_headers(200)
             self.wfile.write(json.dumps(response, indent=2).encode('utf-8'))
+            return
+
+        # ROUTE 3: Officer Sanction / Status Update (Updates SQLite AND Excel CSV file!)
+        elif parsed_url.path == '/api/officer/sanction':
+            app_no = applicant_data.get('application_no')
+            new_status = applicant_data.get('status', 'Approved')
+            note = applicant_data.get('note', 'Sanctioned by Loan Officer')
+
+            updated = database.update_application_status(app_no, new_status, note)
+            if updated:
+                self._set_headers(200)
+                self.wfile.write(json.dumps({
+                    'success': True,
+                    'message': f'Application {app_no} successfully marked as {new_status} in SQLite (meridian_loans.db) and Excel CSV!',
+                    'application': updated
+                }, indent=2).encode('utf-8'))
+            else:
+                self._set_headers(404)
+                self.wfile.write(json.dumps({'success': False, 'error': f'Application {app_no} not found'}).encode('utf-8'))
             return
 
         else:

@@ -1,24 +1,14 @@
 """
-=============================================================================
-MERIDIAN - MISSION BHARAT
-Explainable Loan Decision Backend (Calibrated & Robust Engine)
-=============================================================================
-
-This file contains the core AI logic for:
-1. Predicting loan approval likelihood from 0% to 100% using realistic banking underwriting.
-2. Generating plain-English explanations (what helped, what hurt, and actionable recommendations).
-3. Auditing fairness across groups (Rural vs Semi-Urban vs Urban, Gender, Education).
-4. Managing dataset operations.
-=============================================================================
+Meridian Financial Services - Mission Bharat
+Core Underwriting & Explainable AI (XAI) Engine
 """
 
 import math
-import csv
 import os
-
+import csv
 
 # =============================================================================
-# 1. CALIBRATED REALISTIC FINANCIAL UNDERWRITING MODEL
+# 1. UNDERWRITING & SCORING LOGIC
 # =============================================================================
 def predict_loan(applicant):
     """
@@ -28,6 +18,8 @@ def predict_loan(applicant):
     - Income Coverage against requested loan magnitude
     - Co-applicant joint financial strength
     - Flexible tenure from 1 to 30 years (12 to 360 months)
+    - Primary Employment (including Freelancing / Gig Economy)
+    - Official Salary Slip verification
     - Mission Bharat Geographic Inclusion
 
     Returns:
@@ -120,7 +112,38 @@ def predict_loan(applicant):
     else:
         contribs['coapplicant'] = 0.0
 
-    # 5. Mission Bharat Geographic Equity
+    # 5. Salary Slip Verification & Employment Diversity (Mission Bharat Gig / Freelance Policy)
+    salary_slip = str(applicant.get('salary_slip', 'Yes')).strip().capitalize()
+    emp_type = str(applicant.get('employment_type', '')).lower()
+    is_freelance = any(w in emp_type for w in ['freelanc', 'gig', 'contract', 'consult'])
+
+    if salary_slip in ['Yes', 'True', '1']:
+        slip_impact = 5.0
+        score_points += slip_impact
+        contribs['salary_slip'] = slip_impact
+    else:
+        # If no salary slip:
+        # Freelancers and small businesses are supported under alternative digital cash-flow underwriting
+        if is_freelance or 'self' in emp_type or 'farm' in emp_type:
+            slip_impact = 0.0 # Neutral: alternative verification applied
+        else:
+            slip_impact = -6.0
+        score_points += slip_impact
+        contribs['salary_slip'] = slip_impact
+
+    # 6. Primary Employment Livelihood Impact
+    if is_freelance:
+        # Digital economy diversity bonus under Mission Bharat
+        score_points += 3.0
+        contribs['employment'] = 3.0
+    elif 'salaried' in emp_type:
+        score_points += 3.0
+        contribs['employment'] = 3.0
+    else:
+        score_points += 1.0
+        contribs['employment'] = 1.0
+
+    # 7. Mission Bharat Geographic Equity
     area = str(applicant.get('property_area', 'Rural')).capitalize()
     if area == 'Semiurban':
         score_points += 4.0
@@ -129,6 +152,7 @@ def predict_loan(applicant):
         score_points += 2.0
         contribs['property_area'] = 2.0
     else:
+        score_points += 2.0
         contribs['property_area'] = 2.0
 
     # Clamped 0% to 100% Score
@@ -149,6 +173,7 @@ def predict_loan(applicant):
         'total_monthly_income': round(tot_inc),
         'requested_loan_inr': round(loan_amt_inr),
         'cibil_score': cibil,
+        'salary_slip': salary_slip,
         'loan_term_months': round(term_months),
         'contributions': contribs
     }
@@ -165,6 +190,10 @@ def explain_decision(applicant, prediction):
     dti = prediction['dti_percent']
     tot_inc = prediction['total_monthly_income']
     emi = prediction['monthly_emi']
+    salary_slip = prediction.get('salary_slip', 'Yes')
+    emp_type = str(applicant.get('employment_type', '')).lower()
+    is_freelance = any(w in emp_type for w in ['freelanc', 'gig', 'contract', 'consult'])
+
     positive_factors = []
     negative_factors = []
     recommendations = []
@@ -215,7 +244,42 @@ def explain_decision(applicant, prediction):
             'Extend loan tenure (e.g. increase years) or reduce loan amount by 15-20% to lower monthly EMI below 40% of income.'
         )
 
-    # 3. Co-Applicant Strength
+    # 3. Income Documentation & Salary Slip Verification
+    if salary_slip in ['Yes', 'True', '1']:
+        positive_factors.append({
+            'factor': 'Verified Income (Salary Slip)',
+            'details': 'Official salary slip submitted, confirming stable and verifiable monthly compensation.',
+            'impact': '+5% Boost'
+        })
+    else:
+        if is_freelance:
+            positive_factors.append({
+                'factor': 'Mission Bharat Gig Inclusivity',
+                'details': 'Freelance income assessed via 6-month digital banking cash flows & client invoice records in lieu of salary slip.',
+                'impact': 'Alternative Verification'
+            })
+            recommendations.append(
+                'Submit 6-month digital bank statement or GST/client invoices to verify your active freelance cash flows.'
+            )
+        else:
+            negative_factors.append({
+                'factor': 'Absence of Formal Salary Slip',
+                'details': 'No salary slip attached. Informal cash earnings require secondary bank statement substantiation.',
+                'impact': '-6% Friction'
+            })
+            recommendations.append(
+                'Provide 6-month formal bank account statement or employer certificate in lieu of pay slip.'
+            )
+
+    # 4. Employment & Livelihood
+    if is_freelance:
+        positive_factors.append({
+            'factor': 'Freelance / Digital Gig Economy Contributor',
+            'details': 'Independent contractor / freelance income streams recognized under Mission Bharat progressive inclusion guidelines.',
+            'impact': '+3% Inclusion'
+        })
+
+    # 5. Co-Applicant Strength
     coapp = float(applicant.get('coapplicant_income', 0))
     if coapp > 0:
         positive_factors.append({
@@ -234,7 +298,7 @@ def explain_decision(applicant, prediction):
                 'Include an earning spouse or family member as a co-applicant to expand repayment capacity and raise approval chances.'
             )
 
-    # 4. Mission Bharat Inclusion
+    # 6. Mission Bharat Geographic Inclusion
     area = str(applicant.get('property_area', 'Rural')).capitalize()
     if area == 'Rural':
         positive_factors.append({
@@ -268,101 +332,100 @@ def explain_decision(applicant, prediction):
 
 
 # =============================================================================
-# 3. GROUP FAIRNESS AUDIT ENGINE
+# 3. GROUP FAIRNESS AUDIT (80% DISPARATE IMPACT RULE)
 # =============================================================================
 def check_fairness(applicants_list):
     """
-    Audits selection parity and disparate impact across demographic segments.
+    Computes approval rates across protected groups and checks the 80% Rule.
     """
     def group_stats(group_key, group_val):
-        group = [a for a in applicants_list if a.get(group_key) == group_val]
-        if not group:
-            return {'total': 0, 'approved': 0, 'rate': 0.0}
-        approved = sum(1 for a in group if a.get('pred_status') == 'Y' or a.get('actual_status') == 'Y')
+        group_total = 0
+        group_approved = 0
+        for app in applicants_list:
+            if str(app.get(group_key, '')).lower() == str(group_val).lower():
+                group_total += 1
+                pred = predict_loan(app)
+                if pred['status'] == 'Approved':
+                    group_approved += 1
+        rate = (group_approved / group_total * 100.0) if group_total > 0 else 0.0
         return {
-            'total': len(group),
-            'approved': approved,
-            'approval_rate_percent': round((approved / len(group)) * 100, 1)
+            'total': group_total,
+            'approved': group_approved,
+            'approval_rate_percent': round(rate, 2)
         }
 
-    semiurban = group_stats('property_area', 'Semiurban')
-    urban = group_stats('property_area', 'Urban')
-    rural = group_stats('property_area', 'Rural')
-
+    # 1. Gender Fairness
     male = group_stats('gender', 'Male')
     female = group_stats('gender', 'Female')
+    gender_di = round(female['approval_rate_percent'] / male['approval_rate_percent'], 3) if male['approval_rate_percent'] > 0 else 1.0
 
+    # 2. Geographic Territory Fairness
+    semiurban = group_stats('property_area', 'Semiurban')
+    rural = group_stats('property_area', 'Rural')
+    urban = group_stats('property_area', 'Urban')
+    rural_di = round(rural['approval_rate_percent'] / semiurban['approval_rate_percent'], 3) if semiurban['approval_rate_percent'] > 0 else 1.0
+
+    # 3. Education Fairness
     grad = group_stats('education', 'Graduate')
     non_grad = group_stats('education', 'Not Graduate')
-
-    rural_disparate_impact = round(rural['approval_rate_percent'] / semiurban['approval_rate_percent'], 2) if semiurban['approval_rate_percent'] > 0 else 1.0
-    female_disparate_impact = round(female['approval_rate_percent'] / male['approval_rate_percent'], 2) if male['approval_rate_percent'] > 0 else 1.0
+    edu_di = round(non_grad['approval_rate_percent'] / grad['approval_rate_percent'], 3) if grad['approval_rate_percent'] > 0 else 1.0
 
     return {
-        'geography_fairness': {
-            'semiurban': semiurban,
-            'urban': urban,
-            'rural': rural,
-            'rural_vs_semiurban_ratio': rural_disparate_impact,
-            'is_fair_by_80_percent_rule': rural_disparate_impact >= 0.80,
-            'note': 'Mission Bharat equity calibration ensures rural applications maintain equal opportunity with urban peers.'
-        },
         'gender_fairness': {
-            'male': male,
-            'female': female,
-            'female_vs_male_ratio': female_disparate_impact,
-            'is_fair_by_80_percent_rule': female_disparate_impact >= 0.80,
-            'note': f"Female approval rate is {female['approval_rate_percent']}% vs Male {male['approval_rate_percent']}%. Fully compliant with 80% four-fifths fair lending rule."
+            'male_benchmark': male,
+            'female_protected': female,
+            'disparate_impact_ratio': gender_di,
+            'passes_80_rule': gender_di >= 0.80
+        },
+        'territory_fairness': {
+            'semiurban_benchmark': semiurban,
+            'rural_protected': rural,
+            'urban': urban,
+            'disparate_impact_ratio': rural_di,
+            'passes_80_rule': rural_di >= 0.80
         },
         'education_fairness': {
-            'graduate': grad,
-            'not_graduate': non_grad,
-            'ratio': round(non_grad['approval_rate_percent'] / grad['approval_rate_percent'], 2) if grad['approval_rate_percent'] > 0 else 1.0
+            'graduate_benchmark': grad,
+            'non_graduate_protected': non_grad,
+            'disparate_impact_ratio': edu_di,
+            'passes_80_rule': edu_di >= 0.80
         }
     }
 
 
-# =============================================================================
-# 4. DATASET LOADER
-# =============================================================================
 def load_sample_dataset(csv_path=None):
-    """
-    Loads historical loan applications from CSV into Python.
-    """
-    if csv_path is None:
+    """Loads historical loan records."""
+    if not csv_path:
         csv_path = r'E:\archive\train_u6lujuX_CVtuZ9i (1).csv'
 
-    if not os.path.exists(csv_path):
-        return []
-
     applicants = []
-    with open(csv_path, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            app_inc = float(row['ApplicantIncome']) if row['ApplicantIncome'] else 0.0
-            coapp_inc = float(row['CoapplicantIncome']) if row['CoapplicantIncome'] else 0.0
-            amt = float(row['LoanAmount']) if row['LoanAmount'] else 128.0
-            ch = float(row['Credit_History']) if row['Credit_History'] else 1.0
+    if os.path.exists(csv_path):
+        with open(csv_path, mode='r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                try:
+                    inc = float(row.get('ApplicantIncome') or 3000)
+                    coinc = float(row.get('CoapplicantIncome') or 0)
+                    loan = float(row.get('LoanAmount') or 100)
+                    term = float(row.get('Loan_Amount_Term') or 360)
+                    ch = float(row.get('Credit_History') or 1)
 
-            applicant = {
-                'id': row.get('Loan_ID', 'UNKNOWN'),
-                'gender': row.get('Gender') or 'Male',
-                'married': row.get('Married') or 'Yes',
-                'dependents': row.get('Dependents') or '0',
-                'education': row.get('Education') or 'Graduate',
-                'self_employed': row.get('Self_Employed') or 'No',
-                'applicant_income': app_inc,
-                'coapplicant_income': coapp_inc,
-                'loan_amount': amt,
-                'term': float(row.get('Loan_Amount_Term') or 360),
-                'credit_history': ch,
-                'property_area': row.get('Property_Area') or 'Urban',
-                'actual_status': row.get('Loan_Status') or 'Y'
-            }
-
-            pred = predict_loan(applicant)
-            applicant['pred_likelihood'] = pred['approval_likelihood']
-            applicant['pred_status'] = 'Y' if pred['approval_likelihood'] >= 50 else 'N'
-            applicants.append(applicant)
-
+                    applicants.append({
+                        'id': row.get('Loan_ID'),
+                        'gender': row.get('Gender') or 'Male',
+                        'married': row.get('Married') or 'Yes',
+                        'dependents': row.get('Dependents') or '0',
+                        'education': row.get('Education') or 'Graduate',
+                        'self_employed': row.get('Self_Employed') or 'No',
+                        'applicant_income': inc,
+                        'coapplicant_income': coinc,
+                        'loan_amount': loan,
+                        'term': term,
+                        'credit_history': ch,
+                        'cibil_score': 760 if ch == 1 else 540,
+                        'salary_slip': 'Yes',
+                        'property_area': row.get('Property_Area') or 'Rural'
+                    })
+                except Exception:
+                    continue
     return applicants

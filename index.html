@@ -35,9 +35,7 @@
         </div>
 
         <!-- Language Switcher -->
-        <button id="lang-toggle-btn" class="lang-btn" title="Bilingual Language Switcher">
-          हिन्दी (Hindi)
-        </button>
+        <button id="lang-toggle-btn" class="lang-btn" onclick="toggleLanguage()" title="Bilingual Language Switcher">🇮🇳 हिन्दी (Hindi)</button>
       </div>
     </div>
   </header>
@@ -67,9 +65,6 @@
       <div class="nav-item nav-applicant-item" data-tab="applicant-view">
         <span>📊</span> 2. My Decision Report &amp; Explanations
       </div>
-      <div class="nav-item nav-applicant-item" data-tab="sim-standalone-view" onclick="scrollToSimulator()">
-        <span>🎛️</span> 3. "What-If" Live Simulator
-      </div>
 
       <!-- Officer Role Tabs (Visible when in Officer Mode) -->
       <div class="nav-item nav-officer-item" data-tab="officer-view" style="display: none;">
@@ -92,27 +87,6 @@
 
   <!-- Main Application Body -->
   <main class="main-content">
-
-    <!-- Archetype Quick-Select Bar -->
-    <div class="archetype-strip">
-      <div class="archetype-label">
-        <span>⚡ Quick Archetypes:</span>
-      </div>
-      <div class="archetype-btn-group">
-        <button class="archetype-btn active" data-archetype="tech_lead">
-          <span>👩🏽‍💻</span> Ananya Rao (Fintech Product Lead • CIBIL 810)
-        </button>
-        <button class="archetype-btn" data-archetype="cloud_consultant">
-          <span>👨🏽‍💻</span> Devansh Kulkarni (Cloud Architect • CIBIL 740)
-        </button>
-        <button class="archetype-btn" data-archetype="ecommerce_msme">
-          <span>🏪</span> Kavya Nair (E-Commerce Founder • CIBIL 760)
-        </button>
-        <button class="archetype-btn" data-archetype="junior_dev">
-          <span>💼</span> Rohan Mehta (Junior Dev / Thin File • CIBIL 580)
-        </button>
-      </div>
-    </div>
 
     <!-- =========================================================================
          TAB 1: APPLICANT TRANSPARENCY VIEW (CITIZEN / BORROWER MODE)
@@ -195,55 +169,80 @@
       </div>
 
       <!-- Interactive What-If Counterfactual Simulator -->
-      <div class="card" style="margin-top: 1.5rem;">
-        <div class="card-header">
+      <div class="card" id="what-if-card" style="margin-top: 1.5rem;">
+        <div class="card-header" style="flex-wrap: wrap; gap: 1rem;">
           <div>
             <div class="card-title">
-              <span>🎛️</span> Interactive "What-If" Counterfactual Simulator
+              <span id="sim-main-title">🎛️ Interactive "What-If" Counterfactual Simulator</span>
             </div>
-            <div class="card-subtitle">
-              Simulate changes to see exactly what adjustments will get your loan approved in real-time
+            <div class="card-subtitle" id="sim-main-sub">
+              Simulate changes to your loan amount, tenure, co-applicant income, CIBIL, and salary slip to see exact real-time approval adjustments.
             </div>
           </div>
-          <div style="text-align: right;">
-            <span style="font-size: 0.8rem; color: #64748B;">Simulated Likelihood:</span>
-            <span id="sim-current-prob" style="font-size: 1.25rem; font-weight: 800; color: #064E3B; margin-left: 6px;">74%</span>
-            <span id="sim-delta-badge" class="badge badge-info" style="margin-left: 6px;">Baseline</span>
-            <span id="sim-status-label" class="badge badge-success" style="margin-left: 6px;">APPROVED</span>
+          <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+            <div style="text-align: right;">
+              <span id="lbl-sim-likelihood" style="font-size: 0.8rem; color: #64748B;">Simulated Likelihood:</span>
+              <span id="sim-current-prob" style="font-size: 1.35rem; font-weight: 800; color: #064E3B; margin-left: 6px;">74%</span>
+              <span id="sim-delta-badge" class="badge badge-info" style="margin-left: 6px;">Baseline</span>
+              <span id="sim-status-label" class="badge badge-success" style="margin-left: 6px;">APPROVED</span>
+            </div>
           </div>
         </div>
 
-        <div class="grid-3">
+        <!-- Live Metrics Bar inside Simulator -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-top: 1rem; padding: 0.85rem 1.25rem; background: #FAF4E8; border-radius: 10px; border: 1.5px solid #E8D7B8;">
+          <div>
+            <div style="font-size: 0.72rem; color: #64748B; font-weight: 600;" id="lbl-sim-emi">Simulated Monthly EMI:</div>
+            <div id="sim-metric-emi" style="font-size: 1.15rem; font-weight: 800; color: #064E3B; margin-top: 2px;">₹2,500/mo</div>
+          </div>
+          <div>
+            <div style="font-size: 0.72rem; color: #64748B; font-weight: 600;" id="lbl-sim-dti">Simulated Debt Burden (DTI):</div>
+            <div id="sim-metric-dti" style="font-size: 1.15rem; font-weight: 800; color: #064E3B; margin-top: 2px;">7.1% (Safe)</div>
+          </div>
+          <div>
+            <div style="font-size: 0.72rem; color: #64748B; font-weight: 600;" id="lbl-sim-cibil-tier">Credit Rating Tier:</div>
+            <div id="sim-metric-cibil" style="font-size: 1.15rem; font-weight: 800; color: #064E3B; margin-top: 2px;">Prime (760)</div>
+          </div>
+          <div>
+            <div style="font-size: 0.72rem; color: #64748B; font-weight: 600;" id="lbl-sim-doc-status">Income Documentation:</div>
+            <div id="sim-metric-doc" style="font-size: 1.15rem; font-weight: 800; color: #064E3B; margin-top: 2px;">Salary Slip Attached</div>
+          </div>
+        </div>
+
+        <!-- 4-Parameter Sliders Grid -->
+        <div class="grid-2" style="margin-top: 1rem; gap: 1rem;">
           <!-- Slider 1: Loan Amount -->
-          <div class="sim-box">
+          <div class="sim-box" style="margin-top: 0;">
             <div class="slider-header">
-              <span>Requested Loan Amount:</span>
-              <span id="val-sim-loan" class="value-tag">₹110 Lakh (₹1,10,000)</span>
+              <span id="lbl-sim-slider-loan">Requested Loan Amount:</span>
+              <span id="val-sim-loan" class="value-tag">₹1.5 Lakh (₹1,50,000)</span>
             </div>
-            <input type="range" id="sim-slider-loan" class="range-slider" min="30" max="600" step="10" value="110">
+            <input type="range" id="sim-slider-loan" class="range-slider" min="30" max="1000" step="10" value="150">
             <div style="display: flex; justify-content: space-between; font-size: 0.72rem; color: #64748B; margin-top: 4px;">
               <span>₹30,000</span>
-              <span>₹6,00,000</span>
+              <span>₹5,00,000</span>
+              <span>₹10,00,000</span>
             </div>
           </div>
 
-          <!-- Slider 2: Co-Applicant Income -->
-          <div class="sim-box">
+          <!-- Slider 2: Co-Applicant Monthly Income -->
+          <div class="sim-box" style="margin-top: 0;">
             <div class="slider-header">
-              <span>Co-Applicant Monthly Income:</span>
-              <span id="val-sim-coapp" class="value-tag">₹14,000/mo</span>
+              <span id="lbl-sim-slider-coapp">Co-Applicant Monthly Income:</span>
+              <span id="val-sim-coapp" class="value-tag">₹15,000/mo</span>
             </div>
-            <input type="range" id="sim-slider-coapp" class="range-slider" min="0" max="60000" step="2000" value="14000">
+            <input type="range" id="sim-slider-coapp" class="range-slider" min="0" max="100000" step="2500" value="15000">
             <div style="display: flex; justify-content: space-between; font-size: 0.72rem; color: #64748B; margin-top: 4px;">
               <span>₹0 (None)</span>
-              <span>₹60,000</span>
+              <span>₹50,000</span>
+              <span>₹1,00,000</span>
             </div>
           </div>
 
-          <!-- Slider 3: Loan Tenure -->
-          <div class="sim-box">
+          <!-- Slider 3: Loan Tenure (1 to 30 Years) -->
+          <div class="sim-box" style="margin-top: 0;">
             <div class="slider-header">
-              <span>Loan Tenure (Duration):</span>
+              <span id="lbl-sim-slider-term">Loan Tenure (Duration):</span>
               <span id="val-sim-term" class="value-tag">5 Years (60 Months)</span>
             </div>
             <input type="range" id="sim-slider-term" class="range-slider" min="1" max="30" step="1" value="5">
@@ -254,14 +253,50 @@
               <span>30 Years (360m)</span>
             </div>
           </div>
+
+          <!-- Slider 4: Simulated CIBIL Credit Bureau Score -->
+          <div class="sim-box" style="margin-top: 0;">
+            <div class="slider-header">
+              <span id="lbl-sim-slider-cibil">Simulated CIBIL Score:</span>
+              <span id="val-sim-cibil" class="value-tag">760 (Prime)</span>
+            </div>
+            <input type="range" id="sim-slider-cibil" class="range-slider" min="300" max="900" step="5" value="760">
+            <div style="display: flex; justify-content: space-between; font-size: 0.72rem; color: #64748B; margin-top: 4px;">
+              <span>300 (Subprime)</span>
+              <span>650 (Qualifying)</span>
+              <span>750 (Prime)</span>
+              <span>900 (Stellar)</span>
+            </div>
+          </div>
         </div>
 
-        <div style="margin-top: 1rem; padding: 0.75rem 1rem; background: #F8FAFC; border-radius: 8px; display: flex; align-items: center; justify-content: space-between;">
-          <label style="display: flex; align-items: center; gap: 8px; font-size: 0.88rem; font-weight: 600; cursor: pointer;">
-            <input type="checkbox" id="sim-check-credit" checked style="width: 16px; height: 16px; cursor: pointer;">
-            <span>Simulate Pristine Credit Record (All previous repayments on time / defaults cleared)</span>
-          </label>
-          <span style="font-size: 0.78rem; color: #64748B;">Instant Dynamic Recalibration</span>
+        <!-- Salary Slip Toggle in Simulator -->
+        <div style="margin-top: 1rem; padding: 0.85rem 1.25rem; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span style="font-size: 0.88rem; font-weight: 700; color: #064E3B;" id="lbl-sim-slip-toggle">Salary Slip Attached in Simulation:</span>
+            <div style="display: flex; gap: 6px;">
+              <button type="button" id="sim-btn-slip-yes" onclick="setSimSalarySlip(true)" style="padding: 4px 12px; font-size: 0.8rem; font-weight: 700; border-radius: 6px; border: 1.5px solid #064E3B; background: #F8E7C9; color: #064E3B; cursor: pointer;">Yes</button>
+              <button type="button" id="sim-btn-slip-no" onclick="setSimSalarySlip(false)" style="padding: 4px 12px; font-size: 0.8rem; font-weight: 600; border-radius: 6px; border: 1.5px solid #CBD5E1; background: #FFFFFF; color: #475569; cursor: pointer;">No</button>
+            </div>
+          </div>
+          <div style="font-size: 0.8rem; color: #64748B;" id="sim-slip-status-text">
+            Official pay slip adds +5% underwriting boost.
+          </div>
+        </div>
+
+        <!-- Smart Dynamic Recommendation Box -->
+        <div id="sim-smart-tip" style="margin-top: 1rem; padding: 0.85rem 1.25rem; background: #F0FDF4; border-left: 4px solid #059669; border-radius: 6px; font-size: 0.88rem; color: #064E3B; line-height: 1.5;">
+          💡 <strong>What-If Underwriting Insight:</strong> This configuration safely places your file in the <strong>Approved Tier</strong> with a low monthly debt obligation.
+        </div>
+
+        <!-- Action Buttons: Apply / Reset -->
+        <div style="margin-top: 1.25rem; display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: flex-end; align-items: center;">
+          <button type="button" id="btn-reset-whatif" class="btn btn-outline" onclick="resetWhatIfToBaseline()" style="padding: 8px 16px; font-size: 0.85rem;">
+            <span id="txt-reset-whatif">↺ Reset to Baseline</span>
+          </button>
+          <button type="button" id="btn-apply-whatif" class="btn btn-primary" onclick="applyWhatIfScenario()" style="padding: 8px 18px; font-size: 0.88rem;">
+            <span id="txt-apply-whatif">⚡ Apply This Scenario to My Application</span>
+          </button>
         </div>
       </div>
 
@@ -863,8 +898,9 @@
               </div>
 
               <div class="form-group">
-                <label class="form-label">Primary Employment &amp; Livelihood *</label>
+                <label class="form-label" id="lbl-fill-employment">Primary Employment &amp; Livelihood *</label>
                 <select id="fill-employment" class="form-control" required>
+                  <option value="Freelancing / Gig Economy / Contractor" selected>Freelancing / Gig Economy / Tech Freelancer</option>
                   <option value="Salaried (Private/Corporate)">Salaried (Private / Corporate)</option>
                   <option value="Salaried (Government/Public)">Salaried (Government / PSU)</option>
                   <option value="Self-Employed (Business/MSME)" selected>Self-Employed (Small Business / MSME)</option>
@@ -872,6 +908,26 @@
                   <option value="Artisan / Rural Craftsman">Artisan / Rural Handloom Weaver</option>
                   <option value="Retail Merchant / Trader">Retail Merchant / Shop Owner</option>
                 </select>
+              </div>
+
+              <!-- Official Salary Slip Selection (Yes / No Buttons) -->
+              <div class="form-group">
+                <label class="form-label" style="display: flex; justify-content: space-between; align-items: center;">
+                  <span id="lbl-fill-salary-slip">Official Salary Slip Available? *</span>
+                  <span id="hint-fill-salary-slip" style="font-size: 0.76rem; font-weight: normal; color: #64748B;">Documentary Proof</span>
+                </label>
+                <div class="salary-slip-btn-group" style="display: flex; gap: 0.75rem; margin-top: 4px;">
+                  <button type="button" id="btn-slip-yes" class="btn" style="flex: 1; padding: 10px 14px; border: 2px solid #064E3B; background: #F8E7C9; color: #064E3B; font-weight: 700; border-radius: 8px; cursor: pointer; transition: all 0.2s;" onclick="setSalarySlipChoice('Yes')">
+                    <span id="txt-slip-yes">✓ Yes (Salary Slip Available)</span>
+                  </button>
+                  <button type="button" id="btn-slip-no" class="btn" style="flex: 1; padding: 10px 14px; border: 2px solid #CBD5E1; background: #FFFFFF; color: #475569; font-weight: 600; border-radius: 8px; cursor: pointer; transition: all 0.2s;" onclick="setSalarySlipChoice('No')">
+                    <span id="txt-slip-no">✕ No (Bank Statement / Digital Invoices)</span>
+                  </button>
+                  <input type="hidden" id="fill-salary-slip" value="Yes">
+                </div>
+                <div id="salary-slip-expl" style="font-size: 0.76rem; color: #064E3B; margin-top: 5px; font-weight: 500;">
+                  ✓ Salary slip provides formal proof of recurring income (+5% boost). Non-salaried freelancers are verified via 6-month bank statements.
+                </div>
               </div>
 
               <div class="form-group">
