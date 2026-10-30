@@ -1,5 +1,4 @@
 const MERIDIAN_DATASET = {
-  "total_records": 614,
   "bias": 0.7032,
   "weights": {
     "credit_history": 1.2994,

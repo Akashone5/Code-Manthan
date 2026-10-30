@@ -1,0 +1,368 @@
+Loan_ID,Gender,Married,Dependents,Education,Self_Employed,ApplicantIncome,CoapplicantIncome,Total_Monthly_Income,LoanAmount_Thousands,LoanAmount_INR,Loan_Amount_Term_Months,Monthly_EMI_INR,DTI_Percent,Approval_Likelihood_Pct,Predicted_Status,Risk_Tier,Primary_Approval_Driver,Primary_Risk_Factor
+LP001015,Male,Yes,0,Graduate,No,5720,0,5720,110,110000,360,305.56,5.34,86,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP001022,Male,Yes,1,Graduate,No,3076,1500,4576,126,126000,360,350.0,7.65,83,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP001031,Male,Yes,2,Graduate,No,5000,1800,6800,208,208000,360,577.78,8.5,81,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,LoanAmount
+LP001035,Male,Yes,2,Graduate,No,2340,2546,4886,100,100000,360,277.78,5.69,84,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP001051,Male,No,0,Not Graduate,No,3276,0,3276,78,78000,360,216.67,6.61,67,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP001054,Male,Yes,0,Not Graduate,Yes,2165,3422,5587,152,152000,360,422.22,7.56,68,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP001055,Female,No,1,Not Graduate,No,2226,0,2226,59,59000,360,163.89,7.36,68,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP001056,Male,Yes,2,Not Graduate,No,3881,0,3881,147,147000,360,408.33,10.52,74,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP001059,Male,Yes,2,Graduate,No,13633,0,13633,280,280000,240,1166.67,8.56,89,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,LoanAmount
+LP001067,Male,No,0,Not Graduate,No,2400,2400,4800,123,123000,360,341.67,7.12,61,Conditional,Tier 2 (Moderate Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP001078,Male,No,0,Not Graduate,No,3091,0,3091,90,90000,360,250.0,8.09,65,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP001082,Male,Yes,1,Graduate,No,2185,1516,3701,162,162000,360,450.0,12.16,78,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,DTI_Percent
+LP001083,Male,No,3+,Graduate,No,4166,0,4166,40,40000,180,222.22,5.33,90,Approved,Tier 1 (Low Risk),Loan_Amount_Term,Married_Yes
+LP001094,Male,Yes,2,Graduate,No,12173,0,12173,166,166000,360,461.11,3.79,87,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP001096,Female,No,0,Graduate,No,4666,0,4666,124,124000,360,344.44,7.38,76,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001099,Male,No,1,Graduate,No,5667,0,5667,131,131000,360,363.89,6.42,77,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001105,Male,Yes,2,Graduate,No,4583,2916,7499,200,200000,360,555.56,7.41,81,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,LoanAmount
+LP001107,Male,Yes,3+,Graduate,No,3786,333,4119,126,126000,360,350.0,8.5,85,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP001108,Male,Yes,0,Graduate,No,9226,7916,17142,300,300000,360,833.33,4.86,72,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,CoapplicantIncome
+LP001115,Male,No,0,Graduate,No,1300,3470,4770,100,100000,180,555.56,11.65,81,Approved,Tier 1 (Low Risk),Loan_Amount_Term,Married_Yes
+LP001121,Male,Yes,1,Not Graduate,No,1888,1620,3508,48,48000,360,133.33,3.8,79,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP001124,Female,No,3+,Not Graduate,No,2083,0,2083,28,28000,180,155.56,7.47,83,Approved,Tier 1 (Low Risk),Loan_Amount_Term,Education_Graduate
+LP001128,Male,No,0,Graduate,No,3909,0,3909,101,101000,360,280.56,7.18,77,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001135,Female,No,0,Not Graduate,No,3765,0,3765,125,125000,360,347.22,9.22,62,Conditional,Tier 2 (Moderate Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP001149,Male,Yes,0,Graduate,No,5400,4380,9780,290,290000,360,805.56,8.24,75,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,LoanAmount
+LP001153,Male,No,0,Graduate,No,0,24000,24000,148,148000,360,411.11,1.71,38,Rejected,Tier 3 (High Risk),Credit_Bureau_Benchmark,CoapplicantIncome
+LP001163,Male,Yes,2,Graduate,No,4363,1250,5613,140,140000,360,388.89,6.93,84,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP001169,Male,Yes,0,Graduate,No,7500,3750,11250,275,275000,360,763.89,6.79,77,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,LoanAmount
+LP001174,Male,Yes,0,Graduate,No,3772,833,4605,57,57000,360,158.33,3.44,87,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Monthly_EMI
+LP001176,Male,No,0,Graduate,No,2942,2382,5324,125,125000,180,694.44,13.04,81,Approved,Tier 1 (Low Risk),Loan_Amount_Term,Married_Yes
+LP001177,Female,No,0,Not Graduate,No,2478,0,2478,75,75000,360,208.33,8.41,65,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP001183,Male,Yes,2,Graduate,No,6250,820,7070,192,192000,360,533.33,7.54,83,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,LoanAmount
+LP001185,Male,No,0,Graduate,No,3268,1683,4951,152,152000,360,422.22,8.53,72,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001187,Male,Yes,0,Graduate,No,2783,2708,5491,158,158000,360,438.89,7.99,80,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,CoapplicantIncome
+LP001190,Male,Yes,0,Graduate,No,2740,1541,4281,101,101000,360,280.56,6.55,83,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP001203,Male,No,0,Graduate,No,3150,0,3150,176,176000,360,488.89,15.52,65,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,DTI_Percent
+LP001208,Male,Yes,2,Graduate,No,7350,4029,11379,185,185000,180,1027.78,9.03,89,Approved,Tier 1 (Low Risk),Loan_Amount_Term,CoapplicantIncome
+LP001210,Male,Yes,0,Graduate,Yes,2267,2792,5059,90,90000,360,250.0,4.94,83,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,CoapplicantIncome
+LP001211,Male,No,0,Graduate,Yes,5833,0,5833,116,116000,360,322.22,5.52,77,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001219,Male,No,0,Graduate,No,3643,1963,5606,138,138000,360,383.33,6.84,73,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001220,Male,Yes,0,Graduate,No,5629,818,6447,100,100000,360,277.78,4.31,86,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP001221,Female,No,0,Graduate,No,3644,0,3644,110,110000,360,305.56,8.39,75,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001226,Male,Yes,0,Not Graduate,No,1750,2024,3774,90,90000,360,250.0,6.62,74,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP001230,Male,No,0,Graduate,No,6500,2600,9100,200,200000,360,555.56,6.11,72,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001231,Female,No,0,Graduate,No,3666,0,3666,84,84000,360,233.33,6.36,78,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001232,Male,Yes,0,Graduate,No,4260,3900,8160,185,185000,360,513.89,6.3,79,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,CoapplicantIncome
+LP001237,Male,Yes,0,Not Graduate,No,4163,1475,5638,162,162000,360,450.0,7.98,72,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP001242,Male,No,0,Not Graduate,No,2356,1902,4258,108,108000,360,300.0,7.05,62,Conditional,Tier 2 (Moderate Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP001268,Male,No,0,Graduate,No,6792,3338,10130,187,187000,360,519.44,5.13,72,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001270,Male,Yes,3+,Not Graduate,Yes,8000,250,8250,187,187000,360,519.44,6.3,76,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP001284,Male,Yes,1,Graduate,No,2419,1707,4126,124,124000,360,344.44,8.35,82,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP001287,Male,Yes,3+,Not Graduate,No,3500,833,4333,120,120000,360,333.33,7.69,77,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP001291,Male,Yes,1,Graduate,No,3500,3077,6577,160,160000,360,444.44,6.76,81,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,CoapplicantIncome
+LP001298,Male,Yes,2,Graduate,No,4116,1000,5116,30,30000,180,166.67,3.26,94,Approved,Tier 1 (Low Risk),Loan_Amount_Term,Monthly_EMI
+LP001312,Male,Yes,0,Not Graduate,Yes,5293,0,5293,92,92000,360,255.56,4.83,77,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP001313,Male,No,0,Graduate,No,2750,0,2750,130,130000,360,361.11,13.13,69,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001317,Female,No,0,Not Graduate,No,4402,0,4402,130,130000,360,361.11,8.2,64,Conditional,Tier 2 (Moderate Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP001321,Male,Yes,2,Graduate,No,3613,3539,7152,134,134000,180,744.44,10.41,89,Approved,Tier 1 (Low Risk),Loan_Amount_Term,DTI_Percent
+LP001323,Female,Yes,2,Graduate,No,2779,3664,6443,176,176000,360,488.89,7.59,80,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,CoapplicantIncome
+LP001324,Male,Yes,3+,Graduate,No,4720,0,4720,90,90000,180,500.0,10.59,92,Approved,Tier 1 (Low Risk),Loan_Amount_Term,DTI_Percent
+LP001332,Male,Yes,0,Not Graduate,No,2415,1721,4136,110,110000,360,305.56,7.39,73,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP001335,Male,Yes,0,Graduate,Yes,7016,292,7308,125,125000,360,347.22,4.75,85,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP001338,Female,No,2,Graduate,No,4968,0,4968,189,189000,360,525.0,10.57,73,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001347,Female,No,0,Graduate,No,2101,1500,3601,108,108000,360,300.0,8.33,73,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001348,Male,Yes,3+,Not Graduate,No,4490,0,4490,125,125000,360,347.22,7.73,78,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP001351,Male,Yes,0,Graduate,No,2917,3583,6500,138,138000,360,383.33,5.9,81,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,CoapplicantIncome
+LP001352,Male,Yes,0,Not Graduate,No,4700,0,4700,135,135000,360,375.0,7.98,75,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP001358,Male,Yes,0,Graduate,No,3445,0,3445,130,130000,360,361.11,10.48,81,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,DTI_Percent
+LP001359,Male,Yes,0,Graduate,No,7666,0,7666,187,187000,360,519.44,6.78,83,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,LoanAmount
+LP001361,Male,Yes,0,Graduate,No,2458,5105,7563,188,188000,360,522.22,6.9,77,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,CoapplicantIncome
+LP001366,Female,No,0,Graduate,No,3250,0,3250,95,95000,360,263.89,8.12,76,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001368,Male,No,0,Graduate,No,4463,0,4463,65,65000,360,180.56,4.05,80,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001375,Male,Yes,1,Graduate,No,4083,1775,5858,139,139000,60,2316.67,39.55,82,Approved,Tier 1 (Low Risk),Loan_Amount_Term,DTI_Percent
+LP001380,Male,Yes,0,Graduate,Yes,3900,2094,5994,232,232000,360,644.44,10.75,76,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,DTI_Percent
+LP001386,Male,Yes,0,Not Graduate,No,4750,3583,8333,144,144000,360,400.0,4.8,72,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP001400,Male,No,0,Graduate,No,3583,3435,7018,155,155000,360,430.56,6.14,71,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001407,Male,Yes,0,Graduate,No,3189,2367,5556,186,186000,360,516.67,9.3,79,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,DTI_Percent
+LP001413,Male,No,0,Graduate,Yes,6356,0,6356,50,50000,360,138.89,2.19,81,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001415,Male,Yes,1,Graduate,No,3413,4053,7466,125,125000,360,347.22,4.65,82,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,CoapplicantIncome
+LP001419,Female,Yes,0,Graduate,No,7950,0,7950,185,185000,360,513.89,6.46,84,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,LoanAmount
+LP001420,Male,Yes,3+,Graduate,No,3829,1103,4932,163,163000,360,452.78,9.18,83,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,DTI_Percent
+LP001428,Male,Yes,3+,Graduate,No,72529,0,72529,360,360000,360,1000.0,1.38,81,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,TotalIncome
+LP001445,Male,Yes,2,Not Graduate,No,4136,0,4136,149,149000,480,310.42,7.51,66,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP001446,Male,Yes,0,Graduate,No,8449,0,8449,257,257000,360,713.89,8.45,81,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,LoanAmount
+LP001450,Male,Yes,0,Graduate,No,4456,0,4456,131,131000,180,727.78,16.33,88,Approved,Tier 1 (Low Risk),Loan_Amount_Term,DTI_Percent
+LP001452,Male,Yes,2,Graduate,No,4635,8000,12635,102,102000,180,566.67,4.48,89,Approved,Tier 1 (Low Risk),Loan_Amount_Term,CoapplicantIncome
+LP001455,Male,Yes,0,Graduate,No,3571,1917,5488,135,135000,360,375.0,6.83,82,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP001466,Male,No,0,Graduate,No,3066,0,3066,95,95000,360,263.89,8.61,75,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001471,Male,No,2,Not Graduate,No,3235,2015,5250,77,77000,360,213.89,4.07,69,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP001472,Female,No,0,Graduate,No,5058,0,5058,200,200000,360,555.56,10.98,70,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001475,Male,Yes,0,Graduate,Yes,3188,2286,5474,130,130000,360,361.11,6.6,81,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP001483,Male,Yes,3+,Graduate,No,13518,0,13518,390,390000,360,1083.33,8.01,81,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,LoanAmount
+LP001486,Male,Yes,1,Graduate,No,4364,2500,6864,185,185000,360,513.89,7.49,81,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,LoanAmount
+LP001490,Male,Yes,2,Not Graduate,No,4766,1646,6412,100,100000,360,277.78,4.33,78,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP001496,Male,Yes,1,Graduate,No,4609,2333,6942,123,123000,360,341.67,4.92,84,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP001499,Female,Yes,3+,Graduate,No,6260,0,6260,110,110000,360,305.56,4.88,88,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP001500,Male,Yes,1,Graduate,No,3333,4200,7533,256,256000,360,711.11,9.44,76,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,LoanAmount
+LP001501,Male,Yes,0,Graduate,No,3500,3250,6750,140,140000,360,388.89,5.76,81,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,CoapplicantIncome
+LP001517,Male,Yes,3+,Graduate,No,9719,0,9719,61,61000,360,169.44,1.74,90,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Monthly_EMI
+LP001527,Male,Yes,3+,Graduate,No,6835,0,6835,188,188000,360,522.22,7.64,85,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,LoanAmount
+LP001534,Male,No,0,Graduate,No,4452,0,4452,131,131000,360,363.89,8.17,75,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001542,Female,Yes,0,Graduate,No,2262,0,2262,125,125000,480,260.42,11.51,72,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP001547,Male,Yes,1,Graduate,No,3901,0,3901,116,116000,360,322.22,8.26,84,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP001548,Male,Yes,2,Not Graduate,No,2687,0,2687,50,50000,180,277.78,10.34,87,Approved,Tier 1 (Low Risk),Loan_Amount_Term,Education_Graduate
+LP001558,Male,No,0,Graduate,No,2243,2233,4476,107,107000,360,297.22,6.64,74,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001561,Female,Yes,0,Graduate,No,3417,1287,4704,200,200000,360,555.56,11.81,77,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,DTI_Percent
+LP001563,Male,No,0,Graduate,No,1596,1760,3356,119,119000,360,330.56,9.85,71,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001567,Male,Yes,3+,Graduate,No,4513,0,4513,120,120000,360,333.33,7.39,86,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP001568,Male,Yes,0,Graduate,No,4500,0,4500,140,140000,360,388.89,8.64,83,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP001573,Male,Yes,0,Not Graduate,No,4523,1350,5873,165,165000,360,458.33,7.8,72,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP001584,Female,No,0,Graduate,Yes,4742,0,4742,108,108000,360,300.0,6.33,76,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001587,Male,Yes,0,Graduate,No,4082,0,4082,93,93000,360,258.33,6.33,85,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP001589,Female,No,0,Graduate,No,3417,0,3417,102,102000,360,283.33,8.29,75,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001591,Female,Yes,2,Graduate,No,2922,3396,6318,122,122000,360,338.89,5.36,83,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,CoapplicantIncome
+LP001599,Male,Yes,0,Graduate,No,4167,4754,8921,160,160000,360,444.44,4.98,80,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,CoapplicantIncome
+LP001601,Male,No,3+,Graduate,No,4243,4123,8366,157,157000,360,436.11,5.21,74,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001607,Female,No,0,Not Graduate,No,0,1760,1760,180,180000,360,500.0,28.41,32,Rejected,Tier 3 (High Risk),Credit_Bureau_Benchmark,DTI_Percent
+LP001611,Male,Yes,1,Graduate,No,1516,2900,4416,80,80000,360,222.22,5.03,84,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,CoapplicantIncome
+LP001613,Female,No,0,Graduate,No,1762,2666,4428,104,104000,360,288.89,6.52,73,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001622,Male,Yes,2,Graduate,No,724,3510,4234,213,213000,360,591.67,13.97,74,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,DTI_Percent
+LP001627,Male,No,0,Graduate,No,3125,0,3125,65,65000,360,180.56,5.78,79,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001650,Male,Yes,0,Graduate,No,2333,3803,6136,146,146000,360,405.56,6.61,80,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,CoapplicantIncome
+LP001651,Male,Yes,3+,Graduate,No,3350,1560,4910,135,135000,360,375.0,7.64,84,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP001652,Male,No,0,Graduate,No,2500,6414,8914,187,187000,360,519.44,5.83,66,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,CoapplicantIncome
+LP001655,Female,No,0,Graduate,No,12500,0,12500,300,300000,360,833.33,6.67,72,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001660,Male,No,0,Graduate,No,4667,0,4667,120,120000,360,333.33,7.14,76,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001662,Male,No,0,Graduate,No,6500,0,6500,71,71000,360,197.22,3.03,81,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001663,Male,Yes,2,Graduate,No,7500,0,7500,225,225000,360,625.0,8.33,83,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,LoanAmount
+LP001667,Male,No,0,Graduate,No,3073,0,3073,70,70000,180,388.89,12.66,84,Approved,Tier 1 (Low Risk),Loan_Amount_Term,Married_Yes
+LP001695,Male,Yes,1,Not Graduate,No,3321,2088,5409,70,70000,360,194.44,3.59,78,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP001703,Male,Yes,0,Graduate,No,3333,1270,4603,124,124000,360,344.44,7.48,83,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP001718,Male,No,0,Graduate,No,3391,0,3391,132,132000,360,366.67,10.81,72,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001728,Male,Yes,1,Graduate,Yes,3343,1517,4860,105,105000,360,291.67,6.0,84,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP001735,Female,No,1,Graduate,No,3620,0,3620,90,90000,360,250.0,6.91,78,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001737,Male,No,0,Graduate,No,4000,0,4000,83,83000,84,988.1,24.7,82,Approved,Tier 1 (Low Risk),Loan_Amount_Term,DTI_Percent
+LP001739,Male,Yes,0,Graduate,No,4258,0,4258,125,125000,360,347.22,8.15,83,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP001742,Male,Yes,2,Graduate,No,4500,0,4500,147,147000,360,408.33,9.07,84,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,DTI_Percent
+LP001757,Male,Yes,1,Graduate,No,2014,2925,4939,120,120000,360,333.33,6.75,82,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,CoapplicantIncome
+LP001769,Male,No,0,Graduate,No,3333,1250,4583,110,110000,360,305.56,6.67,75,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001771,Female,No,3+,Graduate,No,4083,0,4083,103,103000,360,286.11,7.01,79,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001785,Male,No,0,Graduate,No,4727,0,4727,150,150000,360,416.67,8.81,74,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001787,Male,Yes,3+,Graduate,No,3089,2999,6088,100,100000,240,416.67,6.84,89,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,CoapplicantIncome
+LP001789,Male,Yes,3+,Not Graduate,No,6794,528,7322,139,139000,360,386.11,5.27,79,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP001791,Male,Yes,0,Graduate,Yes,32000,0,32000,550,550000,360,1527.78,4.77,76,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,LoanAmount
+LP001794,Male,Yes,2,Graduate,Yes,10890,0,10890,260,260000,12,21666.67,198.96,18,Rejected,Tier 3 (High Risk),Monthly_EMI,DTI_Percent
+LP001797,Female,No,0,Graduate,No,12941,0,12941,150,150000,300,500.0,3.86,82,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001815,Male,No,0,Not Graduate,No,3276,0,3276,90,90000,360,250.0,7.63,65,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP001817,Male,No,0,Not Graduate,Yes,8703,0,8703,199,199000,360,552.78,6.35,62,Conditional,Tier 2 (Moderate Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP001818,Male,Yes,1,Graduate,No,4742,717,5459,139,139000,360,386.11,7.07,84,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP001822,Male,No,0,Graduate,No,5900,0,5900,150,150000,360,416.67,7.06,76,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001827,Male,No,0,Graduate,No,3071,4309,7380,180,180000,360,500.0,6.78,69,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001831,Male,Yes,0,Graduate,No,2783,1456,4239,113,113000,360,313.89,7.4,83,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP001842,Male,No,0,Graduate,No,5000,0,5000,148,148000,360,411.11,8.22,74,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001853,Male,Yes,1,Not Graduate,No,2463,2360,4823,117,117000,360,325.0,6.74,74,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP001855,Male,Yes,2,Graduate,No,4855,0,4855,72,72000,360,200.0,4.12,88,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Monthly_EMI
+LP001857,Male,No,0,Not Graduate,Yes,1599,2474,4073,125,125000,300,416.67,10.23,61,Conditional,Tier 2 (Moderate Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP001862,Male,Yes,2,Graduate,Yes,4246,4246,8492,214,214000,360,594.44,7.0,78,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,CoapplicantIncome
+LP001867,Male,Yes,0,Graduate,No,4333,2291,6624,133,133000,350,380.0,5.74,83,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,CoapplicantIncome
+LP001878,Male,No,1,Graduate,No,5823,2529,8352,187,187000,360,519.44,6.22,73,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001881,Male,Yes,0,Not Graduate,No,7895,0,7895,143,143000,360,397.22,5.03,77,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP001886,Male,No,0,Graduate,No,4150,4256,8406,209,209000,360,580.56,6.91,68,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001906,Male,No,0,Graduate,No,2964,0,2964,84,84000,360,233.33,7.87,76,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001909,Male,No,0,Graduate,No,5583,0,5583,116,116000,360,322.22,5.77,78,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001911,Female,No,0,Graduate,No,2708,0,2708,65,65000,360,180.56,6.67,78,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001921,Male,No,1,Graduate,No,3180,2370,5550,80,80000,240,333.33,6.01,84,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001923,Male,No,0,Not Graduate,No,2268,0,2268,170,170000,360,472.22,20.82,45,Conditional,Tier 2 (Moderate Risk),Credit_Bureau_Benchmark,DTI_Percent
+LP001933,Male,No,2,Not Graduate,No,1141,2017,3158,120,120000,360,333.33,10.56,60,Conditional,Tier 2 (Moderate Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP001943,Male,Yes,0,Graduate,No,3042,3167,6209,135,135000,360,375.0,6.04,81,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,CoapplicantIncome
+LP001950,Female,Yes,3+,Graduate,No,1750,2935,4685,94,94000,360,261.11,5.57,85,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,CoapplicantIncome
+LP001959,Female,Yes,1,Graduate,No,3564,0,3564,79,79000,360,219.44,6.16,86,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Monthly_EMI
+LP001961,Female,No,0,Graduate,No,3958,0,3958,110,110000,360,305.56,7.72,76,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP001973,Male,Yes,2,Not Graduate,No,4483,0,4483,130,130000,360,361.11,8.06,76,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP001975,Male,Yes,0,Graduate,No,5225,0,5225,143,143000,360,397.22,7.6,84,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP001979,Male,No,0,Graduate,No,3017,2845,5862,159,159000,180,883.33,15.07,79,Approved,Tier 1 (Low Risk),Loan_Amount_Term,DTI_Percent
+LP001995,Male,Yes,0,Not Graduate,No,2431,1820,4251,110,110000,360,305.56,7.19,73,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP001999,Male,Yes,2,Graduate,No,4912,4614,9526,160,160000,360,444.44,4.67,82,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,CoapplicantIncome
+LP002007,Male,Yes,2,Not Graduate,No,2500,3333,5833,131,131000,360,363.89,6.24,74,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP002009,Female,No,0,Graduate,No,2918,0,2918,65,65000,360,180.56,6.19,78,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002016,Male,Yes,2,Graduate,No,5128,0,5128,143,143000,360,397.22,7.75,85,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002017,Male,Yes,3+,Graduate,No,15312,0,15312,187,187000,360,519.44,3.39,87,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,TotalIncome
+LP002018,Male,Yes,2,Graduate,No,3958,2632,6590,160,160000,360,444.44,6.74,82,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,CoapplicantIncome
+LP002027,Male,Yes,0,Graduate,No,4334,2945,7279,165,165000,360,458.33,6.3,81,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,CoapplicantIncome
+LP002028,Male,Yes,2,Graduate,No,4358,0,4358,110,110000,360,305.56,7.01,86,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002042,Female,Yes,1,Graduate,No,4000,3917,7917,173,173000,360,480.56,6.07,81,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,CoapplicantIncome
+LP002045,Male,Yes,3+,Graduate,No,10166,750,10916,150,150000,360,416.67,3.82,87,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002046,Male,Yes,0,Not Graduate,No,4483,0,4483,135,135000,360,375.0,8.36,74,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP002047,Male,Yes,2,Not Graduate,No,4521,1184,5705,150,150000,360,416.67,7.3,75,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP002056,Male,Yes,2,Graduate,No,9167,0,9167,235,235000,360,652.78,7.12,84,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,LoanAmount
+LP002057,Male,Yes,0,Not Graduate,No,13083,0,13083,125,125000,360,347.22,2.65,79,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP002059,Male,Yes,2,Graduate,No,7874,3967,11841,336,336000,360,933.33,7.88,76,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,LoanAmount
+LP002062,Female,Yes,1,Graduate,No,4333,0,4333,132,132000,84,1571.43,36.27,82,Approved,Tier 1 (Low Risk),Loan_Amount_Term,DTI_Percent
+LP002064,Male,No,0,Graduate,No,4083,0,4083,96,96000,360,266.67,6.53,77,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002069,Male,Yes,2,Not Graduate,No,3785,2912,6697,180,180000,360,500.0,7.47,72,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP002070,Male,Yes,3+,Not Graduate,No,2654,1998,4652,128,128000,360,355.56,7.64,75,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP002077,Male,Yes,1,Graduate,No,10000,2690,12690,412,412000,360,1144.44,9.02,75,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,LoanAmount
+LP002083,Male,No,0,Graduate,Yes,5833,0,5833,116,116000,360,322.22,5.52,77,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002090,Male,Yes,1,Graduate,No,4796,0,4796,114,114000,360,316.67,6.6,85,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002096,Male,Yes,0,Not Graduate,No,2000,1600,3600,115,115000,360,319.44,8.87,72,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP002099,Male,Yes,2,Graduate,No,2540,700,3240,104,104000,360,288.89,8.92,84,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002102,Male,Yes,0,Graduate,Yes,1900,1442,3342,88,88000,360,244.44,7.31,82,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Monthly_EMI
+LP002105,Male,Yes,0,Graduate,Yes,8706,0,8706,108,108000,480,225.0,2.58,80,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002107,Male,Yes,3+,Not Graduate,No,2855,542,3397,90,90000,360,250.0,7.36,78,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP002111,Male,Yes,0,Graduate,No,3016,1300,4316,100,100000,360,277.78,6.44,84,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002117,Female,Yes,0,Graduate,No,3159,2374,5533,108,108000,360,300.0,5.42,83,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002118,Female,No,0,Graduate,No,1937,1152,3089,78,78000,360,216.67,7.01,76,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002123,Male,Yes,0,Graduate,No,2613,2417,5030,123,123000,360,341.67,6.79,82,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002125,Male,Yes,1,Graduate,No,4960,2600,7560,187,187000,360,519.44,6.87,81,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,LoanAmount
+LP002148,Male,Yes,1,Graduate,No,3074,1083,4157,146,146000,360,405.56,9.76,81,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,DTI_Percent
+LP002152,Female,No,0,Graduate,No,4213,0,4213,80,80000,360,222.22,5.27,79,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002165,Male,No,1,Not Graduate,No,2038,4027,6065,100,100000,360,277.78,4.58,63,Conditional,Tier 2 (Moderate Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP002167,Female,No,0,Graduate,No,2362,0,2362,55,55000,360,152.78,6.47,78,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002168,Male,No,0,Graduate,No,5333,2400,7733,200,200000,360,555.56,7.18,71,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002172,Male,Yes,3+,Graduate,Yes,5384,0,5384,150,150000,360,416.67,7.74,84,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002176,Male,No,0,Graduate,No,5708,0,5708,150,150000,360,416.67,7.3,75,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002183,Male,Yes,0,Not Graduate,No,3754,3719,7473,118,118000,360,327.78,4.39,73,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP002184,Male,Yes,0,Not Graduate,No,2914,2130,5044,150,150000,300,500.0,9.91,74,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP002186,Male,Yes,0,Not Graduate,No,2747,2458,5205,118,118000,36,3277.78,62.97,49,Conditional,Tier 2 (Moderate Risk),Loan_Amount_Term,DTI_Percent
+LP002192,Male,Yes,0,Graduate,No,7830,2183,10013,212,212000,360,588.89,5.88,81,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,LoanAmount
+LP002195,Male,Yes,1,Graduate,Yes,3507,3148,6655,212,212000,360,588.89,8.85,77,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,LoanAmount
+LP002208,Male,Yes,1,Graduate,No,3747,2139,5886,125,125000,360,347.22,5.9,84,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002212,Male,Yes,0,Graduate,No,2166,2166,4332,108,108000,360,300.0,6.93,82,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002240,Male,Yes,0,Not Graduate,No,3500,2168,5668,149,149000,360,413.89,7.3,72,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP002245,Male,Yes,2,Not Graduate,No,2896,0,2896,80,80000,480,166.67,5.76,71,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002253,Female,No,1,Graduate,No,5062,0,5062,152,152000,300,506.67,10.01,78,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002256,Female,No,2,Graduate,Yes,5184,0,5184,187,187000,360,519.44,10.02,72,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002257,Female,No,0,Graduate,No,2545,0,2545,74,74000,360,205.56,8.08,76,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002264,Male,Yes,0,Graduate,No,2553,1768,4321,102,102000,360,283.33,6.56,83,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002270,Male,Yes,1,Graduate,No,3436,3809,7245,100,100000,360,277.78,3.83,84,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,CoapplicantIncome
+LP002279,Male,No,0,Graduate,No,2412,2755,5167,130,130000,360,361.11,6.99,72,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002286,Male,Yes,3+,Not Graduate,No,5180,0,5180,125,125000,360,347.22,6.7,79,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP002294,Male,No,0,Graduate,No,14911,14507,29418,130,130000,360,361.11,1.23,56,Conditional,Tier 2 (Moderate Risk),Credit_Bureau_Benchmark,CoapplicantIncome
+LP002298,Male,No,0,Graduate,Yes,2860,2988,5848,138,138000,360,383.33,6.55,71,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002306,Male,Yes,0,Graduate,No,1173,1594,2767,28,28000,180,155.56,5.62,92,Approved,Tier 1 (Low Risk),Loan_Amount_Term,Monthly_EMI
+LP002310,Female,No,1,Graduate,No,7600,0,7600,92,92000,360,255.56,3.36,81,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002311,Female,Yes,0,Graduate,No,2157,1788,3945,104,104000,360,288.89,7.32,83,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002316,Male,No,0,Graduate,No,2231,2774,5005,176,176000,360,488.89,9.77,68,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002321,Female,No,0,Graduate,No,2274,5211,7485,117,117000,360,325.0,4.34,72,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002325,Male,Yes,2,Not Graduate,No,6166,13983,20149,102,102000,360,283.33,1.41,61,Conditional,Tier 2 (Moderate Risk),Credit_Bureau_Benchmark,CoapplicantIncome
+LP002326,Male,Yes,2,Not Graduate,No,2513,1110,3623,107,107000,360,297.22,8.2,75,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP002329,Male,No,0,Graduate,No,4333,0,4333,66,66000,480,137.5,3.17,72,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002333,Male,No,0,Not Graduate,No,3844,0,3844,105,105000,360,291.67,7.59,65,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP002339,Male,Yes,0,Graduate,No,3887,1517,5404,105,105000,360,291.67,5.4,84,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002344,Male,Yes,0,Graduate,No,3510,828,4338,105,105000,360,291.67,6.72,84,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002346,Male,Yes,0,Graduate,No,2539,1704,4243,125,125000,360,347.22,8.18,82,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002354,Female,No,0,Not Graduate,No,2107,0,2107,64,64000,360,177.78,8.44,65,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP002355,Male,Yes,0,Graduate,No,3186,3145,6331,150,150000,180,833.33,13.16,87,Approved,Tier 1 (Low Risk),Loan_Amount_Term,DTI_Percent
+LP002358,Male,Yes,2,Graduate,Yes,5000,2166,7166,150,150000,360,416.67,5.81,83,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002360,Male,Yes,0,Graduate,No,10000,0,10000,125,125000,360,347.22,3.47,86,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002375,Male,Yes,0,Not Graduate,Yes,3943,0,3943,64,64000,360,177.78,4.51,78,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP002376,Male,No,0,Graduate,No,2925,0,2925,40,40000,180,222.22,7.6,88,Approved,Tier 1 (Low Risk),Loan_Amount_Term,Married_Yes
+LP002383,Male,Yes,3+,Graduate,No,3242,437,3679,142,142000,480,295.83,8.04,77,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002385,Male,Yes,0,Graduate,No,3863,0,3863,70,70000,300,233.33,6.04,89,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Monthly_EMI
+LP002389,Female,No,1,Graduate,No,4028,0,4028,131,131000,360,363.89,9.03,75,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002394,Male,Yes,2,Graduate,No,4010,1025,5035,120,120000,360,333.33,6.62,85,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002397,Female,Yes,1,Graduate,No,3719,1585,5304,114,114000,360,316.67,5.97,84,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002399,Male,No,0,Graduate,No,2858,0,2858,123,123000,360,341.67,11.95,71,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002400,Female,Yes,0,Graduate,No,3833,0,3833,92,92000,360,255.56,6.67,85,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Monthly_EMI
+LP002402,Male,Yes,0,Graduate,No,3333,4288,7621,160,160000,360,444.44,5.83,80,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,CoapplicantIncome
+LP002412,Male,Yes,0,Graduate,No,3007,3725,6732,151,151000,360,419.44,6.23,80,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,CoapplicantIncome
+LP002415,Female,No,1,Graduate,No,1850,4583,6433,81,81000,360,225.0,3.5,75,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002417,Male,Yes,3+,Not Graduate,No,2792,2619,5411,171,171000,360,475.0,8.78,72,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP002420,Male,Yes,0,Graduate,No,2982,1550,4532,110,110000,360,305.56,6.74,83,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002425,Male,No,0,Graduate,No,3417,738,4155,100,100000,360,277.78,6.69,76,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002433,Male,Yes,1,Graduate,No,18840,0,18840,234,234000,360,650.0,3.45,85,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,LoanAmount
+LP002440,Male,Yes,2,Graduate,No,2995,1120,4115,184,184000,360,511.11,12.42,79,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,DTI_Percent
+LP002441,Male,No,0,Graduate,No,3579,3308,6887,138,138000,360,383.33,5.57,73,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002442,Female,Yes,1,Not Graduate,No,3835,1400,5235,112,112000,480,233.33,4.46,68,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002445,Female,No,1,Not Graduate,No,3854,3575,7429,117,117000,360,325.0,4.37,64,Conditional,Tier 2 (Moderate Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP002450,Male,Yes,2,Graduate,No,5833,750,6583,49,49000,360,136.11,2.07,89,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Monthly_EMI
+LP002471,Male,No,0,Graduate,No,3508,0,3508,99,99000,360,275.0,7.84,76,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002476,Female,Yes,3+,Not Graduate,No,1635,2444,4079,99,99000,360,275.0,6.74,76,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP002482,Female,No,0,Graduate,Yes,3333,3916,7249,212,212000,360,588.89,8.12,65,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002485,Male,No,1,Graduate,No,24797,0,24797,240,240000,360,666.67,2.69,77,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002495,Male,Yes,2,Graduate,No,5667,440,6107,130,130000,360,361.11,5.91,86,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002496,Female,No,0,Graduate,No,3500,0,3500,94,94000,360,261.11,7.46,76,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002523,Male,Yes,3+,Graduate,No,2773,1497,4270,108,108000,360,300.0,7.03,85,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002542,Male,Yes,0,Graduate,No,6500,0,6500,144,144000,360,400.0,6.15,85,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002550,Female,No,0,Graduate,No,5769,0,5769,110,110000,180,611.11,10.59,85,Approved,Tier 1 (Low Risk),Loan_Amount_Term,Married_Yes
+LP002551,Male,Yes,3+,Not Graduate,No,3634,910,4544,176,176000,360,488.89,10.76,72,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP002553,Male,No,0,Graduate,No,29167,0,29167,185,185000,360,513.89,1.76,78,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002554,Male,No,0,Graduate,No,2166,2057,4223,122,122000,360,338.89,8.02,72,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002561,Male,Yes,0,Graduate,No,5000,0,5000,126,126000,360,350.0,7.0,84,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002566,Female,No,0,Graduate,No,5530,0,5530,135,135000,360,375.0,6.78,76,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002568,Male,No,0,Not Graduate,No,9000,0,9000,122,122000,360,338.89,3.77,69,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP002570,Female,Yes,2,Graduate,No,10000,11666,21666,460,460000,360,1277.78,5.9,63,Conditional,Tier 2 (Moderate Risk),Credit_Bureau_Benchmark,CoapplicantIncome
+LP002572,Male,Yes,1,Graduate,No,8750,0,8750,297,297000,360,825.0,9.43,80,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,LoanAmount
+LP002581,Male,Yes,0,Not Graduate,No,2157,2730,4887,140,140000,360,388.89,7.96,71,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP002584,Male,No,0,Graduate,No,1972,4347,6319,106,106000,360,294.44,4.66,73,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002592,Male,No,0,Graduate,No,4983,0,4983,141,141000,360,391.67,7.86,75,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002593,Male,Yes,1,Graduate,No,8333,4000,12333,125,125000,360,347.22,2.82,83,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,CoapplicantIncome
+LP002599,Male,Yes,0,Graduate,No,3667,2000,5667,170,170000,360,472.22,8.33,80,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002604,Male,Yes,2,Graduate,No,3166,2833,5999,145,145000,360,402.78,6.71,83,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,CoapplicantIncome
+LP002605,Male,No,0,Not Graduate,No,3271,0,3271,90,90000,360,250.0,7.64,65,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP002609,Female,Yes,0,Graduate,No,2241,2000,4241,88,88000,360,244.44,5.76,84,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Monthly_EMI
+LP002610,Male,Yes,1,Not Graduate,No,1792,2565,4357,128,128000,360,355.56,8.16,72,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP002612,Female,Yes,0,Graduate,No,2666,0,2666,84,84000,480,175.0,6.56,78,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002614,Male,No,0,Graduate,No,6478,0,6478,108,108000,360,300.0,4.63,79,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002630,Male,No,0,Not Graduate,No,3808,0,3808,83,83000,360,230.56,6.05,68,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP002635,Female,Yes,2,Not Graduate,No,3729,0,3729,117,117000,360,325.0,8.72,76,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP002639,Male,Yes,2,Graduate,No,4120,0,4120,128,128000,360,355.56,8.63,84,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002644,Male,Yes,1,Graduate,Yes,7500,0,7500,75,75000,360,208.33,2.78,87,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Monthly_EMI
+LP002651,Male,Yes,1,Graduate,No,6300,0,6300,125,125000,360,347.22,5.51,86,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002654,Female,No,0,Graduate,Yes,14987,0,14987,177,177000,360,491.67,3.28,77,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002657,Male,Yes,1,Not Graduate,Yes,570,2125,2695,68,68000,360,188.89,7.01,74,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP002711,Male,Yes,0,Graduate,No,2600,700,3300,96,96000,360,266.67,8.08,83,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002712,Male,No,2,Not Graduate,No,2733,1083,3816,180,180000,360,500.0,13.1,56,Conditional,Tier 2 (Moderate Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP002721,Male,Yes,2,Graduate,Yes,7500,0,7500,183,183000,360,508.33,6.78,84,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002735,Male,Yes,2,Not Graduate,No,3859,0,3859,121,121000,360,336.11,8.71,76,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP002744,Male,Yes,1,Graduate,No,6825,0,6825,162,162000,360,450.0,6.59,85,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002745,Male,Yes,0,Graduate,No,3708,4700,8408,132,132000,360,366.67,4.36,81,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,CoapplicantIncome
+LP002746,Male,No,0,Graduate,No,5314,0,5314,147,147000,360,408.33,7.68,75,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002747,Female,No,3+,Graduate,No,2366,5272,7638,153,153000,360,425.0,5.56,72,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002754,Male,No,0,Graduate,No,2066,2108,4174,104,104000,84,1238.1,29.66,75,Approved,Tier 1 (Low Risk),Loan_Amount_Term,DTI_Percent
+LP002759,Male,Yes,2,Graduate,No,5000,0,5000,149,149000,360,413.89,8.28,84,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002760,Female,No,0,Graduate,No,3767,0,3767,134,134000,300,446.67,11.86,76,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002766,Female,Yes,0,Graduate,No,7859,879,8738,165,165000,180,916.67,10.49,90,Approved,Tier 1 (Low Risk),Loan_Amount_Term,DTI_Percent
+LP002769,Female,Yes,0,Graduate,No,4283,0,4283,120,120000,360,333.33,7.78,84,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002774,Male,Yes,0,Not Graduate,No,1700,2900,4600,67,67000,360,186.11,4.05,76,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP002775,Male,No,0,Not Graduate,No,4768,0,4768,125,125000,360,347.22,7.28,65,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP002781,Male,No,0,Graduate,No,3083,2738,5821,120,120000,360,333.33,5.73,74,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002782,Male,Yes,1,Graduate,No,2667,1542,4209,148,148000,360,411.11,9.77,81,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,DTI_Percent
+LP002786,Female,Yes,0,Not Graduate,No,1647,1762,3409,181,181000,360,502.78,14.75,63,Conditional,Tier 2 (Moderate Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP002790,Male,Yes,3+,Graduate,No,3400,0,3400,80,80000,120,666.67,19.61,90,Approved,Tier 1 (Low Risk),Loan_Amount_Term,DTI_Percent
+LP002791,Male,No,1,Graduate,No,16000,5000,21000,40,40000,360,111.11,0.53,77,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002793,Male,Yes,0,Graduate,No,5333,0,5333,90,90000,360,250.0,4.69,86,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Monthly_EMI
+LP002802,Male,No,0,Graduate,No,2875,2416,5291,95,95000,6,15833.33,299.25,0,Rejected,Tier 3 (High Risk),Monthly_EMI,DTI_Percent
+LP002803,Male,Yes,1,Not Graduate,No,2600,618,3218,122,122000,360,338.89,10.53,72,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP002805,Male,Yes,2,Graduate,No,5041,700,5741,150,150000,360,416.67,7.26,84,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002806,Male,Yes,3+,Graduate,Yes,6958,1411,8369,150,150000,360,416.67,4.98,85,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002816,Male,Yes,1,Graduate,No,3500,1658,5158,104,104000,360,288.89,5.6,85,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002823,Male,Yes,0,Graduate,No,5509,0,5509,143,143000,360,397.22,7.21,84,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002825,Male,Yes,3+,Graduate,No,9699,0,9699,300,300000,360,833.33,8.59,82,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,LoanAmount
+LP002826,Female,Yes,1,Not Graduate,No,3621,2717,6338,171,171000,360,475.0,7.49,71,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP002843,Female,Yes,0,Graduate,No,4709,0,4709,113,113000,360,313.89,6.67,85,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002849,Male,Yes,0,Graduate,No,1516,1951,3467,35,35000,360,97.22,2.8,87,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Monthly_EMI
+LP002850,Male,No,2,Graduate,No,2400,0,2400,46,46000,360,127.78,5.32,81,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002853,Female,No,0,Not Graduate,No,3015,2000,5015,145,145000,360,402.78,8.03,60,Conditional,Tier 2 (Moderate Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP002856,Male,Yes,0,Graduate,No,2292,1558,3850,119,119000,360,330.56,8.59,81,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002857,Male,Yes,1,Graduate,Yes,2360,3355,5715,87,87000,240,362.5,6.34,88,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,CoapplicantIncome
+LP002858,Female,No,0,Graduate,No,4333,2333,6666,162,162000,360,450.0,6.75,72,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002860,Male,Yes,0,Graduate,Yes,2623,4831,7454,122,122000,180,677.78,9.09,87,Approved,Tier 1 (Low Risk),Loan_Amount_Term,CoapplicantIncome
+LP002867,Male,No,0,Graduate,Yes,3972,4275,8247,187,187000,360,519.44,6.3,68,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002869,Male,Yes,3+,Not Graduate,No,3522,0,3522,81,81000,180,450.0,12.78,86,Approved,Tier 1 (Low Risk),Loan_Amount_Term,Education_Graduate
+LP002870,Male,Yes,1,Graduate,No,4700,0,4700,80,80000,360,222.22,4.73,87,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Monthly_EMI
+LP002876,Male,No,0,Graduate,No,6858,0,6858,176,176000,360,488.89,7.13,75,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002878,Male,Yes,3+,Graduate,No,8334,0,8334,260,260000,360,722.22,8.67,83,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,LoanAmount
+LP002879,Male,Yes,0,Graduate,No,3391,1966,5357,133,133000,360,369.44,6.9,82,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002885,Male,No,0,Not Graduate,No,2868,0,2868,70,70000,360,194.44,6.78,67,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP002890,Male,Yes,2,Not Graduate,No,3418,1380,4798,135,135000,360,375.0,7.82,75,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP002891,Male,Yes,0,Graduate,Yes,2500,296,2796,137,137000,300,456.67,16.33,79,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,DTI_Percent
+LP002899,Male,Yes,2,Graduate,No,8667,0,8667,254,254000,360,705.56,8.14,83,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,LoanAmount
+LP002901,Male,No,0,Graduate,No,2283,15000,17283,106,106000,360,294.44,1.7,57,Conditional,Tier 2 (Moderate Risk),Credit_Bureau_Benchmark,CoapplicantIncome
+LP002907,Male,Yes,0,Graduate,No,5817,910,6727,109,109000,360,302.78,4.5,85,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002920,Male,Yes,0,Graduate,No,5119,3769,8888,120,120000,360,333.33,3.75,83,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,CoapplicantIncome
+LP002921,Male,Yes,3+,Not Graduate,No,5316,187,5503,158,158000,180,877.78,15.95,83,Approved,Tier 1 (Low Risk),Loan_Amount_Term,DTI_Percent
+LP002932,Male,Yes,3+,Graduate,No,7603,1213,8816,197,197000,360,547.22,6.21,84,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,LoanAmount
+LP002935,Male,Yes,1,Graduate,No,3791,1936,5727,85,85000,360,236.11,4.12,86,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Monthly_EMI
+LP002952,Male,No,0,Graduate,No,2500,0,2500,60,60000,360,166.67,6.67,78,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002954,Male,Yes,2,Not Graduate,No,3132,0,3132,76,76000,360,211.11,6.74,79,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP002962,Male,No,0,Graduate,No,4000,2667,6667,152,152000,360,422.22,6.33,72,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002965,Female,Yes,0,Graduate,No,8550,4255,12805,96,96000,360,266.67,2.08,83,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,CoapplicantIncome
+LP002969,Male,Yes,1,Graduate,No,2269,2167,4436,99,99000,360,275.0,6.2,84,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002971,Male,Yes,3+,Not Graduate,Yes,4009,1777,5786,113,113000,360,313.89,5.42,77,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Education_Graduate
+LP002975,Male,Yes,0,Graduate,No,4158,709,4867,115,115000,360,319.44,6.56,84,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002980,Male,No,0,Graduate,No,3250,1993,5243,126,126000,360,350.0,6.68,74,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Married_Yes
+LP002986,Male,Yes,0,Graduate,No,5000,2393,7393,158,158000,360,438.89,5.94,82,Approved,Tier 1 (Low Risk),Credit_Bureau_Benchmark,Loan_Amount_Term
+LP002989,Male,No,0,Graduate,Yes,9200,0,9200,98,98000,180,544.44,5.92,88,Approved,Tier 1 (Low Risk),Loan_Amount_Term,Married_Yes

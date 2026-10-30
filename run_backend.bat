@@ -1,10 +1,15 @@
 @echo off
 title Meridian Mission Bharat Backend Server
 echo ========================================================
-echo   MERIDIAN FINANCIAL SERVICES - MISSION BHARAT
+echo   MERIDIAN FAIRLEND AI - MISSION BHARAT
 echo   Starting Explainable Loan Decision Backend Server...
+echo   Runtime: Python 3.11
 echo ========================================================
 echo.
-set PYTHONHOME=C:\Program Files\MySQL\MySQL Workbench 8.0\python
-"C:\Program Files\MySQL\MySQL Workbench 8.0\python.exe" server.py
+
+if exist "%LocalAppData%\Programs\Python\Python311\python.exe" (
+    "%LocalAppData%\Programs\Python\Python311\python.exe" server.py
+) else (
+    python server.py
+)
 pause
