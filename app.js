@@ -54,24 +54,36 @@ let currentAuthUser = null;
 let currentAuthToken = null;
 
 window.switchAuthTab = function(tabName) {
-  const btnSignin = document.getElementById('tab-btn-signin');
+  const btnApp = document.getElementById('tab-btn-applicant');
+  const btnOff = document.getElementById('tab-btn-officer');
   const btnSignup = document.getElementById('tab-btn-signup');
-  const formSignin = document.getElementById('form-signin');
+  const formApp = document.getElementById('form-signin-applicant');
+  const formOff = document.getElementById('form-signin-officer');
   const formSignup = document.getElementById('form-signup');
   const alertEl = document.getElementById('auth-alert');
 
   if (alertEl) alertEl.style.display = 'none';
 
-  if (tabName === 'signin') {
-    btnSignin?.classList.add('active');
-    btnSignup?.classList.remove('active');
-    if (formSignin) formSignin.style.display = 'block';
-    if (formSignup) formSignup.style.display = 'none';
-  } else {
+  btnApp?.classList.remove('active');
+  btnOff?.classList.remove('active');
+  btnSignup?.classList.remove('active');
+  if (formApp) formApp.style.display = 'none';
+  if (formOff) formOff.style.display = 'none';
+  if (formSignup) formSignup.style.display = 'none';
+
+  if (tabName === 'officer') {
+    btnOff?.classList.add('active');
+    if (formOff) formOff.style.display = 'block';
+    document.getElementById('signin-officer-email')?.focus();
+  } else if (tabName === 'signup') {
     btnSignup?.classList.add('active');
-    btnSignin?.classList.remove('active');
     if (formSignup) formSignup.style.display = 'block';
-    if (formSignin) formSignin.style.display = 'none';
+    document.getElementById('signup-fullname')?.focus();
+  } else {
+    // Default to applicant
+    btnApp?.classList.add('active');
+    if (formApp) formApp.style.display = 'block';
+    document.getElementById('signin-applicant-email')?.focus();
   }
 };
 
@@ -108,13 +120,22 @@ window.togglePasswordVisibility = function(inputId, btn) {
   }
 };
 
-window.quickFillCreds = function(email, password) {
-  const em = document.getElementById('signin-email');
-  const pw = document.getElementById('signin-password');
-  if (em) em.value = email;
-  if (pw) pw.value = password;
-  window.switchAuthTab('signin');
-  em?.focus();
+window.quickFillCreds = function(email, password, role = 'applicant') {
+  if (role === 'officer') {
+    window.switchAuthTab('officer');
+    const em = document.getElementById('signin-officer-email');
+    const pw = document.getElementById('signin-officer-password');
+    if (em) em.value = email;
+    if (pw) pw.value = password;
+    em?.focus();
+  } else {
+    window.switchAuthTab('applicant');
+    const em = document.getElementById('signin-applicant-email');
+    const pw = document.getElementById('signin-applicant-password');
+    if (em) em.value = email;
+    if (pw) pw.value = password;
+    em?.focus();
+  }
 };
 
 window.showAuthAlert = function(msg, isError = true) {
@@ -125,27 +146,32 @@ window.showAuthAlert = function(msg, isError = true) {
   alertEl.style.display = 'block';
 };
 
-window.handleSignIn = async function(e) {
+window.handleSignIn = async function(e, expectedRole = 'applicant') {
   e.preventDefault();
-  const email = document.getElementById('signin-email')?.value.trim();
-  const password = document.getElementById('signin-password')?.value.trim();
-  const btn = document.getElementById('btn-signin-submit');
+  const isOfficer = expectedRole === 'officer';
+  const emailInput = document.getElementById(isOfficer ? 'signin-officer-email' : 'signin-applicant-email');
+  const pwdInput = document.getElementById(isOfficer ? 'signin-officer-password' : 'signin-applicant-password');
+  const btn = document.getElementById(isOfficer ? 'btn-signin-officer-submit' : 'btn-signin-applicant-submit');
+
+  const email = emailInput?.value.trim();
+  const password = pwdInput?.value.trim();
 
   if (!email || !password) {
     window.showAuthAlert('Please enter both email address and password.');
     return;
   }
 
+  const defaultBtnHtml = isOfficer ? '<span>🛡️</span> Sign In as Loan Officer' : '<span>👤</span> Sign In as Applicant';
   if (btn) {
     btn.disabled = true;
-    btn.innerHTML = '<span>⏳</span> Verifying Credentials...';
+    btn.innerHTML = '<span>⏳</span> Verifying Clearance...';
   }
 
   try {
     const res = await fetch(`${state.apiBase}/api/auth/signin`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
+      body: JSON.stringify({ email, password, expected_role: expectedRole })
     });
 
     const data = await res.json();
@@ -156,19 +182,19 @@ window.handleSignIn = async function(e) {
     }
   } catch (err) {
     // Offline local fallback verification
-    if (email.toLowerCase() === 'applicant@meridianbank.in' && password === 'Applicant@123') {
-      const fallbackUser = { id: '03416d3d-ff2b-4101-9453-7509939590fc', email, full_name: 'Ananya Rao', phone: '9876543210', role: 'applicant' };
-      window.applyAuthenticatedSession(fallbackUser, 'offline-token-applicant');
-    } else if (email.toLowerCase() === 'officer@meridianbank.in' && password === 'Officer@2026') {
+    if (isOfficer && email.toLowerCase() === 'officer@meridianbank.in' && password === 'Officer@2026') {
       const fallbackUser = { id: '80ac8a07-45a2-40ec-aff5-5b605e4ca044', email, full_name: 'Vikram Sharma (Lead Credit Officer)', phone: '9811223344', role: 'officer' };
       window.applyAuthenticatedSession(fallbackUser, 'offline-token-officer');
+    } else if (!isOfficer && email.toLowerCase() === 'applicant@meridianbank.in' && password === 'Applicant@123') {
+      const fallbackUser = { id: '03416d3d-ff2b-4101-9453-7509939590fc', email, full_name: 'Ananya Rao', phone: '9876543210', role: 'applicant' };
+      window.applyAuthenticatedSession(fallbackUser, 'offline-token-applicant');
     } else {
       window.showAuthAlert('Unable to reach server. Please run python server.py or verify credentials.');
     }
   } finally {
     if (btn) {
       btn.disabled = false;
-      btn.innerHTML = '<span>🔐</span> Sign In to Meridian';
+      btn.innerHTML = defaultBtnHtml;
     }
   }
 };
@@ -223,7 +249,7 @@ window.handleSignUp = async function(e) {
     if (res.ok && data.success) {
       window.showAuthAlert('Account created successfully! Redirecting to Sign In...', false);
       setTimeout(() => {
-        window.switchAuthTab('signin');
+        window.switchAuthTab('applicant');
         window.quickFillCreds(email, password);
       }, 1200);
     } else {
@@ -253,7 +279,7 @@ window.handleLogout = function() {
   const portal = document.getElementById('auth-portal');
   if (shell) shell.style.display = 'none';
   if (portal) portal.style.display = 'flex';
-  window.switchAuthTab('signin');
+  window.switchAuthTab('applicant');
 };
 
 window.openForgotPassword = function() {

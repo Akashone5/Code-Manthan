@@ -67,8 +67,11 @@
         </div>
 
         <div class="auth-nav-tabs">
-          <button id="tab-btn-signin" class="auth-tab-btn active" onclick="switchAuthTab('signin')">
-            <span>🔐</span> Sign In
+          <button id="tab-btn-applicant" class="auth-tab-btn active" onclick="switchAuthTab('applicant')">
+            <span>👤</span> Applicant Sign In
+          </button>
+          <button id="tab-btn-officer" class="auth-tab-btn" onclick="switchAuthTab('officer')">
+            <span>🛡️</span> Officer Sign In
           </button>
           <button id="tab-btn-signup" class="auth-tab-btn" onclick="switchAuthTab('signup')">
             <span>✨</span> Create Account
@@ -78,46 +81,87 @@
         <div class="auth-card-body">
           <div id="auth-alert" class="auth-alert"></div>
 
-          <!-- 1. SIGN IN FORM -->
-          <form id="form-signin" onsubmit="handleSignIn(event)">
+          <!-- 1. APPLICANT SIGN IN FORM -->
+          <form id="form-signin-applicant" onsubmit="handleSignIn(event, 'applicant')">
+            <div class="auth-portal-tag applicant-tag">
+              <span>👤</span> APPLICANT PORTAL &bull; PERSONAL ACCESS
+            </div>
+
             <div class="auth-form-group">
-              <label class="auth-label" for="signin-email">Official Email Address</label>
+              <label class="auth-label" for="signin-applicant-email">Applicant Email Address</label>
               <div class="auth-input-wrapper">
                 <span class="auth-input-icon">✉️</span>
-                <input type="email" id="signin-email" class="auth-input" placeholder="name@domain.com" required autocomplete="email">
+                <input type="email" id="signin-applicant-email" class="auth-input" placeholder="applicant@domain.com" required autocomplete="email">
               </div>
             </div>
 
             <div class="auth-form-group">
               <div style="display: flex; justify-content: space-between; align-items: center;">
-                <label class="auth-label" for="signin-password">Password</label>
+                <label class="auth-label" for="signin-applicant-password">Password</label>
                 <a href="javascript:void(0)" onclick="openForgotPassword()" style="font-size: 0.78rem; color: #064E3B; font-weight: 700; text-decoration: none;">Forgot Password?</a>
               </div>
               <div class="auth-input-wrapper">
                 <span class="auth-input-icon">🔒</span>
-                <input type="password" id="signin-password" class="auth-input" placeholder="••••••••" required autocomplete="current-password">
-                <button type="button" class="pwd-toggle-btn" onclick="togglePasswordVisibility('signin-password', this)" title="Show/Hide Password">👁️</button>
+                <input type="password" id="signin-applicant-password" class="auth-input" placeholder="••••••••" required autocomplete="current-password">
+                <button type="button" class="pwd-toggle-btn" onclick="togglePasswordVisibility('signin-applicant-password', this)" title="Show/Hide Password">👁️</button>
               </div>
             </div>
 
-            <button type="submit" id="btn-signin-submit" class="auth-submit-btn">
-              <span>🔐</span> Sign In to Meridian
+            <button type="submit" id="btn-signin-applicant-submit" class="auth-submit-btn">
+              <span>👤</span> Sign In as Applicant
             </button>
 
             <div class="auth-quick-creds">
-              <p>Institutional Test Credentials</p>
+              <p>Applicant Evaluation Account</p>
               <div class="auth-chip-group">
-                <button type="button" class="auth-chip" onclick="quickFillCreds('applicant@meridianbank.in', 'Applicant@123')">
-                  👤 Applicant Demo
-                </button>
-                <button type="button" class="auth-chip" onclick="quickFillCreds('officer@meridianbank.in', 'Officer@2026')">
-                  🛡️ Loan Officer Demo
+                <button type="button" class="auth-chip" onclick="quickFillCreds('applicant@meridianbank.in', 'Applicant@123', 'applicant')">
+                  👤 Ananya Rao (Applicant Demo)
                 </button>
               </div>
             </div>
           </form>
 
-          <!-- 2. CREATE ACCOUNT / SIGN UP FORM -->
+          <!-- 2. LOAN OFFICER SIGN IN FORM -->
+          <form id="form-signin-officer" onsubmit="handleSignIn(event, 'officer')" style="display: none;">
+            <div class="auth-portal-tag officer-tag">
+              <span>🛡️</span> LOAN OFFICER TERMINAL &bull; INSTITUTIONAL ACCESS
+            </div>
+
+            <div class="auth-form-group">
+              <label class="auth-label" for="signin-officer-email">Institutional Officer Email</label>
+              <div class="auth-input-wrapper">
+                <span class="auth-input-icon">🛡️</span>
+                <input type="email" id="signin-officer-email" class="auth-input" placeholder="officer@meridianbank.in" required autocomplete="email">
+              </div>
+            </div>
+
+            <div class="auth-form-group">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <label class="auth-label" for="signin-officer-password">Officer Password</label>
+                <a href="javascript:void(0)" onclick="openForgotPassword()" style="font-size: 0.78rem; color: #064E3B; font-weight: 700; text-decoration: none;">Forgot Password?</a>
+              </div>
+              <div class="auth-input-wrapper">
+                <span class="auth-input-icon">🔒</span>
+                <input type="password" id="signin-officer-password" class="auth-input" placeholder="••••••••" required autocomplete="current-password">
+                <button type="button" class="pwd-toggle-btn" onclick="togglePasswordVisibility('signin-officer-password', this)" title="Show/Hide Password">👁️</button>
+              </div>
+            </div>
+
+            <button type="submit" id="btn-signin-officer-submit" class="auth-submit-btn auth-submit-btn-officer">
+              <span>🛡️</span> Sign In as Loan Officer
+            </button>
+
+            <div class="auth-quick-creds">
+              <p>Loan Officer Evaluation Account</p>
+              <div class="auth-chip-group">
+                <button type="button" class="auth-chip" onclick="quickFillCreds('officer@meridianbank.in', 'Officer@2026', 'officer')">
+                  🛡️ Vikram Sharma (Lead Officer Demo)
+                </button>
+              </div>
+            </div>
+          </form>
+
+          <!-- 3. CREATE ACCOUNT / SIGN UP FORM -->
           <form id="form-signup" onsubmit="handleSignUp(event)" style="display: none;">
             <div class="auth-form-group">
               <label class="auth-label" for="signup-fullname">Full Name</label>

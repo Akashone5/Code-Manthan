@@ -111,46 +111,75 @@ if not st.session_state.user:
     with c_center:
         auth_card = st.container(border=True)
         with auth_card:
-            auth_mode = st.radio("Access Portal", ["🔐 Sign In", "✨ Create Account", "❓ Forgot Password"], horizontal=True)
+            auth_mode = st.radio(
+                "Access Portal",
+                ["👤 Applicant Sign In", "🛡️ Loan Officer Sign In", "✨ Create Account", "❓ Forgot Password"],
+                horizontal=True
+            )
 
-            # SIGN IN
-            if auth_mode == "🔐 Sign In":
-                st.subheader("Sign In to Your Account")
-                login_email = st.text_input("Official Email Address", key="login_email")
-                login_password = st.text_input("Password", type="password", key="login_password")
+            # 1. APPLICANT SIGN IN
+            if auth_mode == "👤 Applicant Sign In":
+                st.subheader("Applicant Access Portal")
+                st.caption("Access your personal credit applications, status tracking & explainability results.")
+                login_email = st.text_input("Applicant Email Address", key="login_app_email", placeholder="applicant@domain.com")
+                login_password = st.text_input("Password", type="password", key="login_app_password")
 
-                col_b1, col_b2 = st.columns(2)
-                with col_b1:
-                    if st.button("Sign In", type="primary", use_container_width=True):
-                        if login_email and login_password:
-                            res = authenticate_user(login_email, login_password)
-                            if res.get('success'):
+                if st.button("Sign In as Applicant", type="primary", use_container_width=True):
+                    if login_email and login_password:
+                        res = authenticate_user(login_email, login_password)
+                        if res.get('success'):
+                            if res['user'].get('role') == 'officer':
+                                st.warning("Notice: This account has Loan Officer clearance. Please sign in using the '🛡️ Loan Officer Sign In' tab.")
+                            else:
                                 st.session_state.user = res['user']
                                 st.session_state.user_token = res.get('token')
-                                st.success("Authenticated successfully!")
+                                st.success("Authenticated successfully as Applicant!")
                                 st.rerun()
-                            else:
-                                st.error(res.get('error', 'Invalid email or password.'))
                         else:
-                            st.warning("Please enter your email and password.")
+                            st.error(res.get('error', 'Invalid email or password.'))
+                    else:
+                        st.warning("Please enter your applicant email and password.")
 
                 st.markdown("---")
-                st.caption("Institutional Quick Evaluation Credentials:")
-                q1, q2 = st.columns(2)
-                with q1:
-                    if st.button("👤 Applicant Demo", use_container_width=True):
-                        res = authenticate_user("applicant@meridianbank.in", "Applicant@123")
+                st.caption("Applicant Demo Account:")
+                if st.button("👤 Quick Demo: Ananya Rao (Applicant)", use_container_width=True):
+                    res = authenticate_user("applicant@meridianbank.in", "Applicant@123")
+                    if res.get('success'):
+                        st.session_state.user = res['user']
+                        st.session_state.user_token = res.get('token')
+                        st.rerun()
+
+            # 2. LOAN OFFICER SIGN IN
+            elif auth_mode == "🛡️ Loan Officer Sign In":
+                st.subheader("Loan Officer Terminal")
+                st.caption("Institutional access for credit underwriting, portfolio audit & algorithmic equity.")
+                login_email = st.text_input("Institutional Officer Email", key="login_off_email", placeholder="officer@meridianbank.in")
+                login_password = st.text_input("Officer Password", type="password", key="login_off_password")
+
+                if st.button("Sign In as Loan Officer", type="primary", use_container_width=True):
+                    if login_email and login_password:
+                        res = authenticate_user(login_email, login_password)
                         if res.get('success'):
-                            st.session_state.user = res['user']
-                            st.session_state.user_token = res.get('token')
-                            st.rerun()
-                with q2:
-                    if st.button("🛡️ Loan Officer Demo", use_container_width=True):
-                        res = authenticate_user("officer@meridianbank.in", "Officer@2026")
-                        if res.get('success'):
-                            st.session_state.user = res['user']
-                            st.session_state.user_token = res.get('token')
-                            st.rerun()
+                            if res['user'].get('role') != 'officer':
+                                st.error("Access Denied: This account is registered as an Applicant. Please use the '👤 Applicant Sign In' tab.")
+                            else:
+                                st.session_state.user = res['user']
+                                st.session_state.user_token = res.get('token')
+                                st.success("Clearance verified. Welcome to the Underwriting Terminal!")
+                                st.rerun()
+                        else:
+                            st.error(res.get('error', 'Invalid officer email or password.'))
+                    else:
+                        st.warning("Please enter your officer email and password.")
+
+                st.markdown("---")
+                st.caption("Loan Officer Demo Account:")
+                if st.button("🛡️ Quick Demo: Vikram Sharma (Lead Officer)", use_container_width=True):
+                    res = authenticate_user("officer@meridianbank.in", "Officer@2026")
+                    if res.get('success'):
+                        st.session_state.user = res['user']
+                        st.session_state.user_token = res.get('token')
+                        st.rerun()
 
             # SIGN UP
             elif auth_mode == "✨ Create Account":

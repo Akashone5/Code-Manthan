@@ -217,13 +217,27 @@ class LoanDecisionHandler(http.server.BaseHTTPRequestHandler):
                 self._send_json({'success': False, 'error': f'Registration failed: {str(e)}'}, 500)
             return
 
-        # 2. Authentication: Sign In
+        # 2. Authentication: Sign In (Separated Role Gateways)
         elif path == '/api/auth/signin':
             email = payload.get('email', '')
             password = payload.get('password', '')
+            expected_role = payload.get('expected_role') or payload.get('role')
 
             auth_res = database.login_user(email=email, password=password)
             if auth_res.get('success'):
+                user_role = auth_res['user'].get('role', 'applicant')
+                if expected_role and user_role != expected_role:
+                    if expected_role == 'officer':
+                        self._send_json({
+                            'success': False,
+                            'error': 'Access Denied: This account is registered as an Applicant. Please use the Applicant Sign In tab.'
+                        }, 403)
+                    else:
+                        self._send_json({
+                            'success': False,
+                            'error': 'Notice: This account has Loan Officer clearance. Please use the Officer Sign In tab.'
+                        }, 403)
+                    return
                 self._send_json(auth_res, 200)
             else:
                 self._send_json(auth_res, 401)

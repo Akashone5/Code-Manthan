@@ -1460,6 +1460,42 @@ body {
   transform: translateY(0);
 }
 
+.auth-submit-btn-officer {
+  background: linear-gradient(135deg, #78350F 0%, #92400E 100%);
+  border-color: #FDE68A;
+  color: #FFFFFF;
+}
+
+.auth-submit-btn-officer:hover {
+  background: linear-gradient(135deg, #92400E 0%, #B45309 100%);
+  box-shadow: 0 6px 18px rgba(120, 53, 15, 0.35);
+}
+
+.auth-portal-tag {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 5px 12px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 1.15rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.auth-portal-tag.applicant-tag {
+  background: var(--primary-emerald-surface);
+  color: #064E3B;
+  border: 1px solid rgba(6, 78, 59, 0.2);
+}
+
+.auth-portal-tag.officer-tag {
+  background: #FFFBEB;
+  color: #78350F;
+  border: 1px solid #FDE68A;
+}
+
 .auth-alert {
   padding: 0.75rem 1rem;
   border-radius: var(--radius-md);
