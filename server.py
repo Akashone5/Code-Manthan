@@ -4,6 +4,7 @@ Multi-threaded REST API server exposing authentication (Supabase + Local),
 credit scoring, factor explainability, demographic equity auditing, and application management.
 """
 
+import os
 import http.server
 import json
 import urllib.parse
@@ -16,7 +17,7 @@ PORT = 5000
 
 print("Initializing historical portfolio cache...")
 APPLICANTS_DB = load_sample_dataset()
-print(f"Loaded {len(APPLICANTS_DB)} historical loan records.")
+print("Historical loan portfolio cache ready.")
 
 class LoanDecisionHandler(http.server.BaseHTTPRequestHandler):
     """Multi-threaded REST request dispatcher for loan decision and auth operations."""
@@ -40,8 +41,33 @@ class LoanDecisionHandler(http.server.BaseHTTPRequestHandler):
         parsed_url = urllib.parse.urlparse(self.path)
         path = parsed_url.path
 
-        if path in ['/', '/api']:
-            self._set_headers(200, 'text/html')
+        # 1. Primary Web Application Frontend
+        if path in ['/', '/index.html']:
+            index_path = os.path.join(os.path.dirname(__file__), 'index.html')
+            if os.path.exists(index_path):
+                self._set_headers(200, 'text/html; charset=utf-8')
+                with open(index_path, 'rb') as f:
+                    self.wfile.write(f.read())
+                return
+
+        # 2. Static Assets (CSS, JS, Dataset)
+        static_files = {
+            '/styles.css': ('styles.css', 'text/css; charset=utf-8'),
+            '/app.js': ('app.js', 'application/javascript; charset=utf-8'),
+            '/dataset_data.js': ('dataset_data.js', 'application/javascript; charset=utf-8'),
+        }
+        if path in static_files:
+            file_name, mime_type = static_files[path]
+            file_path = os.path.join(os.path.dirname(__file__), file_name)
+            if os.path.exists(file_path):
+                self._set_headers(200, mime_type)
+                with open(file_path, 'rb') as f:
+                    self.wfile.write(f.read())
+                return
+
+        # 3. API Directory & Engine Status
+        if path == '/api':
+            self._set_headers(200, 'text/html; charset=utf-8')
             saved_apps = database.get_all_saved_applications(role='officer')
             html = f"""<!DOCTYPE html>
 <html>
@@ -80,6 +106,10 @@ class LoanDecisionHandler(http.server.BaseHTTPRequestHandler):
 </body>
 </html>"""
             self.wfile.write(html.encode('utf-8'))
+            return
+
+        elif path == '/api/health':
+            self._send_json({'status': 'healthy', 'service': 'Meridian FairLend', 'database': 'dual-sync'})
             return
 
         elif path == '/api/saved-applications':
