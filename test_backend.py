@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 """
 Comprehensive Automated System Test Suite
 Validates authentication, role clearance, feature normalization, credit scoring,
@@ -9,8 +10,11 @@ from src.train import predict_loan
 from src.explain import explain_decision
 from src.fairness import check_fairness
 from backend import load_sample_dataset, simulate_what_if
+=======
+>>>>>>> e8ec26709a11b9a92a9c3428e2da2ba06d445f1a
 import database
 
+<<<<<<< HEAD
 def run_tests():
     print("=" * 70)
     print("  MERIDIAN FAIRLEND SYSTEM VALIDATION & TEST SUITE")
@@ -48,6 +52,48 @@ def run_tests():
     assert 'positive_factors' in exp and len(exp['positive_factors']) > 0, "Missing positive factors"
     assert 'verdict_summary' in exp, "Missing verdict summary"
     print(f"[OK] Test 4: Explainability engine verified ({len(exp['positive_factors'])} positive drivers, {len(exp['negative_factors'])} friction points)")
+=======
+print("=" * 65)
+print("  MERIDIAN FAIRLEND AI FULL SYSTEM TEST (AI + DATABASE)")
+print("=" * 65)
+
+dataset = load_sample_dataset()
+print(f"[OK] Test 1: Historical CSV loaded ({len(dataset)} records)")
+
+saved_apps = database.get_all_saved_applications()
+print(f"[OK] Test 2: SQLite Database operational ({len(saved_apps)} existing applications in meridian_loans.db)")
+
+new_test_app = {
+    'full_name': 'Kavita Patel',
+    'phone': '9811223344',
+    'gender': 'Female',
+    'marital_status': 'Yes',
+    'dependents': '1',
+    'education': 'Graduate',
+    'employment_type': 'Self-Employed (Small Business)',
+    'applicant_income': 35000,
+    'coapplicant_income': 20000,
+    'loan_purpose': 'Business Expansion',
+    'loan_amount': 140,
+    'loan_term_months': 360,
+    'cibil_score': 790,
+    'property_area': 'Semiurban'
+}
+
+credit_hist = 1 if new_test_app['cibil_score'] >= 650 else 0
+pred = predict_loan({
+    'applicant_income': new_test_app['applicant_income'],
+    'coapplicant_income': new_test_app['coapplicant_income'],
+    'loan_amount': new_test_app['loan_amount'],
+    'term': new_test_app['loan_term_months'],
+    'credit_history': credit_hist,
+    'married': new_test_app['marital_status'],
+    'dependents': new_test_app['dependents'],
+    'education': new_test_app['education'],
+    'self_employed': 'Yes',
+    'property_area': new_test_app['property_area']
+})
+>>>>>>> e8ec26709a11b9a92a9c3428e2da2ba06d445f1a
 
     # Test 5: Algorithmic Fairness Audit
     fairness = check_fairness(dataset[:100])
@@ -55,6 +101,7 @@ def run_tests():
     assert 'territory_fairness' in fairness, "Missing territory fairness audit"
     print(f"[OK] Test 5: Algorithmic fairness auditor verified (DIR Gender: {fairness['gender_fairness']['disparate_impact_ratio']})")
 
+<<<<<<< HEAD
     # Test 6: Counterfactual Scenario Simulation
     sim = simulate_what_if(norm, {'loan_amount': '100', 'loan_term_months': '240'})
     assert 'deltas' in sim, "Missing simulation deltas"
@@ -64,6 +111,13 @@ def run_tests():
     app_login = database.login_user('applicant@meridianbank.in', 'Applicant@123')
     assert app_login.get('success'), "Applicant login failed"
     assert app_login['user']['role'] == 'applicant', "Applicant role mismatch"
+=======
+saved = database.save_loan_application(new_test_app, pred, exp)
+print(f"[OK] Test 3: Saved new application to SQLite -> ID: {saved['application_no']} (Status: {saved['status']}, Score: {saved['approval_likelihood']}%, CIBIL: {saved['cibil_score']})")
+
+all_apps_after = database.get_all_saved_applications()
+print(f"[OK] Test 4: Database query successful (Now contains {len(all_apps_after)} total applications)")
+>>>>>>> e8ec26709a11b9a92a9c3428e2da2ba06d445f1a
 
     off_login = database.login_user('officer@meridianbank.in', 'Officer@2026')
     assert off_login.get('success'), "Officer login failed"

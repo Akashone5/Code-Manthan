@@ -46,6 +46,7 @@ const state = {
   portfolioSearch: ''
 };
 
+<<<<<<< HEAD
 
 // ============================================================================
 // AUTHENTICATION & ROLE-BASED ACCESS CONTROL (SUPABASE & PERSISTENT SESSION)
@@ -72,9 +73,108 @@ window.switchAuthTab = function(tabName) {
     btnSignin?.classList.remove('active');
     if (formSignup) formSignup.style.display = 'block';
     if (formSignin) formSignin.style.display = 'none';
+=======
+const DEFAULT_BASELINE_APPLICATIONS = [
+  {
+    application_no: 'MB-2026-1001',
+    created_at: '2026-10-28 14:30:00',
+    full_name: 'Ananya Rao',
+    gender: 'Female',
+    marital_status: 'No',
+    dependents: '0',
+    education: 'Graduate',
+    employment_type: 'Private Sector (Salaried)',
+    salary_slip: 'Yes',
+    applicant_income: 95000,
+    coapplicant_income: 0,
+    loan_amount: 350,
+    loan_term_months: 84,
+    property_area: 'Urban',
+    loan_purpose: 'Home Improvement / Construction',
+    cibil_score: 810,
+    credit_history: 1,
+    approval_likelihood: 98,
+    monthly_emi: 4166,
+    dti_percent: 4.38,
+    status: 'Approved',
+    officer_notes: 'Prime applicant with strong savings and clear credit track record.'
+  },
+  {
+    application_no: 'MB-2026-1002',
+    created_at: '2026-10-28 16:15:00',
+    full_name: 'Devansh Kulkarni',
+    gender: 'Male',
+    marital_status: 'Yes',
+    dependents: '2',
+    education: 'Graduate',
+    employment_type: 'Freelancing / Self-Employed',
+    salary_slip: 'No',
+    applicant_income: 75000,
+    coapplicant_income: 20000,
+    loan_amount: 250,
+    loan_term_months: 120,
+    property_area: 'Semiurban',
+    loan_purpose: 'Small Business Working Capital',
+    cibil_score: 755,
+    credit_history: 1,
+    approval_likelihood: 96,
+    monthly_emi: 2083,
+    dti_percent: 2.19,
+    status: 'Approved',
+    officer_notes: 'Self-employed IT freelancer with high co-applicant support.'
+  },
+  {
+    application_no: 'MB-2026-1003',
+    created_at: '2026-10-28 18:45:00',
+    full_name: 'Kavya Nair',
+    gender: 'Female',
+    marital_status: 'Yes',
+    dependents: '1',
+    education: 'Graduate',
+    employment_type: 'Government / PSU Employee',
+    salary_slip: 'Yes',
+    applicant_income: 48000,
+    coapplicant_income: 18000,
+    loan_amount: 180,
+    loan_term_months: 60,
+    property_area: 'Rural',
+    loan_purpose: 'Agricultural Equipment & Inputs',
+    cibil_score: 760,
+    credit_history: 1,
+    approval_likelihood: 98,
+    monthly_emi: 3000,
+    dti_percent: 4.54,
+    status: 'Approved',
+    officer_notes: 'Rural agri-business loan backed by public sector employment.'
+  },
+  {
+    application_no: 'MB-2026-1004',
+    created_at: '2026-10-28 20:20:00',
+    full_name: 'Rohan Mehta',
+    gender: 'Male',
+    marital_status: 'Yes',
+    dependents: '3+',
+    education: 'Not Graduate',
+    employment_type: 'Informal / Cash Economy',
+    salary_slip: 'No',
+    applicant_income: 28000,
+    coapplicant_income: 0,
+    loan_amount: 400,
+    loan_term_months: 24,
+    property_area: 'Rural',
+    loan_purpose: 'Personal / Medical Facility',
+    cibil_score: 580,
+    credit_history: 0,
+    approval_likelihood: 12,
+    monthly_emi: 16666,
+    dti_percent: 59.52,
+    status: 'Rejected',
+    officer_notes: 'High DTI (60%) and prior default history. Advised credit rehabilitation.'
+>>>>>>> e8ec26709a11b9a92a9c3428e2da2ba06d445f1a
   }
-};
+];
 
+<<<<<<< HEAD
 window.selectSignupRole = function(role) {
   const labelApp = document.getElementById('role-label-applicant');
   const labelOff = document.getElementById('role-label-officer');
@@ -450,6 +550,8 @@ const DEFAULT_BASELINE_APPLICATIONS = [
   }
 ];
 
+=======
+>>>>>>> e8ec26709a11b9a92a9c3428e2da2ba06d445f1a
 const I18N = {
   en: {
     lang_btn: "🇮🇳 हिन्दी (Hindi)",
@@ -463,7 +565,11 @@ const I18N = {
     nav_vault: "🗄️ Application Vault & Registry",
     nav_accuracy: "🎯 Model Accuracy Report",
     nav_fairness: "⚖️ Fairness Across Groups",
+<<<<<<< HEAD
     nav_portfolio: "📁 Historical Portfolio",
+=======
+    nav_portfolio: "📁 Historical Portfolio (614 Cases)",
+>>>>>>> e8ec26709a11b9a92a9c3428e2da2ba06d445f1a
     apply_heading: "Submit a Retail Loan Application",
     apply_subheading: "Fill in your personal profile, monthly earnings, CIBIL score, and requested facility. Your application is automatically analyzed by AI and permanently recorded in the Meridian Application Vault & Registry.",
     sec_personal: "1. Personal & Demographic Profile",
@@ -532,7 +638,11 @@ const I18N = {
     nav_vault: "🗄️ आवेदन वॉल्ट एवं रजिस्ट्री",
     nav_accuracy: "🎯 मॉडल सटीकता रिपोर्ट",
     nav_fairness: "⚖️ समूह समानता एवं निष्पक्षता",
+<<<<<<< HEAD
     nav_portfolio: "📁 ऐतिहासिक पोर्टफोलियो",
+=======
+    nav_portfolio: "📁 ऐतिहासिक पोर्टफोलियो (614 मामले)",
+>>>>>>> e8ec26709a11b9a92a9c3428e2da2ba06d445f1a
     apply_heading: "खुदरा ऋण आवेदन पत्र जमा करें",
     apply_subheading: "अपना विवरण, मासिक आय, सिबिल स्कोर और ऋण राशि भरें। आपका आवेदन एआई द्वारा विश्लेषित होकर मेरिडियन सुरक्षित वॉल्ट एवं डेटाबेस में स्थायी रूप से सुरक्षित होगा।",
     sec_personal: "1. व्यक्तिगत एवं जनसांख्यिकीय विवरण",
@@ -1081,9 +1191,13 @@ window.handleLoanApplicationSubmit = async function(event) {
     loan_amount: Number(document.getElementById('fill-loan-amount')?.value || 250),
     loan_term_months: termMonths,
     cibil_score: Number(document.getElementById('fill-cibil-slider')?.value || 780),
+<<<<<<< HEAD
     property_area: document.getElementById('fill-property-area')?.value || 'Semiurban',
     user_id: currentAuthUser ? currentAuthUser.id : null,
     applicant_id: currentAuthUser ? currentAuthUser.id : null
+=======
+    property_area: document.getElementById('fill-property-area')?.value || 'Semiurban'
+>>>>>>> e8ec26709a11b9a92a9c3428e2da2ba06d445f1a
   };
 
   let savedRecord = null;
@@ -1474,6 +1588,7 @@ window.refreshDatabaseTable = async function() {
     return (b.application_no || '').localeCompare(a.application_no || '');
   });
 
+<<<<<<< HEAD
   
   // Strict Role-Based Filtering
   if (currentAuthUser && currentAuthUser.role === 'applicant') {
@@ -1497,6 +1612,18 @@ window.refreshDatabaseTable = async function() {
     countBadge.innerText = `${allApps.length} Saved Applications (Old + New)`;
   }
 
+=======
+  state.savedDatabaseApps = allApps;
+
+  try {
+    localStorage.setItem('meridian_saved_apps', JSON.stringify(allApps));
+  } catch (e) {}
+
+  if (countBadge) {
+    countBadge.innerText = `${allApps.length} Saved Applications (Old + New)`;
+  }
+
+>>>>>>> e8ec26709a11b9a92a9c3428e2da2ba06d445f1a
   tbody.innerHTML = allApps.map(app => {
     const badge = app.status === 'Approved' ? 'badge-success' : app.status === 'Conditional' ? 'badge-warning' : 'badge-danger';
     const cibilVal = app.cibil_score || (app.credit_history === 1 ? 750 : 540);
@@ -1795,9 +1922,13 @@ window.officerSanctionLoan = async function(newStatus, note) {
         body: JSON.stringify({
           application_no: appNo,
           status: newStatus,
+<<<<<<< HEAD
           note: note,
           remarks: document.getElementById('officer-remarks-input')?.value.trim() || note,
           officer_role: currentAuthUser ? currentAuthUser.role : 'officer'
+=======
+          note: note
+>>>>>>> e8ec26709a11b9a92a9c3428e2da2ba06d445f1a
         })
       });
       if (res.ok) {
@@ -1938,7 +2069,10 @@ function switchRole(role) {
     if (btnApp) btnApp.classList.add('active');
     if (btnOff) btnOff.classList.remove('active');
 
+<<<<<<< HEAD
     document.querySelectorAll('.nav-common-item').forEach(el => el.style.display = 'flex');
+=======
+>>>>>>> e8ec26709a11b9a92a9c3428e2da2ba06d445f1a
     document.querySelectorAll('.nav-applicant-item').forEach(el => el.style.display = 'flex');
     document.querySelectorAll('.nav-officer-item').forEach(el => el.style.display = 'none');
 
@@ -1947,8 +2081,12 @@ function switchRole(role) {
     if (btnOff) btnOff.classList.add('active');
     if (btnApp) btnApp.classList.remove('active');
 
+<<<<<<< HEAD
     document.querySelectorAll('.nav-common-item').forEach(el => el.style.display = 'flex');
     document.querySelectorAll('.nav-applicant-item').forEach(el => el.style.display = 'flex');
+=======
+    document.querySelectorAll('.nav-applicant-item').forEach(el => el.style.display = 'none');
+>>>>>>> e8ec26709a11b9a92a9c3428e2da2ba06d445f1a
     document.querySelectorAll('.nav-officer-item').forEach(el => el.style.display = 'flex');
 
     document.querySelector('[data-tab="officer-view"]')?.click();
@@ -2198,10 +2336,17 @@ function renderPortfolioTable() {
   const pageRecords = records.slice(startIdx, startIdx + pageSize);
 
   if (countLabel) {
+<<<<<<< HEAD
     countLabel.innerText = `Historical Portfolio Applications${f !== 'all' ? ` (Filtered: ${f.toUpperCase()})` : ''}`;
   }
   if (pageIndicator) {
     pageIndicator.innerText = `Page ${state.portfolioPage} / ${totalPages}`;
+=======
+    countLabel.innerText = `Showing ${totalFiltered} of ${MERIDIAN_DATASET.records.length} historical applications${f !== 'all' ? ` (Filtered: ${f.toUpperCase()})` : ''}`;
+  }
+  if (pageIndicator) {
+    pageIndicator.innerText = `Page ${state.portfolioPage} / ${totalPages} (${totalFiltered} total)`;
+>>>>>>> e8ec26709a11b9a92a9c3428e2da2ba06d445f1a
   }
 
   if (pageRecords.length === 0) {
@@ -2317,7 +2462,10 @@ window.loadHistoricalCase = function(caseId) {
 
 document.addEventListener('DOMContentLoaded', () => {
   setupEventListeners();
+<<<<<<< HEAD
   checkExistingSession();
+=======
+>>>>>>> e8ec26709a11b9a92a9c3428e2da2ba06d445f1a
   checkBackendConnection();
   applyTranslations();
   updateUI();
