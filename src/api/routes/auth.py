@@ -85,7 +85,7 @@ async def send_otp(payload: SendOtpRequest, request: Request):
                 "success": False,
                 "code": "EMAIL_PROVIDER_NOT_CONFIGURED",
                 "provider_configured": False,
-                "error": "Real Email OTP delivery is not configured on the server yet. Set BREVO_API_KEY and EMAIL_FROM (or RESEND_API_KEY / SMTP settings) in Railway variables."
+                "error": "Real Email OTP is not active yet on the server. Add BREVO_API_KEY and EMAIL_FROM (free HTTPS API) or RESEND_API_KEY in Railway Variables."
             }
         )
 
