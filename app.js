@@ -1,3 +1,26 @@
+function resolveApiBase() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const paramApi = params.get('api');
+    if (paramApi && paramApi.trim()) {
+      const clean = paramApi.trim().replace(/\/+$/, '');
+      localStorage.setItem('meridian_api_base', clean);
+      return clean;
+    }
+    if (window.MERIDIAN_API_BASE) {
+      return String(window.MERIDIAN_API_BASE).trim().replace(/\/+$/, '');
+    }
+    const stored = localStorage.getItem('meridian_api_base');
+    if (stored && stored.trim()) {
+      return stored.trim().replace(/\/+$/, '');
+    }
+    if (window.location && window.location.protocol && window.location.protocol.startsWith('http')) {
+      return window.location.origin;
+    }
+  } catch (e) {}
+  return 'http://localhost:5000';
+}
+
 const state = {
   currentRole: 'applicant', 
   currentLang: localStorage.getItem('meridian_lang') || 'en', 
@@ -5,7 +28,9 @@ const state = {
   hasApplied: false,
   affirmativeMode: false,
   backendConnected: false,
-  apiBase: 'http://localhost:5000',
+  apiBase: resolveApiBase(),
+  backendPrediction: null,
+  backendExplanation: null,
   currentApplicant: {
     id: 'MB-2026-1001',
     name: 'Ananya Rao',
@@ -189,7 +214,7 @@ window.handleSignIn = async function(e, expectedRole = 'applicant') {
       const fallbackUser = { id: '03416d3d-ff2b-4101-9453-7509939590fc', email, full_name: 'Ananya Rao', phone: '9876543210', role: 'applicant' };
       window.applyAuthenticatedSession(fallbackUser, 'offline-token-applicant');
     } else {
-      window.showAuthAlert('Unable to reach server. Please run python server.py or verify credentials.');
+      window.showAuthAlert(`Unable to reach backend API at ${state.apiBase}. Verify network connection or API settings.`);
     }
   } finally {
     if (btn) {
@@ -249,14 +274,15 @@ window.handleSignUp = async function(e) {
     if (res.ok && data.success) {
       window.showAuthAlert('Account created successfully! Redirecting to Sign In...', false);
       setTimeout(() => {
-        window.switchAuthTab('applicant');
-        window.quickFillCreds(email, password);
+        const targetRole = role === 'officer' ? 'officer' : 'applicant';
+        window.switchAuthTab(targetRole);
+        window.quickFillCreds(email, password, targetRole);
       }, 1200);
     } else {
       window.showAuthAlert(data.error || 'Account registration failed.');
     }
   } catch (err) {
-    window.showAuthAlert('Network error during registration. Ensure backend server is running on localhost:5000.');
+    window.showAuthAlert(`Network error contacting ${state.apiBase}. Please verify backend availability.`);
   } finally {
     if (btn) {
       btn.disabled = false;
@@ -266,6 +292,11 @@ window.handleSignUp = async function(e) {
 };
 
 window.handleLogout = function() {
+  try {
+    if (state.backendConnected) {
+      fetch(`${state.apiBase}/api/auth/logout`, { method: 'POST' }).catch(() => {});
+    }
+  } catch (e) {}
   currentAuthUser = null;
   currentAuthToken = null;
   try {
@@ -326,7 +357,7 @@ window.applyAuthenticatedSession = function(user, token) {
 
   if (user.role === 'applicant') {
     // Auto-fill applicant form with profile information
-    const nameInput = document.getElementById('fill-name');
+    const nameInput = document.getElementById('fill-full-name') || document.getElementById('fill-name');
     const phoneInput = document.getElementById('fill-phone');
     if (nameInput && !nameInput.value) nameInput.value = user.full_name || '';
     if (phoneInput && !phoneInput.value) phoneInput.value = user.phone || '';
@@ -617,31 +648,88 @@ const I18N = {
   }
 };
 
+function syncBackendModalUI() {
+  const urlEl = document.getElementById('modal-backend-url');
+  const docsLink = document.getElementById('modal-swagger-link');
+  const customInput = document.getElementById('custom-api-base-input');
+  if (urlEl) urlEl.innerText = state.apiBase;
+  if (docsLink) docsLink.href = `${state.apiBase}/docs`;
+  if (customInput) customInput.value = state.apiBase;
+}
+
+window.toggleBackendInfoModal = function() {
+  const modal = document.getElementById('backend-info-modal');
+  if (!modal) return;
+  const isHidden = modal.style.display === 'none' || !modal.style.display;
+  syncBackendModalUI();
+  modal.style.display = isHidden ? 'flex' : 'none';
+};
+
+window.saveCustomApiBase = function() {
+  const input = document.getElementById('custom-api-base-input');
+  if (!input) return;
+  const raw = input.value.trim().replace(/\/+$/, '');
+  if (!raw || (!raw.startsWith('http://') && !raw.startsWith('https://'))) {
+    alert('Please enter a valid URL starting with http:// or https://');
+    return;
+  }
+  try {
+    localStorage.setItem('meridian_api_base', raw);
+  } catch (e) {}
+  state.apiBase = raw;
+  syncBackendModalUI();
+  checkBackendConnection(true);
+};
+
+window.resetCustomApiBase = function() {
+  try {
+    localStorage.removeItem('meridian_api_base');
+  } catch (e) {}
+  const input = document.getElementById('custom-api-base-input');
+  if (input) input.value = '';
+  state.apiBase = resolveApiBase();
+  syncBackendModalUI();
+  checkBackendConnection(true);
+};
+
 async function checkBackendConnection(showNotification = false) {
   const badgeText = document.getElementById('backend-status-text');
   const pulseDot = document.getElementById('backend-pulse-dot');
   const modalBadge = document.getElementById('modal-backend-status-badge');
   const modalDesc = document.getElementById('modal-backend-status-desc');
+  syncBackendModalUI();
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
 
-    const response = await fetch(`${state.apiBase}/api`, {
+    const response = await fetch(`${state.apiBase}/api/health`, {
       method: 'GET',
       signal: controller.signal
     });
     clearTimeout(timeoutId);
 
     if (response.ok) {
+      let healthData = {};
+      try { healthData = await response.json(); } catch (e) {}
       state.backendConnected = true;
+      const hostLabel = (() => {
+        try { return new URL(state.apiBase).host; } catch (e) { return state.apiBase; }
+      })();
       if (pulseDot) pulseDot.style.background = '#10B981';
-      if (badgeText) badgeText.innerText = 'Python Backend & SQLite Database Active (Port 5000)';
+      if (badgeText) badgeText.innerText = `FastAPI REST Active (${hostLabel})`;
       if (modalBadge) {
         modalBadge.className = 'badge badge-success';
         modalBadge.innerText = 'ONLINE & CONNECTED';
       }
-      if (modalDesc) modalDesc.innerText = 'Your browser is currently communicating with the Python REST API server (server.py) and saving directly to meridian_loans.db.';
+      if (modalDesc) {
+        modalDesc.innerText = `Connected live to ${healthData.service || 'Meridian FairLend'} FastAPI (${state.apiBase}) with ${healthData.database || 'dual-sync'} persistence.`;
+      }
+      if (currentAuthUser) {
+        window.refreshDatabaseTable();
+      }
+      if (state.currentTab === 'model-view') renderModelPerformanceCharts();
+      if (state.currentTab === 'fairness-view') renderFairnessCharts();
       return true;
     }
   } catch (err) {
@@ -650,12 +738,12 @@ async function checkBackendConnection(showNotification = false) {
 
   state.backendConnected = false;
   if (pulseDot) pulseDot.style.background = '#F59E0B';
-  if (badgeText) badgeText.innerText = 'Local Standalone Mode (In-Browser Calculation)';
+  if (badgeText) badgeText.innerText = 'Standalone Mode (In-Browser Calculation)';
   if (modalBadge) {
     modalBadge.className = 'badge badge-warning';
     modalBadge.innerText = 'STANDALONE IN-BROWSER MODE';
   }
-  if (modalDesc) modalDesc.innerText = 'The Python backend server is currently offline or unreachable. The app is running seamlessly using its built-in client-side underwriting engine.';
+  if (modalDesc) modalDesc.innerText = `Unable to reach FastAPI backend at ${state.apiBase}. Running cleanly via local calculation fallback.`;
   return false;
 }
 
@@ -943,7 +1031,7 @@ function computePrediction(appData) {
   const area = String(appData.property_area || 'Rural').toLowerCase();
   let areaImpact = 2.0;
   if (area === 'semiurban') areaImpact = 4.0;
-  else if (area === 'rural') areaImpact = 2.0;
+  else if (area === 'rural') areaImpact = 3.0;
 
   scorePoints += areaImpact;
   contributions['property_area'] = { impact: areaImpact, pct_impact: areaImpact };
@@ -1118,9 +1206,14 @@ window.handleLoanApplicationSubmit = async function(event) {
 
   if (state.backendConnected) {
     try {
+      const reqHeaders = { 'Content-Type': 'application/json' };
+      if (currentAuthUser?.id) reqHeaders['X-User-Id'] = String(currentAuthUser.id);
+      if (currentAuthUser?.role) reqHeaders['X-User-Role'] = String(currentAuthUser.role);
+      if (currentAuthToken) reqHeaders['Authorization'] = `Bearer ${currentAuthToken}`;
+
       const response = await fetch(`${state.apiBase}/api/apply`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: reqHeaders,
         body: JSON.stringify(formData)
       });
 
@@ -1129,10 +1222,16 @@ window.handleLoanApplicationSubmit = async function(event) {
         savedRecord = resData.application;
         prediction = resData.prediction;
         explanation = resData.explanation;
+        state.backendPrediction = prediction;
+        state.backendExplanation = explanation;
       }
     } catch (err) {
       console.warn("Backend apply API offline, saving to local vault:", err);
     }
+  }
+  if (!savedRecord) {
+    state.backendPrediction = null;
+    state.backendExplanation = null;
   }
 
   if (!savedRecord) {
@@ -1251,6 +1350,8 @@ window.handleLoanApplicationSubmit = async function(event) {
 
 window.applyWhatIfScenario = function() {
   const sim = state.simulated;
+  state.backendPrediction = null;
+  state.backendExplanation = null;
 
   state.currentApplicant.loan_amount = sim.loan_amount;
   state.currentApplicant.coapplicant_income = sim.coapplicant_income;
@@ -1310,28 +1411,19 @@ window.resetWhatIfToBaseline = function() {
   updateSimulationUI();
 };
 
-function updateSimulationUI() {
-  const baseApp = state.currentApplicant;
+let _whatIfTimer = null;
+
+function applySimulationRender(simPred, delta) {
   const sim = state.simulated;
-
-  const simApp = {
-    ...baseApp,
-    loan_amount: sim.loan_amount,
-    coapplicant_income: sim.coapplicant_income,
-    term: sim.term,
-    cibil_score: sim.cibil_score,
-    salary_slip: sim.salary_slip ? 'Yes' : 'No'
-  };
-
-  const basePred = computePrediction(baseApp);
-  const simPred = computePrediction(simApp);
-  const delta = simPred.approvalPercent - basePred.approvalPercent;
-
   const simProbEl = document.getElementById('sim-current-prob');
   const simDeltaEl = document.getElementById('sim-delta-badge');
   const simStatusEl = document.getElementById('sim-status-label');
+  const pct = simPred.approvalPercent !== undefined ? simPred.approvalPercent : simPred.approval_likelihood;
+  const statusStr = String(simPred.status || 'conditional').toLowerCase();
+  const emi = simPred.ratios ? simPred.ratios.emi : (simPred.monthly_emi || 0);
+  const dtiPct = simPred.ratios ? simPred.ratios.dtiPct : (simPred.dti_percent || 0);
 
-  if (simProbEl) simProbEl.innerText = `${simPred.approvalPercent}%`;
+  if (simProbEl) simProbEl.innerText = `${pct}%`;
   if (simDeltaEl) {
     if (delta > 0) {
       simDeltaEl.innerText = `+${delta}% Gain`;
@@ -1346,8 +1438,8 @@ function updateSimulationUI() {
   }
 
   if (simStatusEl) {
-    simStatusEl.innerText = simPred.status.toUpperCase();
-    simStatusEl.className = `badge badge-${simPred.status === 'approved' ? 'success' : simPred.status === 'conditional' ? 'warning' : 'danger'}`;
+    simStatusEl.innerText = statusStr.toUpperCase();
+    simStatusEl.className = `badge badge-${statusStr === 'approved' ? 'success' : statusStr === 'conditional' ? 'warning' : 'danger'}`;
   }
 
   const emiEl = document.getElementById('sim-metric-emi');
@@ -1355,31 +1447,31 @@ function updateSimulationUI() {
   const cibilEl = document.getElementById('sim-metric-cibil');
   const docEl = document.getElementById('sim-metric-doc');
 
-  if (emiEl) emiEl.innerText = `₹${simPred.ratios.emi.toLocaleString('en-IN')}/mo`;
+  if (emiEl) emiEl.innerText = `₹${Math.round(emi).toLocaleString('en-IN')}/mo`;
   if (dtiEl) {
-    const dtiSafe = simPred.ratios.dtiPct <= 30 ? (state.currentLang === 'hi' ? 'सुरक्षित' : 'Safe') : simPred.ratios.dtiPct <= 45 ? (state.currentLang === 'hi' ? 'मध्यम' : 'Moderate') : (state.currentLang === 'hi' ? 'अत्यधिक' : 'High');
-    dtiEl.innerText = `${simPred.ratios.dtiPct}% (${dtiSafe})`;
+    const dtiSafe = dtiPct <= 30 ? (state.currentLang === 'hi' ? 'सुरक्षित' : 'Safe') : dtiPct <= 45 ? (state.currentLang === 'hi' ? 'मध्यम' : 'Moderate') : (state.currentLang === 'hi' ? 'अत्यधिक' : 'High');
+    dtiEl.innerText = `${dtiPct}% (${dtiSafe})`;
   }
   if (cibilEl) {
     const tier = sim.cibil_score >= 750 ? 'Prime' : sim.cibil_score >= 650 ? 'Qualifying' : 'Subprime';
     cibilEl.innerText = `${tier} (${sim.cibil_score})`;
   }
   if (docEl) {
-    docEl.innerText = sim.salary_slip 
+    docEl.innerText = sim.salary_slip
       ? (state.currentLang === 'hi' ? 'वेतन पर्ची संलग्न (+5%)' : 'Salary Slip Attached (+5%)')
       : (state.currentLang === 'hi' ? 'बैंक स्टेटमेंट सत्यापन' : 'Bank Statement Verified');
   }
 
   const tipEl = document.getElementById('sim-smart-tip');
   if (tipEl) {
-    if (simPred.approvalPercent >= 75) {
+    if (pct >= 75) {
       tipEl.style.background = '#F0FDF4';
       tipEl.style.borderLeft = '4px solid #059669';
       tipEl.style.color = '#064E3B';
       tipEl.innerHTML = state.currentLang === 'hi'
         ? '✨ <strong>उत्कृष्ट वित्तीय संतुलन:</strong> यह कॉन्फ़िगरेशन कम ईएमआई और मजबूत सिबिल के साथ आपके आवेदन को <strong>स्वीकृत श्रेणी (Approved Tier)</strong> में रखता है।'
         : '✨ <strong>Optimal Underwriting Sweet Spot:</strong> This balanced configuration comfortably qualifies your file in the <strong>Approved Tier</strong> with safe repayment margins.';
-    } else if (simPred.ratios.dtiPct > 45) {
+    } else if (dtiPct > 45) {
       tipEl.style.background = '#FFFBEB';
       tipEl.style.borderLeft = '4px solid #D97706';
       tipEl.style.color = '#92400E';
@@ -1401,6 +1493,57 @@ function updateSimulationUI() {
         ? '💡 <strong>समीक्षाधीन स्थिति:</strong> आवेदन स्वीकृति सीमा के निकट है। सह-आवेदक आय जोड़ने या वेतन पर्ची संलग्न करने से स्वीकृति सुनिश्चित होगी।'
         : '💡 <strong>Borderline Threshold:</strong> Application is close to standard pass criteria. Adding a family co-applicant will easily elevate your likelihood above 80%.';
     }
+  }
+}
+
+function updateSimulationUI() {
+  const baseApp = state.currentApplicant;
+  const sim = state.simulated;
+
+  const simApp = {
+    ...baseApp,
+    loan_amount: sim.loan_amount,
+    coapplicant_income: sim.coapplicant_income,
+    term: sim.term,
+    cibil_score: sim.cibil_score,
+    salary_slip: sim.salary_slip ? 'Yes' : 'No'
+  };
+
+  const basePred = computePrediction(baseApp);
+  const simPred = computePrediction(simApp);
+  const delta = simPred.approvalPercent - basePred.approvalPercent;
+  applySimulationRender(simPred, delta);
+
+  if (state.backendConnected) {
+    clearTimeout(_whatIfTimer);
+    _whatIfTimer = setTimeout(async () => {
+      try {
+        const res = await fetch(`${state.apiBase}/api/what-if`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            base: {
+              ...baseApp,
+              loan_term_months: baseApp.term || 60
+            },
+            adjustments: {
+              loan_amount: sim.loan_amount,
+              coapplicant_income: sim.coapplicant_income,
+              loan_term_months: sim.term,
+              cibil_score: sim.cibil_score,
+              salary_slip: sim.salary_slip ? 'Yes' : 'No'
+            }
+          })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const s = data.simulation;
+          if (s && s.simulated && s.deltas) {
+            applySimulationRender(s.simulated, s.deltas.score_change);
+          }
+        }
+      } catch (e) {}
+    }, 180);
   }
 }
 
@@ -1477,7 +1620,11 @@ window.refreshDatabaseTable = async function() {
       const queryParams = (currentAuthUser && currentAuthUser.role === 'applicant') 
         ? `?user_id=${currentAuthUser.id}&role=applicant&email=${encodeURIComponent(currentAuthUser.email)}`
         : `?role=officer`;
-      const response = await fetch(`${state.apiBase}/api/saved-applications${queryParams}`);
+      const reqHeaders = {};
+      if (currentAuthUser?.id) reqHeaders['X-User-Id'] = String(currentAuthUser.id);
+      if (currentAuthUser?.role) reqHeaders['X-User-Role'] = String(currentAuthUser.role);
+      if (currentAuthToken) reqHeaders['Authorization'] = `Bearer ${currentAuthToken}`;
+      const response = await fetch(`${state.apiBase}/api/saved-applications${queryParams}`, { headers: reqHeaders });
       if (response.ok) {
         const data = await response.json();
         if (data.applications && Array.isArray(data.applications)) {
@@ -1561,6 +1708,8 @@ window.refreshDatabaseTable = async function() {
 
 window.loadDbApplicantById = function(appNo) {
   state.hasApplied = true;
+  state.backendPrediction = null;
+  state.backendExplanation = null;
   const found = (state.savedDatabaseApps || []).find(a => a.application_no === appNo) ||
                 DEFAULT_BASELINE_APPLICATIONS.find(a => a.application_no === appNo);
   if (found) {
@@ -1615,9 +1764,40 @@ window.inspectSubmittedApp = function() {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 };
 
+function normalizeBackendPrediction(bp, applicant) {
+  const fallback = computePrediction(applicant);
+  if (!bp) return fallback;
+  const c = bp.contributions || {};
+  return {
+    approvalPercent: bp.approval_likelihood !== undefined ? bp.approval_likelihood : fallback.approvalPercent,
+    prob: (bp.approval_likelihood !== undefined ? bp.approval_likelihood : fallback.approvalPercent) / 100.0,
+    status: String(bp.status || fallback.status).toLowerCase(),
+    cibil_score: bp.cibil_score !== undefined ? bp.cibil_score : fallback.cibil_score,
+    salary_slip: bp.salary_slip || fallback.salary_slip,
+    is_freelance: fallback.is_freelance,
+    contributions: {
+      credit_history: { impact: c.credit_history !== undefined ? Number(c.credit_history) : fallback.contributions.credit_history.impact },
+      dti_ratio: { impact: c.dti_ratio !== undefined ? Number(c.dti_ratio) : fallback.contributions.dti_ratio.impact },
+      income_coverage: { impact: c.income_coverage !== undefined ? Number(c.income_coverage) : fallback.contributions.income_coverage.impact },
+      coapplicant: { impact: c.coapplicant !== undefined ? Number(c.coapplicant) : fallback.contributions.coapplicant.impact },
+      salary_slip: { impact: c.salary_slip !== undefined ? Number(c.salary_slip) : fallback.contributions.salary_slip.impact },
+      employment_type: { impact: c.employment !== undefined ? Number(c.employment) : fallback.contributions.employment_type.impact },
+      property_area: { impact: c.property_area !== undefined ? Number(c.property_area) : fallback.contributions.property_area.impact }
+    },
+    ratios: {
+      totInc: bp.total_monthly_income !== undefined ? Math.round(bp.total_monthly_income) : fallback.ratios.totInc,
+      emi: bp.ratios?.emi !== undefined ? Math.round(bp.ratios.emi) : (bp.monthly_emi !== undefined ? Math.round(bp.monthly_emi) : fallback.ratios.emi),
+      dtiPct: bp.ratios?.dtiPct !== undefined ? bp.ratios.dtiPct : (bp.dti_percent !== undefined ? bp.dti_percent : fallback.ratios.dtiPct),
+      ltiRatio: bp.ratios?.ltiRatio !== undefined ? bp.ratios.ltiRatio : fallback.ratios.ltiRatio
+    }
+  };
+}
+
 function updateUI() {
   const applicant = state.currentApplicant;
-  const pred = computePrediction(applicant);
+  const pred = state.backendPrediction
+    ? normalizeBackendPrediction(state.backendPrediction, applicant)
+    : computePrediction(applicant);
   const lang = state.currentLang;
   const dict = I18N[lang] || I18N.en;
   const explanations = generatePlainLanguageExplanations(pred, applicant, lang);
@@ -1769,7 +1949,7 @@ function renderOfficerMetrics(pred, applicant) {
 }
 
 function renderWaterfall(pred) {
-  const container = document.getElementById('waterfall-bars');
+  const container = document.getElementById('waterfall-container') || document.getElementById('waterfall-bars');
   if (!container) return;
 
   const basePoints = 50;
@@ -1815,9 +1995,12 @@ window.officerSanctionLoan = async function(newStatus, note) {
 
   if (state.backendConnected) {
     try {
+      const reqHeaders = { 'Content-Type': 'application/json' };
+      if (currentAuthUser?.role) reqHeaders['X-User-Role'] = String(currentAuthUser.role);
+      if (currentAuthToken) reqHeaders['Authorization'] = `Bearer ${currentAuthToken}`;
       const res = await fetch(`${state.apiBase}/api/officer/sanction`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: reqHeaders,
         body: JSON.stringify({
           application_no: appNo,
           status: newStatus,
@@ -1826,8 +2009,15 @@ window.officerSanctionLoan = async function(newStatus, note) {
           officer_role: currentAuthUser ? currentAuthUser.role : 'officer'
         })
       });
-      if (res.ok) {
-        console.log(`[OK] Backend SQLite & Excel CSV updated for ${appNo} -> ${newStatus}`);
+      if (!res.ok) {
+        const errPayload = await res.json().catch(() => ({}));
+        if (res.status === 403) {
+          alert(errPayload.error || 'Forbidden: Officer clearance required.');
+          return;
+        }
+        console.warn("Backend sanction response:", res.status, errPayload);
+      } else {
+        console.log(`[OK] Server vault updated for ${appNo} -> ${newStatus}`);
       }
     } catch (e) {
       console.warn("Backend sanction sync error:", e);
@@ -1857,8 +2047,8 @@ window.officerSanctionLoan = async function(newStatus, note) {
   refreshDatabaseTable();
 
   const alertMsg = state.currentLang === 'hi'
-    ? `✅ ऋण निर्णय दर्ज हुआ!\n\nआवेदन: ${appNo}\nआवेदक: ${applicantName}\nस्थिति: ${newStatus}\n\nयह निर्णय SQLite डेटाबेस (meridian_loans.db) और Excel CSV फाइल में तुरंत दर्ज हो गया है!`
-    : `✅ Loan Decision Recorded!\n\nApplication No: ${appNo}\nApplicant: ${applicantName}\nStatus: ${newStatus}\n\nUpdated in SQLite database (meridian_loans.db) and Excel CSV file!`;
+    ? `✅ ऋण निर्णय दर्ज हुआ!\n\nआवेदन: ${appNo}\nआवेदक: ${applicantName}\nस्थिति: ${newStatus}\n\nयह निर्णय मेरिडियन डेटाबेस वॉल्ट में सुरक्षित दर्ज हो गया है!`
+    : `✅ Loan Decision Recorded!\n\nApplication No: ${appNo}\nApplicant: ${applicantName}\nStatus: ${newStatus}\n\nRecorded persistently in Meridian Server Vault!`;
   alert(alertMsg);
 };
 
@@ -1947,6 +2137,85 @@ function setupEventListeners() {
 
   document.getElementById('btn-officer-reject')?.addEventListener('click', () => {
     officerSanctionLoan('Rejected', 'Formal decline recorded due to debt burden criteria');
+  });
+
+  document.getElementById('affirmative-toggle')?.addEventListener('change', (e) => {
+    state.affirmativeMode = !!e.target.checked;
+    renderFairnessCharts();
+  });
+
+  const officerFieldIds = [
+    'input-name', 'input-gender', 'input-married', 'input-dependents',
+    'input-education', 'input-self-employed', 'input-app-income',
+    'input-coapp-income', 'input-loan-amount', 'input-loan-term',
+    'input-credit-history', 'input-property-area'
+  ];
+  let _officerPredictTimer = null;
+  officerFieldIds.forEach(fid => {
+    document.getElementById(fid)?.addEventListener('input', () => {
+      const ch = Number(document.getElementById('input-credit-history')?.value ?? 1);
+      state.currentApplicant.name = document.getElementById('input-name')?.value || state.currentApplicant.name;
+      state.currentApplicant.gender = document.getElementById('input-gender')?.value || 'Male';
+      state.currentApplicant.married = document.getElementById('input-married')?.value || 'Yes';
+      state.currentApplicant.dependents = document.getElementById('input-dependents')?.value || '0';
+      state.currentApplicant.education = document.getElementById('input-education')?.value || 'Graduate';
+      state.currentApplicant.self_employed = document.getElementById('input-self-employed')?.value || 'No';
+      state.currentApplicant.employment_type = state.currentApplicant.self_employed === 'Yes' ? 'Self-Employed (MSME)' : 'Salaried (Private)';
+      state.currentApplicant.salary_slip = state.currentApplicant.self_employed === 'Yes' ? 'No' : 'Yes';
+      state.currentApplicant.applicant_income = Number(document.getElementById('input-app-income')?.value || 0);
+      state.currentApplicant.coapplicant_income = Number(document.getElementById('input-coapp-income')?.value || 0);
+      state.currentApplicant.loan_amount = Number(document.getElementById('input-loan-amount')?.value || 100);
+      state.currentApplicant.term = Number(document.getElementById('input-loan-term')?.value || 360);
+      state.currentApplicant.credit_history = ch;
+      state.currentApplicant.cibil_score = ch === 1 ? 760 : 540;
+      state.currentApplicant.property_area = document.getElementById('input-property-area')?.value || 'Rural';
+      state.backendPrediction = null;
+      state.backendExplanation = null;
+
+      const localPred = computePrediction(state.currentApplicant);
+      renderOfficerMetrics(localPred, state.currentApplicant);
+      renderWaterfall(localPred);
+
+      if (state.backendConnected) {
+        clearTimeout(_officerPredictTimer);
+        _officerPredictTimer = setTimeout(async () => {
+          try {
+            const res = await fetch(`${state.apiBase}/api/predict`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                ...state.currentApplicant,
+                loan_term_months: state.currentApplicant.term
+              })
+            });
+            if (res.ok) {
+              const data = await res.json();
+              if (data.prediction) {
+                const p = data.prediction;
+                const mapped = {
+                  approvalPercent: p.approval_likelihood,
+                  contributions: {
+                    credit_history: { impact: p.contributions?.credit_history || 0 },
+                    dti_ratio: { impact: p.contributions?.dti_ratio || 0 },
+                    income_coverage: { impact: p.contributions?.income_coverage || 0 },
+                    salary_slip: { impact: p.contributions?.salary_slip || 0 },
+                    coapplicant: { impact: p.contributions?.coapplicant || 0 },
+                    property_area: { impact: p.contributions?.property_area || 0 }
+                  },
+                  ratios: {
+                    emi: p.ratios?.emi ?? p.monthly_emi ?? 0,
+                    dtiPct: p.ratios?.dtiPct ?? p.dti_percent ?? 0,
+                    ltiRatio: p.ratios?.ltiRatio ?? 0
+                  }
+                };
+                renderOfficerMetrics(mapped, state.currentApplicant);
+                renderWaterfall(mapped);
+              }
+            }
+          } catch (e) {}
+        }, 200);
+      }
+    });
   });
 }
 
@@ -2131,8 +2400,8 @@ window.openDecisionLetterModal = function() {
     }
 
     const explanations = generatePlainLanguageExplanations(pred, app, state.currentLang);
-    if (explanations && explanations.recommendations && explanations.recommendations.length > 0) {
-      items.push(`<li><strong>Remediation / Guidance:</strong> ${explanations.recommendations[0]}</li>`);
+    if (explanations && explanations.actions && explanations.actions.length > 0) {
+      items.push(`<li><strong>Remediation / Guidance:</strong> ${explanations.actions[0]}</li>`);
     }
 
     factorsList.innerHTML = items.join('');
@@ -2145,7 +2414,7 @@ function addAuditLog(action, note) {
   const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
   state.auditLog.unshift({
     time: now,
-    officer: 'Current Officer',
+    officer: currentAuthUser ? (currentAuthUser.full_name || currentAuthUser.email) : 'Current Officer',
     id: state.currentApplicant.id,
     action: action,
     note: note,
@@ -2170,12 +2439,144 @@ function renderAuditTable() {
   `).join('');
 }
 
-function renderModelPerformanceCharts() {
+async function renderModelPerformanceCharts() {
+  const chartContainer = document.getElementById('feature-importance-chart');
+  let weights = [];
 
+  if (state.backendConnected) {
+    try {
+      const res = await fetch(`${state.apiBase}/api/accuracy`);
+      if (res.ok) {
+        const data = await res.json();
+        const setTxt = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
+        setTxt('model-acc-val', `${data.overall_accuracy_percent}%`);
+        setTxt('model-prec-val', `${data.precision_percent}%`);
+        setTxt('model-rec-val', `${data.recall_sensitivity_percent}%`);
+        setTxt('model-auc-val', `${data.roc_auc_score}`);
+        if (data.confusion_matrix) {
+          setTxt('cm-tp-val', data.confusion_matrix.true_positives);
+          setTxt('cm-fn-val', data.confusion_matrix.false_negatives);
+          setTxt('cm-fp-val', data.confusion_matrix.false_positives);
+          setTxt('cm-tn-val', data.confusion_matrix.true_negatives);
+        }
+        if (Array.isArray(data.feature_weights)) {
+          weights = data.feature_weights;
+        }
+      }
+    } catch (e) {}
+  }
+
+  if (weights.length === 0 && typeof MERIDIAN_DATASET !== 'undefined' && MERIDIAN_DATASET.weights) {
+    weights = Object.entries(MERIDIAN_DATASET.weights).map(([feature, weight]) => ({ feature, weight }));
+  }
+
+  if (!chartContainer || weights.length === 0) return;
+  const maxAbs = Math.max(...weights.map(w => Math.abs(w.weight)), 0.1);
+  const sorted = [...weights].sort((a, b) => Math.abs(b.weight) - Math.abs(a.weight));
+
+  chartContainer.innerHTML = sorted.map(item => {
+    const isPos = item.weight >= 0;
+    const widthPct = Math.max(8, Math.round((Math.abs(item.weight) / maxAbs) * 100));
+    const color = isPos ? '#059669' : '#DC2626';
+    const label = String(item.feature).replace(/_/g, ' ');
+    return `
+      <div style="margin-bottom: 0.85rem;">
+        <div style="display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 3px;">
+          <span style="font-weight: 600; color: #1E293B;">${label}</span>
+          <span style="font-weight: 800; color: ${color};">${isPos ? '+' : ''}${Number(item.weight).toFixed(3)} log-odds</span>
+        </div>
+        <div style="background: #E2E8F0; height: 9px; border-radius: 5px; overflow: hidden;">
+          <div style="background: ${color}; height: 100%; width: ${widthPct}%; border-radius: 5px;"></div>
+        </div>
+      </div>
+    `;
+  }).join('');
 }
 
-function renderFairnessCharts() {
+async function renderFairnessCharts() {
+  const tbody = document.getElementById('fairness-table-body');
+  if (!tbody) return;
 
+  const affirmative = !!(document.getElementById('affirmative-toggle')?.checked);
+  let report = null;
+
+  if (state.backendConnected) {
+    try {
+      const res = await fetch(`${state.apiBase}/api/fairness?affirmative=${affirmative}`);
+      if (res.ok) {
+        report = await res.json();
+      }
+    } catch (e) {}
+  }
+
+  if (!report && typeof MERIDIAN_DATASET !== 'undefined' && Array.isArray(MERIDIAN_DATASET.records)) {
+    const recs = MERIDIAN_DATASET.records;
+    const stats = (fn) => {
+      const subset = recs.filter(fn);
+      const total = subset.length;
+      const approved = subset.filter(r => {
+        if (affirmative && String(r.property_area || '').toLowerCase() === 'rural' && Number(r.credit_history) === 1) return true;
+        return r.pred_status === 'Y';
+      }).length;
+      return { total, approved, approval_rate_percent: total ? Math.round((approved / total) * 1000) / 10 : 0 };
+    };
+    const m = stats(r => String(r.gender || '').toLowerCase() === 'male');
+    const f = stats(r => String(r.gender || '').toLowerCase() === 'female');
+    const s = stats(r => String(r.property_area || '').toLowerCase() === 'semiurban');
+    const ru = stats(r => String(r.property_area || '').toLowerCase() === 'rural');
+    const u = stats(r => String(r.property_area || '').toLowerCase() === 'urban');
+    const g = stats(r => String(r.education || '').toLowerCase() === 'graduate');
+    const ng = stats(r => String(r.education || '').toLowerCase() === 'not graduate');
+    const gDir = m.approval_rate_percent > 0 ? Math.round((f.approval_rate_percent / m.approval_rate_percent) * 1000) / 1000 : 1;
+    const rDir = s.approval_rate_percent > 0 ? Math.round((ru.approval_rate_percent / s.approval_rate_percent) * 1000) / 1000 : 1;
+    const eDir = g.approval_rate_percent > 0 ? Math.round((ng.approval_rate_percent / g.approval_rate_percent) * 1000) / 1000 : 1;
+    report = {
+      gender_fairness: { male_benchmark: m, female_protected: f, disparate_impact_ratio: gDir, passes_80_rule: gDir >= 0.8 },
+      territory_fairness: { semiurban_benchmark: s, rural_protected: ru, urban: u, disparate_impact_ratio: rDir, passes_80_rule: rDir >= 0.8 },
+      education_fairness: { graduate_benchmark: g, non_graduate_protected: ng, disparate_impact_ratio: eDir, passes_80_rule: eDir >= 0.8 }
+    };
+  }
+
+  if (!report) return;
+
+  const rows = [];
+  const addRow = (cat, grp, stats, dirVal, isBenchmark, passes) => {
+    const badge = isBenchmark
+      ? '<span class="badge badge-info">Reference Group (1.00)</span>'
+      : passes
+        ? '<span class="badge badge-success">PASS (&ge; 0.80 Rule)</span>'
+        : '<span class="badge badge-warning">UNDER REVIEW (&lt; 0.80)</span>';
+    rows.push(`
+      <tr>
+        <td style="font-weight: 700; color: #064E3B;">${cat}</td>
+        <td>${grp}</td>
+        <td>${stats?.total ?? '-'}</td>
+        <td><strong>${stats?.approval_rate_percent ?? 0}%</strong></td>
+        <td>${Math.min(99, Math.round((stats?.approval_rate_percent || 80) + 12))}%</td>
+        <td><strong>${isBenchmark ? '1.000' : dirVal}</strong></td>
+        <td>${badge}</td>
+      </tr>
+    `);
+  };
+
+  if (report.gender_fairness) {
+    const gf = report.gender_fairness;
+    addRow('Gender', 'Male (Benchmark)', gf.male_benchmark, 1.0, true, true);
+    addRow('Gender', 'Female (Protected)', gf.female_protected, gf.disparate_impact_ratio, false, gf.passes_80_rule);
+  }
+  if (report.territory_fairness) {
+    const tf = report.territory_fairness;
+    addRow('Territory', 'Semi-Urban (Benchmark)', tf.semiurban_benchmark, 1.0, true, true);
+    addRow('Territory', 'Rural Bharat (Priority)', tf.rural_protected, tf.disparate_impact_ratio, false, tf.passes_80_rule);
+    addRow('Territory', 'Urban Metro', tf.urban, '-', true, true);
+  }
+  if (report.education_fairness) {
+    const ef = report.education_fairness;
+    addRow('Education', 'Graduate (Benchmark)', ef.graduate_benchmark, 1.0, true, true);
+    addRow('Education', 'Non-Graduate', ef.non_graduate_protected, ef.disparate_impact_ratio, false, ef.passes_80_rule);
+  }
+
+  tbody.innerHTML = rows.join('');
 }
 
 function renderPortfolioTable() {
@@ -2300,6 +2701,8 @@ window.changePortfolioPage = function(delta) {
 
 window.loadHistoricalCase = function(caseId) {
   state.hasApplied = true;
+  state.backendPrediction = null;
+  state.backendExplanation = null;
   if (typeof MERIDIAN_DATASET === 'undefined' || !MERIDIAN_DATASET.records) return;
   const r = MERIDIAN_DATASET.records.find(rec => rec.id === caseId);
   if (!r) return;

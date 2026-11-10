@@ -10,10 +10,11 @@ services:
       - "5000:5000"
     environment:
       - PORT=5000
+      - DB_PROVIDER=${DB_PROVIDER:-sqlite}
       - SUPABASE_URL=${SUPABASE_URL:-}
       - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-}
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-}
-      - ADMIN_INVITE_SECRET=${ADMIN_INVITE_SECRET:-OFFICER-2026}
+      - OFFICER_REGISTRATION_KEY=${OFFICER_REGISTRATION_KEY:-OFFICER-2026}
     volumes:
       - ./meridian_loans.db:/app/meridian_loans.db
       - ./meridian_loan_applications_export.csv:/app/meridian_loan_applications_export.csv

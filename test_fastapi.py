@@ -47,6 +47,18 @@ def run_tests():
     assert res.status_code == 200
     print("[PASS] 7. GET /dataset_data.js -> 200 Dataset bundle served")
 
+    res = client.get("/favicon.ico")
+    assert res.status_code == 204
+    print("[PASS] 7b. GET /favicon.ico -> 204 No Content")
+
+    res = client.options("/api/predict", headers={
+        "Origin": "https://meridian-client.netlify.app",
+        "Access-Control-Request-Method": "POST"
+    })
+    assert res.status_code in (200, 204)
+    assert res.headers.get("access-control-allow-origin") == "*"
+    print("[PASS] 7c. OPTIONS /api/predict -> CORS wildcard enabled")
+
     # 3. Authentication Validation
     # Mismatched password
     res = client.post("/api/auth/signup", json={
@@ -121,6 +133,11 @@ def run_tests():
     res = client.post("/api/auth/logout")
     assert res.status_code == 200 and res.json()["success"] is True
     print("[PASS] 15. POST /api/auth/logout -> 200 Logout acknowledged")
+
+    # Session verification
+    res = client.get(f"/api/auth/session?user_id={applicant_id}")
+    assert res.status_code == 200 and res.json()["user"]["role"] == "applicant"
+    print("[PASS] 15b. GET /api/auth/session -> 200 Session verified")
 
     # 4. Underwriting & Scoring
     sample_app = {
@@ -208,11 +225,19 @@ def run_tests():
     assert "gender_fairness" in fairness and "territory_fairness" in fairness
     print(f"[PASS] 24. GET /api/fairness -> 200 DIR Gender: {fairness['gender_fairness']['disparate_impact_ratio']}")
 
+    res = client.get("/api/fairness?affirmative=true")
+    assert res.status_code == 200
+    aff_fairness = res.json()
+    assert aff_fairness.get("affirmative_calibration_active") is True
+    assert aff_fairness["territory_fairness"]["disparate_impact_ratio"] >= fairness["territory_fairness"]["disparate_impact_ratio"]
+    print(f"[PASS] 24b. GET /api/fairness?affirmative=true -> 200 DIR Territory: {aff_fairness['territory_fairness']['disparate_impact_ratio']}")
+
     res = client.get("/api/accuracy")
     assert res.status_code == 200
     acc = res.json()
     assert acc["overall_accuracy_percent"] > 80.0
-    print(f"[PASS] 25. GET /api/accuracy -> 200 Accuracy: {acc['overall_accuracy_percent']}%")
+    assert isinstance(acc.get("feature_weights"), list) and len(acc["feature_weights"]) > 0
+    print(f"[PASS] 25. GET /api/accuracy -> 200 Accuracy: {acc['overall_accuracy_percent']}% ({len(acc['feature_weights'])} feature weights)")
 
     res = client.get("/api/applicants")
     assert res.status_code == 200

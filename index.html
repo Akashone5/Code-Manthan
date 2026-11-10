@@ -293,9 +293,9 @@
         <strong style="color: #064E3B;">Domain:</strong> Banking & Lending &nbsp;|&nbsp;
         <strong style="color: #064E3B;">System:</strong> भारत ऋण पारदर्शिता एवं समावेशन मंच
       </div>
-      <div class="live-badge" id="backend-status-badge" style="cursor: pointer;" onclick="toggleBackendInfoModal()" title="Click to check or manage Python Backend API connection">
+      <div class="live-badge" id="backend-status-badge" style="cursor: pointer;" onclick="toggleBackendInfoModal()" title="Click to check or configure REST Backend API connection">
         <span class="pulse-dot" id="backend-pulse-dot"></span>
-        <span id="backend-status-text">Checking Python Backend (localhost:5000)...</span>
+        <span id="backend-status-text">Connecting to Meridian Backend API...</span>
       </div>
     </div>
   </div>
@@ -746,6 +746,7 @@
           <thead>
             <tr>
               <th>Timestamp</th>
+              <th>Reviewed By</th>
               <th>Applicant ID</th>
               <th>Action Recorded</th>
               <th>Underwriter Regulatory Justification</th>
@@ -762,19 +763,19 @@
 
       <div class="grid-4" style="margin-bottom: 1.5rem;">
         <div class="metric-box">
-          <div class="metric-val" style="color: #10B981;">79.97%</div>
+          <div id="model-acc-val" class="metric-val" style="color: #10B981;">84.55%</div>
           <div class="metric-name">Overall Model Accuracy</div>
         </div>
         <div class="metric-box">
-          <div class="metric-val" style="color: #064E3B;">80.20%</div>
+          <div id="model-prec-val" class="metric-val" style="color: #064E3B;">83.65%</div>
           <div class="metric-name">Precision (Sanction Quality)</div>
         </div>
         <div class="metric-box">
-          <div class="metric-val" style="color: #C2822B;">94.08%</div>
+          <div id="model-rec-val" class="metric-val" style="color: #C2822B;">97.75%</div>
           <div class="metric-name">Recall / Sensitivity</div>
         </div>
         <div class="metric-box">
-          <div class="metric-val" style="color: #F59E0B;">0.784</div>
+          <div id="model-auc-val" class="metric-val" style="color: #F59E0B;">0.862</div>
           <div class="metric-name">ROC-AUC Discriminator</div>
         </div>
       </div>
@@ -785,9 +786,9 @@
           <div class="card-header">
             <div>
               <div class="card-title">
-                <span>🎯</span> Confusion Matrix (Historical Loan Validation)
+                <span>🎯</span> Confusion Matrix (Holdout Validation)
               </div>
-              <div class="card-subtitle">Empirical validation on Bharat lending historical dataset</div>
+              <div class="card-subtitle">Empirical out-of-sample evaluation on lending portfolio split</div>
             </div>
             <div class="badge badge-success">Evaluated</div>
           </div>
@@ -798,36 +799,36 @@
             <div class="cm-header">Predicted Rejected (N)</div>
 
             <div class="cm-header" style="writing-mode: vertical-rl; transform: rotate(180deg);">
-              Actual Approved (422)
+              Actual Approved
             </div>
             <div class="cm-cell cm-tp">
-              <div class="cm-num">397</div>
+              <div id="cm-tp-val" class="cm-num">87</div>
               <div class="cm-lbl">True Positive (TP)</div>
-              <div style="font-size: 0.7rem; color: #15803D; margin-top: 4px;">Accurately Approved (94.1%)</div>
+              <div style="font-size: 0.7rem; color: #15803D; margin-top: 4px;">Accurately Approved</div>
             </div>
             <div class="cm-cell cm-fn">
-              <div class="cm-num">25</div>
+              <div id="cm-fn-val" class="cm-num">2</div>
               <div class="cm-lbl">False Negative (FN)</div>
-              <div style="font-size: 0.7rem; color: #B91C1C; margin-top: 4px;">Creditworthy Missed (5.9%)</div>
+              <div style="font-size: 0.7rem; color: #B91C1C; margin-top: 4px;">Creditworthy Missed</div>
             </div>
 
             <div class="cm-header" style="writing-mode: vertical-rl; transform: rotate(180deg);">
-              Actual Rejected (192)
+              Actual Rejected
             </div>
             <div class="cm-cell cm-fp">
-              <div class="cm-num">98</div>
+              <div id="cm-fp-val" class="cm-num">17</div>
               <div class="cm-lbl">False Positive (FP)</div>
               <div style="font-size: 0.7rem; color: #B45309; margin-top: 4px;">Risky Sanctions</div>
             </div>
             <div class="cm-cell cm-tn">
-              <div class="cm-num">94</div>
+              <div id="cm-tn-val" class="cm-num">17</div>
               <div class="cm-lbl">True Negative (TN)</div>
               <div style="font-size: 0.7rem; color: #064E3B; margin-top: 4px;">Accurately Identified Risk</div>
             </div>
           </div>
 
           <div style="margin-top: 1.25rem; font-size: 0.8rem; color: #64748B; background: #F8FAFC; padding: 0.75rem; border-radius: 6px;">
-            <strong>Underwriter Takeaway:</strong> With a <strong>94.08% Recall</strong>, the model ensures almost no creditworthy citizen is arbitrarily denied access to capital, prioritizing financial inclusion.
+            <strong>Underwriter Takeaway:</strong> With high validation recall sensitivity, the calibrated model ensures creditworthy applicants are not arbitrarily excluded from formal credit.
           </div>
         </div>
 
@@ -1462,10 +1463,10 @@
   <script src="app.js"></script>
 
   <div id="backend-info-modal" class="modal-overlay" style="display: none;">
-    <div class="modal-content" style="max-width: 580px;">
+    <div class="modal-content" style="max-width: 600px;">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #064E3B; padding-bottom: 0.8rem; margin-bottom: 1rem;">
         <h3 style="color: #064E3B; font-size: 1.25rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
-          <span>🔌</span> Python Backend Connection Hub
+          <span>🔌</span> FastAPI Backend Connection Hub
         </h3>
         <button class="btn btn-outline" style="padding: 2px 8px; font-size: 0.85rem;" onclick="toggleBackendInfoModal()">✕</button>
       </div>
@@ -1473,25 +1474,26 @@
       <div style="margin-bottom: 1.25rem;">
         <div style="display: flex; justify-content: space-between; align-items: center; background: #FAF3E6; border: 1.5px solid #E8D7B8; border-radius: 8px; padding: 0.85rem 1rem;">
           <div>
-            <div style="font-size: 0.75rem; color: #4B6359; font-weight: 700; text-transform: uppercase;">Backend API Server</div>
-            <div style="font-size: 0.95rem; font-weight: 800; color: #064E3B; margin-top: 2px;">http://localhost:5000</div>
+            <div style="font-size: 0.75rem; color: #4B6359; font-weight: 700; text-transform: uppercase;">Active REST API Origin</div>
+            <div id="modal-backend-url" style="font-size: 0.95rem; font-weight: 800; color: #064E3B; margin-top: 2px; word-break: break-all;">Detecting endpoint...</div>
           </div>
           <span id="modal-backend-status-badge" class="badge badge-success">CONNECTED</span>
         </div>
       </div>
 
       <div id="modal-backend-details" style="font-size: 0.85rem; line-height: 1.6; color: #334155;">
-        <p><strong>Status:</strong> <span id="modal-backend-status-desc">Connected to Python http.server on port 5000.</span></p>
-        <p style="margin-top: 0.5rem;">All loan evaluations, plain-English explanations, and fairness comparisons are computed live by your Python backend logic (<code>backend.py</code> and <code>server.py</code>).</p>
+        <p><strong>Status:</strong> <span id="modal-backend-status-desc">Checking REST API endpoint connectivity...</span></p>
+        <p style="margin-top: 0.5rem;">All authentication, underwriting scoring, SHAP explainability, and fairness checks communicate live with FastAPI (<a id="modal-swagger-link" href="/docs" target="_blank" style="color: #064E3B; font-weight: 700; text-decoration: underline;">OpenAPI /docs</a>).</p>
       </div>
 
       <div style="background: #FDFBF7; border: 1px solid #E6DDCF; border-radius: 8px; padding: 0.9rem; margin-top: 1rem; font-size: 0.82rem;">
-        <strong style="color: #064E3B;">How to Start or Restart the Backend:</strong>
-        <ol style="padding-left: 1.25rem; margin-top: 0.4rem; color: #475569;">
-          <li>Double-click <code>run_backend.bat</code> in <code>E:\English</code></li>
-          <li>Or run: <code>python server.py</code> in terminal</li>
-          <li>Click the <strong>Test &amp; Reconnect</strong> button below!</li>
-        </ol>
+        <strong style="color: #064E3B;">Connect Custom Internet Backend URL (Optional):</strong>
+        <p style="color: #64748B; margin: 4px 0 8px 0;">If serving frontend separately, enter your deployed internet API base URL (e.g., <code>https://your-service.onrender.com</code>):</p>
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+          <input type="url" id="custom-api-base-input" class="form-control" placeholder="https://your-api.onrender.com" style="flex: 1; min-width: 220px; font-size: 0.82rem;">
+          <button type="button" class="btn btn-primary" style="padding: 6px 12px; font-size: 0.8rem;" onclick="saveCustomApiBase()">Save URL</button>
+          <button type="button" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.8rem;" onclick="resetCustomApiBase()">Auto-Detect</button>
+        </div>
       </div>
 
       <div style="margin-top: 1.5rem; display: flex; justify-content: flex-end; gap: 0.75rem;">

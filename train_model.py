@@ -37,13 +37,35 @@ def train_and_score_model():
             cleaned_csv = p
             break
 
-    if not train_csv:
-        print("[ERROR] Training dataset with target 'Loan_Status' not found.")
-        return
-
-    print(f"\n[STEP 1/5] Loading Historical Training Dataset: {train_csv}")
-    with open(train_csv, 'r', encoding='utf-8') as f:
-        train_raw = list(csv.DictReader(f))
+    if train_csv:
+        print(f"\n[STEP 1/5] Loading Historical Training Dataset: {train_csv}")
+        with open(train_csv, 'r', encoding='utf-8') as f:
+            train_raw = list(csv.DictReader(f))
+    else:
+        js_bundle = os.path.join(base_dir, 'dataset_data.js')
+        if not os.path.exists(js_bundle):
+            print("[ERROR] Training dataset not found.")
+            return
+        print(f"\n[STEP 1/5] Loading Bundled Training Portfolio: {js_bundle}")
+        with open(js_bundle, 'r', encoding='utf-8') as f:
+            raw_js = f.read()
+        s_idx, e_idx = raw_js.find('{'), raw_js.rfind('}')
+        parsed = json.loads(raw_js[s_idx:e_idx + 1])
+        train_raw = [
+            {
+                'ApplicantIncome': r.get('applicant_income', 3000),
+                'CoapplicantIncome': r.get('coapplicant_income', 0),
+                'LoanAmount': r.get('loan_amount', 128),
+                'Loan_Amount_Term': r.get('term', 360),
+                'Married': r.get('married', 'Yes'),
+                'Education': r.get('education', 'Graduate'),
+                'Self_Employed': r.get('self_employed', 'No'),
+                'Dependents': r.get('dependents', '0'),
+                'Credit_History': r.get('credit_history', 1),
+                'Loan_Status': r.get('actual_status', 'Y'),
+            }
+            for r in parsed.get('records', [])
+        ]
     print(f"           Successfully loaded {len(train_raw)} historical loan applications.")
 
     # 2. Feature Extraction & Engineering

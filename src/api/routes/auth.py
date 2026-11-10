@@ -3,9 +3,11 @@ Authentication and Identity Router
 Handles registration, role-gated sign-in, password reset, and session management.
 """
 
-from fastapi import APIRouter, status
+from typing import Optional
+from fastapi import APIRouter, Query, Header, status
 from fastapi.responses import JSONResponse
 import database
+from src.database.supabase_client import get_supabase_client
 from src.api.schemas import (
     SignUpRequest,
     SignInRequest,
@@ -125,12 +127,50 @@ async def forgot_password(payload: ForgotPasswordRequest):
             content={"success": False, "error": "Email is required."}
         )
 
+    sb = get_supabase_client()
+    if sb.is_configured():
+        try:
+            sb.auth_reset_password(email)
+        except Exception:
+            pass
+
     return JSONResponse(
         status_code=status.HTTP_200_OK,
         content={
             "success": True,
             "message": f"Password recovery instructions have been dispatched to {email}. If verified, follow the secure link."
         }
+    )
+
+
+@router.get(
+    "/session",
+    summary="Verify stored user profile and role state"
+)
+async def verify_session(
+    user_id: Optional[str] = Query(default=None),
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id")
+):
+    """
+    Validates a persisted user session identifier against stored profile records.
+    """
+    uid = user_id or x_user_id
+    if not uid:
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content={"success": False, "error": "No active user identifier provided."}
+        )
+
+    profile = database.get_user_profile(uid)
+    if not profile:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={"success": False, "error": "Session user profile not found."}
+        )
+
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content={"success": True, "user": profile}
     )
 
 

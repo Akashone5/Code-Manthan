@@ -3,6 +3,8 @@ __pycache__
 *.pyo
 *.pyd
 .Python
+.env
+.env.local
 env/
 venv/
 .venv/
@@ -10,4 +12,7 @@ venv/
 .gitignore
 .vscode
 .gemini
+*.db-wal
+*.db-shm
+*.db-journal
 *.log

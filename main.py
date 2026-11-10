@@ -7,7 +7,7 @@ import os
 from contextlib import asynccontextmanager
 from typing import Dict, Any
 
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.exceptions import RequestValidationError
@@ -74,9 +74,10 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # Global Exception Handlers for Standardized JSON Responses
@@ -154,6 +155,11 @@ async def serve_dataset_js():
         status_code=status.HTTP_404_NOT_FOUND,
         content={"error": "dataset_data.js not found"}
     )
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def serve_favicon():
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 if __name__ == "__main__":

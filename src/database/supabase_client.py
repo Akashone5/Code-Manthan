@@ -6,6 +6,8 @@ Manages Row Level Security (RLS) tenant authentication tokens and PostgreSQL CRU
 
 import os
 import json
+import time
+import shutil
 import subprocess
 from typing import Dict, Any, Tuple, Optional
 
@@ -45,14 +47,16 @@ SUPABASE_SERVICE_ROLE = os.environ.get('SUPABASE_SERVICE_ROLE_KEY', '')
 class SupabaseRestClient:
     """
     HTTP REST client for Supabase PostgREST API and GoTrue Auth Service.
-    Uses connection pooling via requests.Session() and provides graceful fallback to curl.exe.
+    Uses connection pooling via requests.Session(), circuit-breaker failover,
+    and cross-platform curl fallback if requests is unavailable.
     """
 
     def __init__(self, url: Optional[str] = None, key: Optional[str] = None):
-        self.url = (url or SUPABASE_URL).rstrip('/')
-        self.key = key or SUPABASE_KEY
-        self.service_key = SUPABASE_SERVICE_ROLE
+        self.url = (url if url is not None else os.environ.get('SUPABASE_URL', SUPABASE_URL)).rstrip('/')
+        self.key = key if key is not None else (os.environ.get('SUPABASE_ANON_KEY', '') or SUPABASE_KEY)
+        self.service_key = os.environ.get('SUPABASE_SERVICE_ROLE_KEY', '') or SUPABASE_SERVICE_ROLE
         self.active_token = self.key
+        self._unreachable_until: float = 0.0
 
         if _REQUESTS_AVAILABLE:
             self.session = requests.Session()
@@ -63,10 +67,11 @@ class SupabaseRestClient:
         """Sets the active JWT token for RLS tenant isolation."""
         self.active_token = token or self.key
 
-    def _get_headers(self, custom_headers: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+    def _get_headers(self, custom_headers: Optional[Dict[str, str]] = None, auth_token: Optional[str] = None) -> Dict[str, str]:
+        bearer = auth_token or self.service_key or self.active_token or self.key
         headers = {
             'apikey': self.key,
-            'Authorization': f'Bearer {self.active_token}',
+            'Authorization': f'Bearer {bearer}',
             'Content-Type': 'application/json',
             'Prefer': 'return=representation'
         }
@@ -74,11 +79,22 @@ class SupabaseRestClient:
             headers.update(custom_headers)
         return headers
 
-    def _execute_request(self, endpoint: str, method: str = 'GET', headers: Optional[Dict[str, str]] = None, data: Any = None) -> Dict[str, Any]:
-        full_url = f"{self.url}{endpoint}" if not endpoint.startswith('http') else endpoint
-        req_headers = self._get_headers(headers)
+    def _execute_request(
+        self,
+        endpoint: str,
+        method: str = 'GET',
+        headers: Optional[Dict[str, str]] = None,
+        data: Any = None,
+        auth_token: Optional[str] = None,
+        bypass_circuit: bool = False
+    ) -> Dict[str, Any]:
+        if not bypass_circuit and time.time() < self._unreachable_until:
+            return {'success': False, 'error': 'Supabase temporarily bypassed (SQLite active)'}
 
-        # 1. Try requests.Session
+        full_url = f"{self.url}{endpoint}" if not endpoint.startswith('http') else endpoint
+        req_headers = self._get_headers(headers, auth_token=auth_token)
+
+        # 1. Primary path: requests.Session with fast timeouts
         if self.session is not None:
             try:
                 response = self.session.request(
@@ -86,7 +102,7 @@ class SupabaseRestClient:
                     url=full_url,
                     headers=req_headers,
                     json=data if data is not None else None,
-                    timeout=15
+                    timeout=(3, 8)
                 )
                 status = response.status_code
                 try:
@@ -98,20 +114,26 @@ class SupabaseRestClient:
                     return {'success': True, 'data': res_json, 'status_code': status}
                 else:
                     return {'success': False, 'error': res_json, 'status_code': status}
-            except Exception as req_err:
-                pass  # Fall back to curl
+            except requests.exceptions.RequestException as req_err:
+                self._unreachable_until = time.time() + 120.0
+                return {'success': False, 'error': str(req_err)}
 
-        # 2. Resilient fallback to curl.exe
-        cmd = ['curl.exe', '-s', '--connect-timeout', '8', '--max-time', '15', '-X', method.upper(), full_url]
+        # 2. Fallback to system curl only when requests is not installed
+        curl_bin = shutil.which('curl.exe' if os.name == 'nt' else 'curl')
+        if not curl_bin:
+            return {'success': False, 'error': 'No HTTP transport available'}
+
+        cmd = [curl_bin, '-s', '--connect-timeout', '3', '--max-time', '8', '-X', method.upper(), full_url]
         for k, v in req_headers.items():
             cmd.extend(['-H', f'{k}: {v}'])
         if data is not None:
             cmd.extend(['-d', json.dumps(data)])
 
         try:
-            res = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
             stdout = res.stdout.strip()
             if not stdout:
+                self._unreachable_until = time.time() + 120.0
                 return {'success': False, 'error': res.stderr or 'Empty response from Supabase'}
             try:
                 parsed = json.loads(stdout)
@@ -119,18 +141,31 @@ class SupabaseRestClient:
             except Exception:
                 return {'success': False, 'raw': stdout, 'error': 'Non-JSON response'}
         except Exception as e:
+            self._unreachable_until = time.time() + 120.0
             return {'success': False, 'error': str(e)}
 
     def is_configured(self) -> bool:
-        return bool(self.url and self.key)
+        provider = os.environ.get('DB_PROVIDER', 'supabase').strip().lower()
+        if provider == 'sqlite':
+            return False
+        if not self.url or not self.key or 'your-project-id' in self.url:
+            return False
+        if time.time() < self._unreachable_until:
+            return False
+        return True
 
     def test_connection(self) -> Tuple[bool, str]:
-        if not self.is_configured():
+        if not (self.url and self.key):
             return False, "SUPABASE_URL or SUPABASE_ANON_KEY is missing from .env"
-        res = self._execute_request('/rest/v1/loan_applications?select=application_no&limit=1', method='GET')
+        res = self._execute_request(
+            '/rest/v1/loan_applications?select=application_no&limit=1',
+            method='GET',
+            bypass_circuit=True
+        )
         if res.get('success'):
             data = res.get('data')
             if isinstance(data, list):
+                self._unreachable_until = 0.0
                 return True, "Successfully connected to Supabase PostgreSQL and found 'loan_applications' table."
             if isinstance(data, dict):
                 code = data.get('code', '')
@@ -144,17 +179,17 @@ class SupabaseRestClient:
             return False, "Connected to Supabase project, but 'loan_applications' table is not yet created. Please run supabase_migration.sql in Supabase SQL Editor."
         return False, err
 
-    def select(self, table: str = 'loan_applications', query_params: str = 'select=*&order=id.desc') -> Dict[str, Any]:
-        return self._execute_request(f"/rest/v1/{table}?{query_params}", method='GET')
+    def select(self, table: str = 'loan_applications', query_params: str = 'select=*&order=id.desc', auth_token: Optional[str] = None) -> Dict[str, Any]:
+        return self._execute_request(f"/rest/v1/{table}?{query_params}", method='GET', auth_token=auth_token)
 
-    def insert(self, table: str, record: Dict[str, Any]) -> Dict[str, Any]:
-        return self._execute_request(f"/rest/v1/{table}", method='POST', data=record)
+    def insert(self, table: str, record: Dict[str, Any], auth_token: Optional[str] = None) -> Dict[str, Any]:
+        return self._execute_request(f"/rest/v1/{table}", method='POST', data=record, auth_token=auth_token)
 
-    def update(self, table: str, record: Dict[str, Any], match_col: str, match_val: Any) -> Dict[str, Any]:
-        return self._execute_request(f"/rest/v1/{table}?{match_col}=eq.{match_val}", method='PATCH', data=record)
+    def update(self, table: str, record: Dict[str, Any], match_col: str, match_val: Any, auth_token: Optional[str] = None) -> Dict[str, Any]:
+        return self._execute_request(f"/rest/v1/{table}?{match_col}=eq.{match_val}", method='PATCH', data=record, auth_token=auth_token)
 
-    def delete(self, table: str, match_col: str, match_val: Any) -> Dict[str, Any]:
-        return self._execute_request(f"/rest/v1/{table}?{match_col}=eq.{match_val}", method='DELETE')
+    def delete(self, table: str, match_col: str, match_val: Any, auth_token: Optional[str] = None) -> Dict[str, Any]:
+        return self._execute_request(f"/rest/v1/{table}?{match_col}=eq.{match_val}", method='DELETE', auth_token=auth_token)
 
     # Authentication Services (GoTrue)
     def auth_sign_up(self, email: str, password: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -166,11 +201,6 @@ class SupabaseRestClient:
     def auth_sign_in(self, email: str, password: str) -> Dict[str, Any]:
         payload = {'email': email, 'password': password}
         res = self._execute_request('/auth/v1/token?grant_type=password', method='POST', data=payload)
-        if res.get('success'):
-            data = res.get('data', {})
-            token = data.get('access_token')
-            if token:
-                self.set_auth_token(token)
         return res
 
     def auth_reset_password(self, email: str) -> Dict[str, Any]:
