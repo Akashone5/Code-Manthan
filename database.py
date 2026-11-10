@@ -1,7 +1,7 @@
 """
 Central Database Access Facade
 Provides backward-compatible database operations delegating to the unified src.database repository.
-Includes authentication, user profiles, and loan application management.
+Includes authentication, user profiles, loan application management, and site availability controls.
 """
 
 from src.database.database_operations import (
@@ -15,6 +15,9 @@ from src.database.database_operations import (
     update_application_status,
     sync_csv_export,
     get_sqlite_conn,
+    get_site_availability,
+    set_site_availability,
+    is_verified_officer,
     init_db,
     DB_FILE,
     EXPORT_CSV
@@ -56,6 +59,9 @@ __all__ = [
     'get_application_by_no',
     'get_db_connection',
     'export_to_csv_file',
+    'get_site_availability',
+    'set_site_availability',
+    'is_verified_officer',
     'init_db',
     'DB_FILE',
     'EXPORT_CSV'

@@ -123,11 +123,32 @@ def init_db():
                 except Exception:
                     pass
 
+        # 3. System Settings & Availability Table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS system_settings (
+                setting_key TEXT PRIMARY KEY,
+                setting_value TEXT NOT NULL,
+                updated_by TEXT,
+                updated_at TEXT NOT NULL
+            )
+        ''')
+
+        now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        default_online = "false" if os.environ.get("SITE_ONLINE", "true").strip().lower() in ("0", "false", "no", "off", "offline") else "true"
+        for k, v, actor in [
+            ("site_online", default_online, "System Startup"),
+            ("maintenance_title", "Portal Temporarily Offline", "System Startup"),
+            ("maintenance_message", "Meridian FairLend AI is currently offline for scheduled maintenance. Online underwriting will resume shortly.", "System Startup"),
+        ]:
+            cursor.execute('''
+                INSERT OR IGNORE INTO system_settings (setting_key, setting_value, updated_by, updated_at)
+                VALUES (?, ?, ?, ?)
+            ''', (k, v, actor, now_str))
+
         # Pre-provision default baseline accounts if table is empty
         cursor.execute("SELECT COUNT(*) FROM profiles")
         count = cursor.fetchone()[0]
         if count == 0:
-            now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
             # Default Applicant
             app_hash, app_salt = _hash_password("Applicant@123")
@@ -583,5 +604,115 @@ def update_application_status(application_no: str, new_status: str, officer_rema
 
     sync_csv_export()
     return get_application_by_number(application_no)
+
+
+# --- WEBSITE AVAILABILITY / MAINTENANCE CONTROLS ---
+
+DEFAULT_MAINTENANCE_TITLE = "Portal Temporarily Offline"
+DEFAULT_MAINTENANCE_MESSAGE = (
+    "Meridian FairLend AI is currently offline for scheduled maintenance. "
+    "Online underwriting will resume shortly."
+)
+
+
+def is_verified_officer(
+    user_id: Optional[str] = None,
+    user_role: Optional[str] = None,
+    officer_key: Optional[str] = None
+) -> Tuple[bool, str]:
+    """
+    Verifies whether a caller holds verified Loan Officer / Admin privileges
+    via persisted database profile or valid institutional Officer Clearance Key.
+    """
+    configured_key = os.environ.get('OFFICER_REGISTRATION_KEY', 'OFFICER-2026').strip()
+    if officer_key and officer_key.strip() == configured_key:
+        return True, "Officer Clearance Passkey"
+
+    if user_id and (not user_role or str(user_role).strip().lower() == 'officer'):
+        profile = get_user_profile(str(user_id).strip())
+        if profile and str(profile.get('role', '')).strip().lower() == 'officer':
+            display_actor = profile.get('full_name') or profile.get('email') or 'Loan Officer'
+            return True, str(display_actor)
+
+    return False, ""
+
+
+def get_site_availability() -> Dict[str, Any]:
+    """Retrieves persistent website online/offline status and maintenance notice."""
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    default_online = os.environ.get("SITE_ONLINE", "true").strip().lower() not in ("0", "false", "no", "off", "offline")
+    settings: Dict[str, Dict[str, str]] = {}
+
+    with get_sqlite_conn() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT setting_key, setting_value, updated_by, updated_at FROM system_settings")
+        for row in cursor.fetchall():
+            settings[row['setting_key']] = {
+                'value': row['setting_value'],
+                'updated_by': row['updated_by'] or 'System Administrator',
+                'updated_at': row['updated_at'] or now_str
+            }
+
+    online_raw = settings.get('site_online', {}).get('value', 'true' if default_online else 'false')
+    is_online = str(online_raw).strip().lower() in ('true', '1', 'yes', 'on', 'online')
+    title = settings.get('maintenance_title', {}).get('value', DEFAULT_MAINTENANCE_TITLE)
+    message = settings.get('maintenance_message', {}).get('value', DEFAULT_MAINTENANCE_MESSAGE)
+    updated_by = settings.get('site_online', {}).get('updated_by', 'System Administrator')
+    updated_at = settings.get('site_online', {}).get('updated_at', now_str)
+
+    return {
+        'online': is_online,
+        'status': 'online' if is_online else 'offline',
+        'title': title,
+        'maintenance_message': message,
+        'updated_by': updated_by,
+        'updated_at': updated_at
+    }
+
+
+def set_site_availability(
+    online: bool,
+    message: Optional[str] = None,
+    title: Optional[str] = None,
+    updated_by: str = "Loan Officer"
+) -> Dict[str, Any]:
+    """Persists website availability (Online/Offline Maintenance Mode) in SQLite."""
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    actor = (updated_by or "Loan Officer").strip()
+    online_str = "true" if online else "false"
+
+    with get_sqlite_conn() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO system_settings (setting_key, setting_value, updated_by, updated_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(setting_key) DO UPDATE SET
+                setting_value = excluded.setting_value,
+                updated_by = excluded.updated_by,
+                updated_at = excluded.updated_at
+        ''', ("site_online", online_str, actor, now_str))
+
+        if title is not None and title.strip():
+            cursor.execute('''
+                INSERT INTO system_settings (setting_key, setting_value, updated_by, updated_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(setting_key) DO UPDATE SET
+                    setting_value = excluded.setting_value,
+                    updated_by = excluded.updated_by,
+                    updated_at = excluded.updated_at
+            ''', ("maintenance_title", title.strip(), actor, now_str))
+
+        if message is not None and message.strip():
+            cursor.execute('''
+                INSERT INTO system_settings (setting_key, setting_value, updated_by, updated_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(setting_key) DO UPDATE SET
+                    setting_value = excluded.setting_value,
+                    updated_by = excluded.updated_by,
+                    updated_at = excluded.updated_at
+            ''', ("maintenance_message", message.strip(), actor, now_str))
+
+    return get_site_availability()
+
 
 init_db()

@@ -19,23 +19,47 @@ from src.api.schemas import (
 router = APIRouter(prefix="/api", tags=["Loan Underwriting & Decisioning"])
 
 
+def _offline_guard(x_user_id: Optional[str] = None, x_user_role: Optional[str] = None, officer_key: Optional[str] = None):
+    avail = database.get_site_availability()
+    if avail["online"]:
+        return None
+    is_off, _ = database.is_verified_officer(user_id=x_user_id, user_role=x_user_role, officer_key=officer_key)
+    if is_off:
+        return None
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={
+            "success": False,
+            "offline": True,
+            "status": "offline",
+            "error": avail["maintenance_message"],
+            "maintenance_message": avail["maintenance_message"]
+        }
+    )
+
+
 @router.post(
     "/apply",
     summary="Submit loan application with automated scoring and persistence",
     status_code=status.HTTP_201_CREATED,
     responses={
         201: {"description": "Application recorded and decision rendered"},
+        503: {"description": "Portal is temporarily offline for maintenance"},
         500: {"description": "Underwriting processing error"}
     }
 )
 async def submit_application(
     request: Request,
-    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id")
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+    x_user_role: Optional[str] = Header(default=None, alias="X-User-Role")
 ):
     """
     Submits a loan application. Executes machine learning risk assessment,
     generates SHAP factor explanations, and persists the record to PostgreSQL and SQLite.
     """
+    guard_resp = _offline_guard(x_user_id=x_user_id, x_user_role=x_user_role)
+    if guard_resp is not None:
+        return guard_resp
     try:
         payload = await request.json()
     except Exception as e:
@@ -78,13 +102,21 @@ async def submit_application(
     summary="Execute instant credit risk assessment & factor explainability",
     responses={
         200: {"description": "Prediction and explanation evaluated"},
+        503: {"description": "Portal is temporarily offline for maintenance"},
         500: {"description": "Model scoring error"}
     }
 )
-async def predict_decision(request: Request):
+async def predict_decision(
+    request: Request,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+    x_user_role: Optional[str] = Header(default=None, alias="X-User-Role")
+):
     """
     Evaluates credit probability and returns explainable positive and friction factor drivers.
     """
+    guard_resp = _offline_guard(x_user_id=x_user_id, x_user_role=x_user_role)
+    if guard_resp is not None:
+        return guard_resp
     try:
         payload = await request.json()
     except Exception as e:
@@ -119,14 +151,22 @@ async def predict_decision(request: Request):
     summary="Simulate counterfactual scenario underwriting adjustments",
     responses={
         200: {"description": "Counterfactual scenario evaluated"},
+        503: {"description": "Portal is temporarily offline for maintenance"},
         500: {"description": "Simulation failure"}
     }
 )
-async def scenario_simulation(payload: WhatIfRequest):
+async def scenario_simulation(
+    payload: WhatIfRequest,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+    x_user_role: Optional[str] = Header(default=None, alias="X-User-Role")
+):
     """
     Simulates changes to loan quantum, co-applicant income, or tenure to compute
     instant score and EMI deltas.
     """
+    guard_resp = _offline_guard(x_user_id=x_user_id, x_user_role=x_user_role)
+    if guard_resp is not None:
+        return guard_resp
     try:
         sim_res = simulate_what_if(payload.base, payload.adjustments)
         return JSONResponse(
@@ -204,6 +244,11 @@ async def list_saved_applications(
     """
     resolved_user_id = user_id or x_user_id
     resolved_role = role or x_user_role or ("applicant" if resolved_user_id else "officer")
+
+    if resolved_role != "officer":
+        guard_resp = _offline_guard(x_user_id=resolved_user_id, x_user_role=resolved_role)
+        if guard_resp is not None:
+            return guard_resp
 
     saved_apps = database.get_all_saved_applications(
         user_id=resolved_user_id,

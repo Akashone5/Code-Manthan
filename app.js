@@ -29,6 +29,14 @@ const state = {
   affirmativeMode: false,
   backendConnected: false,
   apiBase: resolveApiBase(),
+  siteAvailability: {
+    online: true,
+    status: 'online',
+    title: 'Portal Temporarily Offline',
+    maintenance_message: 'Meridian FairLend AI is currently offline for scheduled maintenance. Online underwriting will resume shortly.',
+    updated_by: 'System Administrator',
+    updated_at: ''
+  },
   backendPrediction: null,
   backendExplanation: null,
   currentApplicant: {
@@ -77,6 +85,14 @@ const state = {
 // ============================================================================
 let currentAuthUser = null;
 let currentAuthToken = null;
+
+function buildAuthHeaders(extra = {}) {
+  const headers = { ...extra };
+  if (currentAuthUser?.id) headers['X-User-Id'] = String(currentAuthUser.id);
+  if (currentAuthUser?.role) headers['X-User-Role'] = String(currentAuthUser.role);
+  if (currentAuthToken) headers['Authorization'] = `Bearer ${currentAuthToken}`;
+  return headers;
+}
 
 window.switchAuthTab = function(tabName) {
   const btnApp = document.getElementById('tab-btn-applicant');
@@ -202,6 +218,9 @@ window.handleSignIn = async function(e, expectedRole = 'applicant') {
     const data = await res.json();
     if (res.ok && data.success) {
       window.applyAuthenticatedSession(data.user, data.token);
+    } else if (res.status === 503 && data.offline) {
+      await window.checkSiteAvailability();
+      window.showAuthAlert(data.error || 'Portal is temporarily offline for scheduled maintenance.');
     } else {
       window.showAuthAlert(data.error || 'Authentication failed. Please verify credentials.');
     }
@@ -210,7 +229,7 @@ window.handleSignIn = async function(e, expectedRole = 'applicant') {
     if (isOfficer && email.toLowerCase() === 'officer@meridianbank.in' && password === 'Officer@2026') {
       const fallbackUser = { id: '80ac8a07-45a2-40ec-aff5-5b605e4ca044', email, full_name: 'Vikram Sharma (Lead Credit Officer)', phone: '9811223344', role: 'officer' };
       window.applyAuthenticatedSession(fallbackUser, 'offline-token-officer');
-    } else if (!isOfficer && email.toLowerCase() === 'applicant@meridianbank.in' && password === 'Applicant@123') {
+    } else if (!isOfficer && (!state.siteAvailability || state.siteAvailability.online !== false) && email.toLowerCase() === 'applicant@meridianbank.in' && password === 'Applicant@123') {
       const fallbackUser = { id: '03416d3d-ff2b-4101-9453-7509939590fc', email, full_name: 'Ananya Rao', phone: '9876543210', role: 'applicant' };
       window.applyAuthenticatedSession(fallbackUser, 'offline-token-applicant');
     } else {
@@ -278,6 +297,9 @@ window.handleSignUp = async function(e) {
         window.switchAuthTab(targetRole);
         window.quickFillCreds(email, password, targetRole);
       }, 1200);
+    } else if (res.status === 503 && data.offline) {
+      await window.checkSiteAvailability();
+      window.showAuthAlert(data.error || 'Registration paused while website is in maintenance mode.');
     } else {
       window.showAuthAlert(data.error || 'Account registration failed.');
     }
@@ -305,6 +327,11 @@ window.handleLogout = function() {
     sessionStorage.removeItem('meridian_auth_user');
     sessionStorage.removeItem('meridian_auth_token');
   } catch (e) {}
+
+  syncSiteAvailabilityUI();
+  if (state.siteAvailability && state.siteAvailability.online === false) {
+    return;
+  }
 
   const shell = document.getElementById('app-shell');
   const portal = document.getElementById('auth-portal');
@@ -346,9 +373,11 @@ window.applyAuthenticatedSession = function(user, token) {
     roleEl.className = `user-auth-role-badge ${user.role}`;
   }
 
-  // Hide Auth Portal, Reveal Dashboard Shell
+  // Hide Auth Portal & Maintenance Screen, Reveal Dashboard Shell
+  const maintOverlay = document.getElementById('maintenance-overlay');
   const portal = document.getElementById('auth-portal');
   const shell = document.getElementById('app-shell');
+  if (maintOverlay) maintOverlay.style.display = 'none';
   if (portal) portal.style.display = 'none';
   if (shell) shell.style.display = 'block';
 
@@ -356,13 +385,17 @@ window.applyAuthenticatedSession = function(user, token) {
   state.currentRole = user.role;
 
   if (user.role === 'applicant') {
+    if (state.siteAvailability && state.siteAvailability.online === false) {
+      if (shell) shell.style.display = 'none';
+      if (maintOverlay) maintOverlay.style.display = 'flex';
+    }
     // Auto-fill applicant form with profile information
     const nameInput = document.getElementById('fill-full-name') || document.getElementById('fill-name');
     const phoneInput = document.getElementById('fill-phone');
     if (nameInput && !nameInput.value) nameInput.value = user.full_name || '';
     if (phoneInput && !phoneInput.value) phoneInput.value = user.phone || '';
 
-    // Hide officer tabs
+    // Hide officer tabs & controls
     document.querySelectorAll('.nav-officer-item').forEach(el => el.style.display = 'none');
     document.querySelectorAll('.nav-common-item').forEach(el => el.style.display = 'flex');
 
@@ -385,27 +418,292 @@ window.applyAuthenticatedSession = function(user, token) {
     document.querySelector('[data-tab="database-view"]')?.click();
   }
 
+  syncSiteAvailabilityUI();
   window.refreshDatabaseTable();
 };
 
-window.checkExistingSession = function() {
+window.checkExistingSession = async function() {
   try {
     const stored = localStorage.getItem('meridian_auth_user');
     const token = localStorage.getItem('meridian_auth_token');
     if (stored) {
       const user = JSON.parse(stored);
       if (user && user.email) {
+        if (user.id) {
+          try {
+            const verifyRes = await fetch(`${state.apiBase}/api/auth/session?user_id=${encodeURIComponent(user.id)}`);
+            if (verifyRes.status === 401 || verifyRes.status === 404) {
+              localStorage.removeItem('meridian_auth_user');
+              localStorage.removeItem('meridian_auth_token');
+              currentAuthUser = null;
+              syncSiteAvailabilityUI();
+              return;
+            }
+            if (verifyRes.ok) {
+              const verified = await verifyRes.json();
+              if (verified && verified.user) {
+                window.applyAuthenticatedSession(verified.user, token);
+                return;
+              }
+            }
+          } catch (e) {}
+        }
         window.applyAuthenticatedSession(user, token);
         return;
       }
     }
   } catch (e) {}
 
-  // If no session, show Auth Portal
+  syncSiteAvailabilityUI();
+};
+
+window.showMeridianToast = function(msg, isError = false) {
+  const container = document.getElementById('meridian-toast-container');
+  if (!container) return;
+  const toast = document.createElement('div');
+  toast.className = `meridian-toast${isError ? ' error' : ''}`;
+  toast.innerText = msg;
+  container.appendChild(toast);
+  setTimeout(() => { toast.remove(); }, 4200);
+};
+
+function syncSiteAvailabilityUI() {
+  const avail = state.siteAvailability || { online: true };
+  const isOnline = avail.online !== false;
+  const isOfficer = currentAuthUser && currentAuthUser.role === 'officer';
+
+  const maintOverlay = document.getElementById('maintenance-overlay');
   const portal = document.getElementById('auth-portal');
   const shell = document.getElementById('app-shell');
-  if (portal) portal.style.display = 'flex';
-  if (shell) shell.style.display = 'none';
+
+  const maintTitle = document.getElementById('maint-title');
+  const maintMsg = document.getElementById('maint-message');
+  const maintMeta = document.getElementById('maint-meta');
+  if (maintTitle) maintTitle.innerText = avail.title || 'Portal Temporarily Offline';
+  if (maintMsg) maintMsg.innerText = avail.maintenance_message || 'Meridian FairLend AI is currently offline for scheduled maintenance.';
+  if (maintMeta) {
+    maintMeta.innerText = avail.updated_at
+      ? `Updated ${avail.updated_at} by ${avail.updated_by || 'Administrator'}`
+      : 'Managed by Meridian Institutional Operations';
+  }
+
+  const authPill = document.getElementById('auth-site-status-pill');
+  if (authPill) {
+    authPill.className = `site-status-pill ${isOnline ? 'online' : 'offline'}`;
+    authPill.innerHTML = `<span class="status-dot"></span> ${isOnline ? 'Website: ONLINE' : 'Website: OFFLINE'}`;
+  }
+
+  const officerPill = document.getElementById('officer-site-toggle-pill');
+  const officerPillText = document.getElementById('officer-site-pill-text');
+  if (officerPill) {
+    officerPill.className = `site-status-pill nav-officer-item ${isOnline ? 'online' : 'offline'}`;
+    officerPill.style.display = isOfficer ? 'inline-flex' : 'none';
+  }
+  if (officerPillText) officerPillText.innerText = isOnline ? 'Website: ONLINE' : 'Website: OFFLINE';
+
+  const offlineBanner = document.getElementById('officer-offline-alert-banner');
+  if (offlineBanner) {
+    offlineBanner.style.display = (isOfficer && !isOnline) ? 'block' : 'none';
+  }
+
+  const cockpitBadge = document.getElementById('cockpit-site-status-badge');
+  const cockpitSub = document.getElementById('cockpit-site-status-sub');
+  const cockpitToggleBtn = document.getElementById('btn-cockpit-quick-toggle');
+  if (cockpitBadge) {
+    cockpitBadge.className = `badge ${isOnline ? 'badge-success' : 'badge-danger'}`;
+    cockpitBadge.innerText = isOnline ? 'ONLINE (LIVE)' : 'OFFLINE (MAINTENANCE)';
+  }
+  if (cockpitSub) {
+    cockpitSub.innerText = isOnline
+      ? 'All public underwriting, application intake, and applicant login routes are active.'
+      : (avail.maintenance_message || 'Public portal is offline; visitors see the maintenance notice.');
+  }
+  if (cockpitToggleBtn) {
+    if (isOnline) {
+      cockpitToggleBtn.style.background = '#DC2626';
+      cockpitToggleBtn.innerHTML = '<span>🔴</span> Take Website Offline';
+    } else {
+      cockpitToggleBtn.style.background = '#059669';
+      cockpitToggleBtn.innerHTML = '<span>🟢</span> Bring Website Online';
+    }
+  }
+
+  const modalBadge = document.getElementById('modal-site-status-badge');
+  const modalDetail = document.getElementById('modal-site-status-detail');
+  if (modalBadge) {
+    modalBadge.className = `badge ${isOnline ? 'badge-success' : 'badge-danger'}`;
+    modalBadge.innerText = isOnline ? 'ONLINE' : 'OFFLINE';
+  }
+  if (modalDetail) {
+    modalDetail.innerText = isOnline
+      ? 'Website is live and accessible to all applicants & visitors.'
+      : `Offline since ${avail.updated_at || 'just now'} (${avail.updated_by || 'Officer'}).`;
+  }
+
+  if (!isOnline && !isOfficer) {
+    if (shell) shell.style.display = 'none';
+    if (portal) portal.style.display = 'none';
+    if (maintOverlay) maintOverlay.style.display = 'flex';
+  } else if (currentAuthUser) {
+    if (maintOverlay) maintOverlay.style.display = 'none';
+    if (portal) portal.style.display = 'none';
+    if (shell) shell.style.display = 'block';
+  } else {
+    if (maintOverlay) maintOverlay.style.display = 'none';
+    if (shell) shell.style.display = 'none';
+    if (portal) portal.style.display = 'flex';
+  }
+}
+
+window.checkSiteAvailability = async function(isManual = false) {
+  try {
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 3500);
+    const res = await fetch(`${state.apiBase}/api/system/availability`, { signal: controller.signal });
+    clearTimeout(tid);
+    if (res.ok) {
+      const data = await res.json();
+      if (typeof data.online === 'boolean') {
+        const wasOffline = state.siteAvailability && state.siteAvailability.online === false;
+        state.siteAvailability = data;
+        syncSiteAvailabilityUI();
+        if (isManual) {
+          window.showMeridianToast(data.online ? '🟢 Website is ONLINE and ready.' : '🔴 Website is currently OFFLINE (Maintenance Mode).', !data.online);
+        } else if (wasOffline && data.online) {
+          window.showMeridianToast('🟢 Website is back ONLINE!');
+        }
+        return data;
+      }
+    }
+  } catch (e) {
+    if (isManual) window.showMeridianToast('Checking status... server unreachable right now.', true);
+  }
+  return state.siteAvailability;
+};
+
+window.openSiteAvailabilityModal = function() {
+  const modal = document.getElementById('site-availability-modal');
+  if (!modal) return;
+  const titleInput = document.getElementById('site-maint-title-input');
+  const msgInput = document.getElementById('site-maint-msg-input');
+  if (titleInput) titleInput.value = state.siteAvailability?.title || 'Portal Temporarily Offline';
+  if (msgInput) msgInput.value = state.siteAvailability?.maintenance_message || 'Meridian FairLend AI is currently offline for scheduled maintenance. Online underwriting will resume shortly.';
+  syncSiteAvailabilityUI();
+  modal.style.display = 'flex';
+};
+
+window.closeSiteAvailabilityModal = function() {
+  const modal = document.getElementById('site-availability-modal');
+  if (modal) modal.style.display = 'none';
+};
+
+window.quickToggleWebsiteAvailability = function() {
+  const currentlyOnline = state.siteAvailability?.online !== false;
+  window.setWebsiteOnlineState(!currentlyOnline);
+};
+
+window.setWebsiteOnlineState = async function(targetOnline, customTitle = null, customMsg = null, officerKey = null) {
+  try {
+    const reqHeaders = { 'Content-Type': 'application/json' };
+    if (currentAuthUser?.id) reqHeaders['X-User-Id'] = String(currentAuthUser.id);
+    if (currentAuthUser?.role) reqHeaders['X-User-Role'] = String(currentAuthUser.role);
+    if (currentAuthToken) reqHeaders['Authorization'] = `Bearer ${currentAuthToken}`;
+    if (officerKey) reqHeaders['X-Officer-Key'] = String(officerKey);
+
+    const bodyPayload = { online: Boolean(targetOnline) };
+    if (customTitle && customTitle.trim()) bodyPayload.title = customTitle.trim();
+    if (customMsg && customMsg.trim()) bodyPayload.maintenance_message = customMsg.trim();
+    if (officerKey) bodyPayload.officer_key = officerKey.trim();
+
+    const res = await fetch(`${state.apiBase}/api/system/availability`, {
+      method: 'POST',
+      headers: reqHeaders,
+      body: JSON.stringify(bodyPayload)
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      window.showMeridianToast(data.error || 'Failed to update website availability.', true);
+      return false;
+    }
+
+    state.siteAvailability = data;
+    syncSiteAvailabilityUI();
+    window.closeSiteAvailabilityModal();
+    window.showMeridianToast(
+      data.online
+        ? '🟢 Website is now ONLINE & publicly accessible.'
+        : '🔴 Website is now OFFLINE (Public Maintenance Mode active).',
+      !data.online
+    );
+    return true;
+  } catch (e) {
+    window.showMeridianToast('Network error updating website status.', true);
+    return false;
+  }
+};
+
+window.toggleMaintAdminDrawer = function() {
+  const drawer = document.getElementById('maint-admin-drawer');
+  if (!drawer) return;
+  drawer.style.display = drawer.style.display === 'none' || !drawer.style.display ? 'block' : 'none';
+};
+
+window.handleMaintOfficerSignIn = async function(e) {
+  e.preventDefault();
+  const email = document.getElementById('maint-officer-email')?.value.trim();
+  const password = document.getElementById('maint-officer-password')?.value.trim();
+  const alertEl = document.getElementById('maint-admin-alert');
+  const btn = document.getElementById('btn-maint-officer-signin');
+  if (!email || !password) return;
+
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span>⏳</span> Signing In...'; }
+  try {
+    const res = await fetch(`${state.apiBase}/api/auth/signin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, expected_role: 'officer' })
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      if (alertEl) alertEl.style.display = 'none';
+      window.applyAuthenticatedSession(data.user, data.token);
+      window.showMeridianToast('🛡️ Officer authenticated. Use the banner above to bring the website Online.');
+    } else {
+      if (alertEl) {
+        alertEl.className = 'auth-alert auth-alert-error';
+        alertEl.innerHTML = '⚠️ ' + (data.error || 'Officer authentication failed.');
+        alertEl.style.display = 'block';
+      }
+    }
+  } catch (err) {
+    if (alertEl) {
+      alertEl.className = 'auth-alert auth-alert-error';
+      alertEl.innerHTML = '⚠️ Network error reaching authentication gateway.';
+      alertEl.style.display = 'block';
+    }
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<span>🛡️</span> Sign In to Officer Cockpit'; }
+  }
+};
+
+window.handleMaintPasskeyBringOnline = async function() {
+  const passInput = document.getElementById('maint-passkey-input');
+  const alertEl = document.getElementById('maint-admin-alert');
+  const keyVal = passInput?.value.trim();
+  if (!keyVal) {
+    if (alertEl) {
+      alertEl.className = 'auth-alert auth-alert-error';
+      alertEl.innerHTML = '⚠️ Please enter the Officer Clearance Key (e.g. OFFICER-2026).';
+      alertEl.style.display = 'block';
+    }
+    return;
+  }
+  const ok = await window.setWebsiteOnlineState(true, null, null, keyVal);
+  if (!ok && alertEl) {
+    alertEl.className = 'auth-alert auth-alert-error';
+    alertEl.innerHTML = '⚠️ Invalid Officer Clearance Key.';
+    alertEl.style.display = 'block';
+  }
 };
 
 const DEFAULT_BASELINE_APPLICATIONS = [
@@ -1217,6 +1515,16 @@ window.handleLoanApplicationSubmit = async function(event) {
         body: JSON.stringify(formData)
       });
 
+      if (response.status === 503) {
+        await window.checkSiteAvailability();
+        alert('Portal is temporarily offline for scheduled maintenance.');
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = `<span>🚀</span> ${I18N[state.currentLang]?.btn_submit_app || 'Submit Application'}`;
+        }
+        return;
+      }
+
       if (response.ok) {
         const resData = await response.json();
         savedRecord = resData.application;
@@ -1520,7 +1828,7 @@ function updateSimulationUI() {
       try {
         const res = await fetch(`${state.apiBase}/api/what-if`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: buildAuthHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({
             base: {
               ...baseApp,
@@ -1535,6 +1843,10 @@ function updateSimulationUI() {
             }
           })
         });
+        if (res.status === 503) {
+          await window.checkSiteAvailability();
+          return;
+        }
         if (res.ok) {
           const data = await res.json();
           const s = data.simulation;
@@ -1625,6 +1937,11 @@ window.refreshDatabaseTable = async function() {
       if (currentAuthUser?.role) reqHeaders['X-User-Role'] = String(currentAuthUser.role);
       if (currentAuthToken) reqHeaders['Authorization'] = `Bearer ${currentAuthToken}`;
       const response = await fetch(`${state.apiBase}/api/saved-applications${queryParams}`, { headers: reqHeaders });
+      if (response.status === 503) {
+        await window.checkSiteAvailability();
+        return;
+      }
+
       if (response.ok) {
         const data = await response.json();
         if (data.applications && Array.isArray(data.applications)) {
@@ -1751,7 +2068,6 @@ window.loadDbApplicantById = function(appNo) {
 };
 
 window.goToDatabaseTab = function() {
-  switchRole('officer');
   const dbTab = document.querySelector('[data-tab="database-view"]');
   if (dbTab) dbTab.click();
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -2182,12 +2498,16 @@ function setupEventListeners() {
           try {
             const res = await fetch(`${state.apiBase}/api/predict`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: buildAuthHeaders({ 'Content-Type': 'application/json' }),
               body: JSON.stringify({
                 ...state.currentApplicant,
                 loan_term_months: state.currentApplicant.term
               })
             });
+            if (res.status === 503) {
+              await window.checkSiteAvailability();
+              return;
+            }
             if (res.ok) {
               const data = await res.json();
               if (data.prediction) {
@@ -2445,7 +2765,11 @@ async function renderModelPerformanceCharts() {
 
   if (state.backendConnected) {
     try {
-      const res = await fetch(`${state.apiBase}/api/accuracy`);
+      const res = await fetch(`${state.apiBase}/api/accuracy`, { headers: buildAuthHeaders() });
+      if (res.status === 503) {
+        await window.checkSiteAvailability();
+        return;
+      }
       if (res.ok) {
         const data = await res.json();
         const setTxt = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
@@ -2502,7 +2826,11 @@ async function renderFairnessCharts() {
 
   if (state.backendConnected) {
     try {
-      const res = await fetch(`${state.apiBase}/api/fairness?affirmative=${affirmative}`);
+      const res = await fetch(`${state.apiBase}/api/fairness?affirmative=${affirmative}`, { headers: buildAuthHeaders() });
+      if (res.status === 503) {
+        await window.checkSiteAvailability();
+        return;
+      }
       if (res.ok) {
         report = await res.json();
       }
@@ -2744,9 +3072,10 @@ window.loadHistoricalCase = function(caseId) {
   addAuditLog('PORTFOLIO_INSPECT', `Inspected historical case ${caseId} (${r.gender}, ${r.property_area}, Loan ₹${r.loan_amount}k)`);
 };
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   setupEventListeners();
-  checkExistingSession();
+  await window.checkSiteAvailability();
+  await window.checkExistingSession();
   checkBackendConnection();
   applyTranslations();
   updateUI();
@@ -2754,4 +3083,7 @@ document.addEventListener('DOMContentLoaded', () => {
   refreshDatabaseTable();
   renderPortfolioTable();
   renderAuditTable();
+  setInterval(() => {
+    window.checkSiteAvailability();
+  }, 20000);
 });

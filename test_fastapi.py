@@ -48,8 +48,12 @@ def run_tests():
     print("[PASS] 7. GET /dataset_data.js -> 200 Dataset bundle served")
 
     res = client.get("/favicon.ico")
-    assert res.status_code == 204
-    print("[PASS] 7b. GET /favicon.ico -> 204 No Content")
+    assert res.status_code == 200 and "<svg" in res.text
+    print("[PASS] 7b. GET /favicon.ico -> 200 SVG icon served")
+
+    res = client.get("/robots.txt")
+    assert res.status_code == 200 and "User-agent:" in res.text
+    print("[PASS] 7b2. GET /robots.txt -> 200 Robots directive served")
 
     res = client.options("/api/predict", headers={
         "Origin": "https://meridian-client.netlify.app",
@@ -114,6 +118,7 @@ def run_tests():
     assert res.status_code == 200, f"Officer signin failed: {res.text}"
     off_data = res.json()
     assert off_data["user"]["role"] == "officer"
+    officer_id = off_data["user"]["id"]
     print(f"[PASS] 12. POST /api/auth/signin -> 200 Officer authenticated ({off_data['user']['email']})")
 
     # Invalid credentials -> 401
@@ -245,8 +250,52 @@ def run_tests():
     assert applicants["total_in_db"] > 0
     print(f"[PASS] 26. GET /api/applicants -> 200 Total cached: {applicants['total_in_db']}")
 
+    # 6. Website Online / Offline Maintenance Mode Controls
+    res = client.get("/api/system/availability")
+    assert res.status_code == 200 and res.json()["online"] is True
+    print("[PASS] 27. GET /api/system/availability -> 200 Website initially Online")
+
+    # Applicant cannot toggle website availability
+    res = client.post("/api/system/availability", json={"online": False}, headers={"X-User-Id": applicant_id, "X-User-Role": "applicant"})
+    assert res.status_code == 403
+    print("[PASS] 28. POST /api/system/availability -> 403 Applicant blocked from toggling site mode")
+
+    # Officer takes website Offline
+    res = client.post(
+        "/api/system/availability",
+        json={"online": False, "maintenance_message": "Routine security upgrade in progress."},
+        headers={"X-User-Id": officer_id, "X-User-Role": "officer"}
+    )
+    assert res.status_code == 200 and res.json()["online"] is False
+    print("[PASS] 29. POST /api/system/availability -> 200 Officer switched website Offline")
+
+    # Applicant sign-in, prediction & analytics blocked with 503 while Offline, Health remains 200, Officer sign-in & Officer analytics stay 200
+    res = client.post("/api/auth/signin", json={"email": "applicant@meridianbank.in", "password": "Applicant@123", "expected_role": "applicant"})
+    assert res.status_code == 503 and res.json().get("offline") is True
+    res_acc_blocked = client.get("/api/accuracy", headers={"X-User-Id": applicant_id, "X-User-Role": "applicant"})
+    assert res_acc_blocked.status_code == 503 and res_acc_blocked.json().get("offline") is True
+    res_fair_blocked = client.get("/api/fairness")
+    assert res_fair_blocked.status_code == 503 and res_fair_blocked.json().get("offline") is True
+    res_acc_off = client.get("/api/accuracy", headers={"X-User-Id": officer_id, "X-User-Role": "officer"})
+    assert res_acc_off.status_code == 200
+    res_fair_off = client.get("/api/fairness", headers={"X-User-Id": officer_id, "X-User-Role": "officer"})
+    assert res_fair_off.status_code == 200
+    res_health = client.get("/api/health")
+    assert res_health.status_code == 200 and res_health.json().get("site_online") is False
+    res_off_login = client.post("/api/auth/signin", json={"email": "officer@meridianbank.in", "password": "Officer@2026", "expected_role": "officer"})
+    assert res_off_login.status_code == 200
+    print("[PASS] 30. Offline Maintenance Gate -> 503 for public/applicant, 200 for /api/health & Officer Override + Analytics")
+
+    # Restore website back Online using Officer Passkey
+    res = client.post(
+        "/api/system/availability",
+        json={"online": True, "officer_key": "OFFICER-2026"}
+    )
+    assert res.status_code == 200 and res.json()["online"] is True
+    print("[PASS] 31. POST /api/system/availability -> 200 Website restored Online cleanly")
+
     print("=" * 70)
-    print("ALL 26 FASTAPI ENDPOINTS & POLICIES VALIDATED SUCCESSFULLY (100% PASS)")
+    print("ALL FASTAPI ENDPOINTS & POLICIES VALIDATED SUCCESSFULLY (100% PASS)")
     print("=" * 70)
 
 if __name__ == "__main__":

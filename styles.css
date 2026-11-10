@@ -1631,3 +1631,170 @@ body {
   color: #FFFFFF;
   border-color: #DC2626;
 }
+
+
+/* ==========================================================================
+   WEBSITE AVAILABILITY, MAINTENANCE OVERLAY & OFFICER STATUS CONTROLS
+   ========================================================================== */
+
+.site-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  border-radius: 99px;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.site-status-pill .status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.site-status-pill.online {
+  background: rgba(16, 185, 129, 0.2);
+  border-color: rgba(110, 231, 183, 0.55);
+  color: #ECFDF5;
+}
+
+.site-status-pill.online .status-dot {
+  background: #10B981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.28);
+}
+
+.site-status-pill.offline {
+  background: rgba(239, 68, 68, 0.22);
+  border-color: rgba(252, 165, 165, 0.65);
+  color: #FEE2E2;
+}
+
+.site-status-pill.offline .status-dot {
+  background: #EF4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.3);
+}
+
+button.site-status-pill:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+}
+
+.officer-offline-banner {
+  background: linear-gradient(135deg, #991B1B 0%, #7F1D1D 100%);
+  color: #FFFFFF;
+  padding: 0.95rem 1.35rem;
+  border-radius: var(--radius-lg);
+  margin-bottom: 1.25rem;
+  border: 2px solid #FCA5A5;
+  box-shadow: 0 8px 20px rgba(153, 27, 27, 0.22);
+}
+
+.maintenance-overlay {
+  min-height: 100vh;
+  width: 100%;
+  background: linear-gradient(to bottom, #FAF5EB 0%, #F7F3EB 100%);
+  display: flex;
+  flex-direction: column;
+}
+
+.maintenance-body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1.25rem 3.5rem;
+}
+
+.maintenance-card {
+  background: #FFFFFF;
+  width: 100%;
+  max-width: 600px;
+  border-radius: var(--radius-lg);
+  border: 2px solid var(--warm-cream-border);
+  box-shadow: var(--shadow-xl);
+  padding: 2.4rem 2.1rem;
+  text-align: center;
+}
+
+.maintenance-icon-ring {
+  width: 68px;
+  height: 68px;
+  margin: 0 auto 1rem;
+  border-radius: 50%;
+  background: #FEF2F2;
+  border: 2px solid #FCA5A5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+}
+
+.maintenance-title {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #064E3B;
+  margin-bottom: 0.65rem;
+}
+
+.maintenance-message {
+  font-size: 0.96rem;
+  color: #334155;
+  line-height: 1.6;
+  max-width: 480px;
+  margin: 0 auto 1rem;
+}
+
+.maintenance-meta {
+  font-size: 0.78rem;
+  color: #64748B;
+  margin-bottom: 1.5rem;
+}
+
+.maintenance-actions {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.maint-admin-drawer {
+  margin-top: 1.6rem;
+  background: #FDFBF7;
+  padding: 1.25rem;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--warm-cream-border);
+}
+
+.toast-container {
+  position: fixed;
+  bottom: 1.25rem;
+  right: 1.25rem;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 380px;
+}
+
+.meridian-toast {
+  background: #064E3B;
+  color: #FFFFFF;
+  border: 1.5px solid var(--warm-cream);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  box-shadow: var(--shadow-lg);
+  animation: authCardFadeIn 0.25s ease forwards;
+}
+
+.meridian-toast.error {
+  background: #991B1B;
+  border-color: #FCA5A5;
+}

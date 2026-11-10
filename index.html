@@ -4,10 +4,103 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Meridian FairLend AI • MISSION BHARAT | Explainable Loan Decision System</title>
+  <meta name="description" content="Meridian FairLend Mission Bharat: Transparent credit underwriting, SHAP explainability, counterfactual scenario simulation, and algorithmic equity portal.">
+  <meta name="theme-color" content="#064E3B">
+  <meta property="og:title" content="Meridian FairLend AI • Explainable Loan Decision System">
+  <meta property="og:description" content="Mission Bharat Digital Lending Portal with automated underwriting, transparent SHAP factor breakdowns, and RBI fair lending compliance.">
+  <meta property="og:type" content="website">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="alternate icon" href="/favicon.ico">
   <link rel="stylesheet" href="styles.css">
   <script src="dataset_data.js"></script>
 </head>
 <body>
+  <!-- ====================================================================
+       PUBLIC MAINTENANCE / WEBSITE OFFLINE OVERLAY
+       ==================================================================== -->
+  <div id="maintenance-overlay" class="maintenance-overlay" style="display: none;">
+    <header class="app-header">
+      <div class="header-container">
+        <div class="brand-wrapper">
+          <div class="brand-logo">M</div>
+          <div class="brand-info">
+            <h1>
+              Meridian FairLend AI
+              <span class="brand-badge">Mission Bharat</span>
+            </h1>
+            <div class="brand-tagline">AI-Powered Explainable Lending &amp; Demographic Equity Platform</div>
+          </div>
+        </div>
+        <div class="header-controls">
+          <span class="site-status-pill offline">
+            <span class="status-dot"></span> WEBSITE OFFLINE
+          </span>
+        </div>
+      </div>
+    </header>
+
+    <div class="maintenance-body">
+      <div class="maintenance-card">
+        <div class="maintenance-icon-ring">🛠️</div>
+        <div class="site-status-pill offline" style="margin-bottom: 1rem;">
+          <span class="status-dot"></span> SCHEDULED MAINTENANCE &bull; PORTAL OFFLINE
+        </div>
+        <h2 id="maint-title" class="maintenance-title">Portal Temporarily Offline</h2>
+        <p id="maint-message" class="maintenance-message">
+          Meridian FairLend AI is currently offline for scheduled maintenance. Online underwriting will resume shortly.
+        </p>
+        <div id="maint-meta" class="maintenance-meta">
+          Updated by System Administrator
+        </div>
+
+        <div class="maintenance-actions">
+          <button type="button" class="btn btn-primary" onclick="checkSiteAvailability(true)">
+            <span>🔄</span> Check Website Status
+          </button>
+          <button type="button" class="btn btn-outline" onclick="toggleMaintAdminDrawer()">
+            <span>🔐</span> Officer / Admin Control
+          </button>
+        </div>
+
+        <div id="maint-admin-drawer" class="maint-admin-drawer" style="display: none;">
+          <div id="maint-admin-alert" class="auth-alert" style="text-align: left;"></div>
+          <h4 style="color: #064E3B; font-size: 0.92rem; margin-bottom: 0.5rem;">
+            🛡️ Administrator / Officer Override
+          </h4>
+          <p style="font-size: 0.78rem; color: #64748B; margin-bottom: 0.9rem;">
+            Sign in with Loan Officer credentials to access the cockpit, or enter the Officer Passkey to publish the website back online immediately.
+          </p>
+
+          <form onsubmit="handleMaintOfficerSignIn(event)" style="text-align: left; margin-bottom: 1rem;">
+            <div class="form-row">
+              <div class="form-group" style="margin-bottom: 0.65rem;">
+                <label class="form-label">Officer Email</label>
+                <input type="email" id="maint-officer-email" class="form-control" placeholder="officer@meridianbank.in" required>
+              </div>
+              <div class="form-group" style="margin-bottom: 0.65rem;">
+                <label class="form-label">Officer Password</label>
+                <input type="password" id="maint-officer-password" class="form-control" placeholder="••••••••" required>
+              </div>
+            </div>
+            <button type="submit" id="btn-maint-officer-signin" class="btn btn-saffron" style="width: 100%;">
+              <span>🛡️</span> Sign In to Officer Cockpit
+            </button>
+          </form>
+
+          <div style="border-top: 1px dashed var(--warm-cream-border); padding-top: 0.85rem; text-align: left;">
+            <label class="form-label">Quick Publish With Officer Clearance Key</label>
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+              <input type="password" id="maint-passkey-input" class="form-control" placeholder="Enter clearance key (e.g. OFFICER-2026)" style="flex: 1; min-width: 190px;">
+              <button type="button" class="btn btn-primary" onclick="handleMaintPasskeyBringOnline()">
+                <span>🟢</span> Bring Website Online
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ====================================================================
        AUTHENTICATION LANDING PORTAL (WELCOME, SIGN IN, SIGN UP)
        ==================================================================== -->
@@ -27,6 +120,9 @@
         </div>
 
         <div class="header-controls">
+          <span id="auth-site-status-pill" class="site-status-pill online">
+            <span class="status-dot"></span> Website: ONLINE
+          </span>
           <span class="live-badge" style="background: rgba(248, 231, 201, 0.18); border: 1px solid var(--warm-cream); color: var(--warm-cream);">
             <span class="pulse-dot"></span> Institutional Access Gateway
           </span>
@@ -270,6 +366,10 @@
       </div>
 
       <div class="header-controls">
+        <button id="officer-site-toggle-pill" class="site-status-pill online nav-officer-item" style="display: none; cursor: pointer;" onclick="openSiteAvailabilityModal()" title="Control public website availability (Online / Offline)">
+          <span class="status-dot"></span>
+          <span id="officer-site-pill-text">Website: ONLINE</span>
+        </button>
 
                 <div id="user-auth-widget" class="user-auth-widget">
           <div class="user-auth-info">
@@ -329,6 +429,25 @@
   </nav>
 
   <main class="main-content">
+
+    <div id="officer-offline-alert-banner" class="officer-offline-banner" style="display: none;">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.85rem;">
+        <div>
+          <strong style="font-size: 0.98rem;">🔴 Website is Currently OFFLINE (Public Maintenance Mode Active)</strong>
+          <div style="font-size: 0.82rem; opacity: 0.92; margin-top: 2px;">
+            Public visitors and applicants currently see the Maintenance Notice screen. Officer operations remain accessible.
+          </div>
+        </div>
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+          <button type="button" class="btn btn-saffron" style="padding: 6px 14px; font-size: 0.82rem;" onclick="setWebsiteOnlineState(true)">
+            <span>🟢</span> Put Website Online Now
+          </button>
+          <button type="button" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.82rem; border-color: #FCA5A5; color: #FFFFFF;" onclick="openSiteAvailabilityModal()">
+            ⚙️ Configure Notice
+          </button>
+        </div>
+      </div>
+    </div>
 
     <section id="applicant-view" class="tab-section">
 
@@ -559,6 +678,31 @@
     </section>
 
     <section id="officer-view" class="tab-section" style="display: none;">
+      <div id="officer-site-control-card" class="card" style="margin-bottom: 1.5rem; background: linear-gradient(135deg, #FAF3E6 0%, #FFFFFF 100%); border: 1.5px solid var(--warm-cream-border);">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+          <div>
+            <div style="font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: #064E3B;">
+              🌐 Website Availability &amp; Maintenance Control
+            </div>
+            <div style="font-size: 1.08rem; font-weight: 800; color: #064E3B; margin-top: 2px; display: flex; align-items: center; gap: 8px;">
+              Public Portal Status:
+              <span id="cockpit-site-status-badge" class="badge badge-success">ONLINE (LIVE)</span>
+            </div>
+            <div id="cockpit-site-status-sub" style="font-size: 0.82rem; color: #4B6359; margin-top: 3px;">
+              All public underwriting, application intake, and applicant login routes are active.
+            </div>
+          </div>
+          <div style="display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center;">
+            <button type="button" id="btn-cockpit-quick-toggle" class="btn" style="background: #DC2626; color: #FFFFFF;" onclick="quickToggleWebsiteAvailability()">
+              <span>🔴</span> Take Website Offline
+            </button>
+            <button type="button" class="btn btn-outline" onclick="openSiteAvailabilityModal()">
+              <span>⚙️</span> Customize Offline Page
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div class="grid-2">
 
         <div class="card">
@@ -1001,7 +1145,7 @@
 
         <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #E2E8F0;">
           <button class="btn btn-outline" onclick="changePortfolioPage(-1)">← Previous</button>
-          <span id="portfolio-page-indicator" style="font-size: 0.85rem; font-weight: 600; color: #475569;">Page 1 / 62</span>
+          <span id="portfolio-page-indicator" style="font-size: 0.85rem; font-weight: 600; color: #475569;">Page 1</span>
           <button class="btn btn-outline" onclick="changePortfolioPage(1)">Next →</button>
         </div>
       </div>
@@ -1117,7 +1261,7 @@
                   <option value="Freelancing / Gig Economy / Contractor" selected>Freelancing / Gig Economy / Tech Freelancer</option>
                   <option value="Salaried (Private/Corporate)">Salaried (Private / Corporate)</option>
                   <option value="Salaried (Government/Public)">Salaried (Government / PSU)</option>
-                  <option value="Self-Employed (Business/MSME)" selected>Self-Employed (Small Business / MSME)</option>
+                  <option value="Self-Employed (Business/MSME)">Self-Employed (Small Business / MSME)</option>
                   <option value="Farmer (Agricultural Producer)">Farmer (Agriculture / Cultivator)</option>
                   <option value="Artisan / Rural Craftsman">Artisan / Rural Handloom Weaver</option>
                   <option value="Retail Merchant / Trader">Retail Merchant / Shop Owner</option>
@@ -1488,9 +1632,9 @@
 
       <div style="background: #FDFBF7; border: 1px solid #E6DDCF; border-radius: 8px; padding: 0.9rem; margin-top: 1rem; font-size: 0.82rem;">
         <strong style="color: #064E3B;">Connect Custom Internet Backend URL (Optional):</strong>
-        <p style="color: #64748B; margin: 4px 0 8px 0;">If serving frontend separately, enter your deployed internet API base URL (e.g., <code>https://your-service.onrender.com</code>):</p>
+        <p style="color: #64748B; margin: 4px 0 8px 0;">If serving frontend separately, enter your deployed internet API base URL (e.g., <code>https://meridian-fairlend.up.railway.app</code>):</p>
         <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-          <input type="url" id="custom-api-base-input" class="form-control" placeholder="https://your-api.onrender.com" style="flex: 1; min-width: 220px; font-size: 0.82rem;">
+          <input type="url" id="custom-api-base-input" class="form-control" placeholder="https://meridian-fairlend.up.railway.app" style="flex: 1; min-width: 220px; font-size: 0.82rem;">
           <button type="button" class="btn btn-primary" style="padding: 6px 12px; font-size: 0.8rem;" onclick="saveCustomApiBase()">Save URL</button>
           <button type="button" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.8rem;" onclick="resetCustomApiBase()">Auto-Detect</button>
         </div>
@@ -1505,6 +1649,50 @@
     </div>
   </div>
 
+  <div id="site-availability-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content" style="max-width: 560px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #064E3B; padding-bottom: 0.8rem; margin-bottom: 1rem;">
+        <h3 style="color: #064E3B; font-size: 1.2rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+          <span>🌐</span> Website Online / Offline Control
+        </h3>
+        <button class="btn btn-outline" style="padding: 2px 8px; font-size: 0.85rem;" onclick="closeSiteAvailabilityModal()">✕</button>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; background: #FAF3E6; border: 1.5px solid #E8D7B8; border-radius: 8px; padding: 0.85rem 1rem; margin-bottom: 1.1rem;">
+        <div>
+          <div style="font-size: 0.72rem; color: #4B6359; font-weight: 700; text-transform: uppercase;">Current Public Availability</div>
+          <div id="modal-site-status-detail" style="font-size: 0.9rem; font-weight: 700; color: #064E3B; margin-top: 2px;">Website is publicly accessible</div>
+        </div>
+        <span id="modal-site-status-badge" class="badge badge-success">ONLINE</span>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="site-maint-title-input">Offline Screen Heading</label>
+        <input type="text" id="site-maint-title-input" class="form-control" value="Portal Temporarily Offline" placeholder="Portal Temporarily Offline">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="site-maint-msg-input">Custom Maintenance Notice for Visitors</label>
+        <textarea id="site-maint-msg-input" class="form-control" rows="3" placeholder="Enter message visitors will see while website is offline..."></textarea>
+      </div>
+
+      <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 0.75rem 0.9rem; font-size: 0.78rem; color: #475569; margin-bottom: 1.15rem;">
+        <strong>How Offline Mode Works:</strong> Taking the website offline shows public visitors and applicants a branded <em>Maintenance Page</em> and returns HTTP <code>503</code> on public routes. Loan Officers can still log in at any time to restore Online access.
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 0.65rem; flex-wrap: wrap;">
+        <button type="button" class="btn" style="background: #059669; color: #FFFFFF;" onclick="setWebsiteOnlineState(true, document.getElementById('site-maint-title-input')?.value, document.getElementById('site-maint-msg-input')?.value)">
+          <span>🟢</span> Go Online (Live)
+        </button>
+        <button type="button" class="btn" style="background: #DC2626; color: #FFFFFF;" onclick="setWebsiteOnlineState(false, document.getElementById('site-maint-title-input')?.value, document.getElementById('site-maint-msg-input')?.value)">
+          <span>🔴</span> Take Website Offline
+        </button>
+        <button type="button" class="btn btn-outline" onclick="closeSiteAvailabilityModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
 </div><!-- /#app-shell -->
+<div id="meridian-toast-container" class="toast-container"></div>
 </body>
 </html>

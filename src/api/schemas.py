@@ -152,3 +152,24 @@ class HealthResponse(BaseModel):
     status: str
     service: str
     database: str
+    site_online: bool = True
+    site_status: str = "online"
+
+
+class SiteAvailabilityUpdateRequest(BaseModel):
+    """Payload to switch website public availability online or offline (Maintenance Mode)."""
+    online: bool = Field(..., description="True to make portal publicly online, False for maintenance/offline mode")
+    title: Optional[str] = Field(default=None, description="Custom heading displayed when portal is offline")
+    maintenance_message: Optional[str] = Field(default=None, description="Custom maintenance notice shown to visitors")
+    officer_key: Optional[str] = Field(default=None, description="Optional officer clearance key when toggling from maintenance overlay")
+
+
+class SiteAvailabilityResponse(BaseModel):
+    """Website online/offline status response."""
+    success: bool = True
+    online: bool
+    status: str
+    title: str
+    maintenance_message: str
+    updated_by: Optional[str] = None
+    updated_at: Optional[str] = None

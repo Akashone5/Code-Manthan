@@ -157,9 +157,29 @@ async def serve_dataset_js():
     )
 
 
+@app.get("/favicon.svg", include_in_schema=False)
 @app.get("/favicon.ico", include_in_schema=False)
 async def serve_favicon():
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    svg_icon = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">'
+        '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">'
+        '<stop offset="0%" stop-color="#064E3B"/><stop offset="100%" stop-color="#032C21"/>'
+        '</linearGradient></defs>'
+        '<rect width="64" height="64" rx="14" fill="url(#g)" stroke="#F8E7C9" stroke-width="3"/>'
+        '<text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" '
+        'font-family="Arial,sans-serif" font-weight="900" font-size="36" fill="#F8E7C9">M</text>'
+        '</svg>'
+    )
+    return Response(content=svg_icon, media_type="image/svg+xml", status_code=status.HTTP_200_OK)
+
+
+@app.get("/robots.txt", include_in_schema=False)
+async def serve_robots():
+    return Response(
+        content="User-agent: *\nAllow: /\nDisallow: /api/\n",
+        media_type="text/plain",
+        status_code=status.HTTP_200_OK
+    )
 
 
 if __name__ == "__main__":

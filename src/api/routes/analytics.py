@@ -3,15 +3,35 @@ Algorithmic Equity and Analytics Router
 Exposes fairness auditing (four-fifths rule), model accuracy evaluation, and portfolio datasets.
 """
 
-from typing import List, Dict, Any
-from fastapi import APIRouter, Query, status
+from typing import List, Dict, Any, Optional
+from fastapi import APIRouter, Header, Query, status
 from fastapi.responses import JSONResponse
 
+import database
 from backend import check_fairness, load_sample_dataset
 from src.train import _load_model_parameters
 from src.api.schemas import AccuracyMetricsResponse
 
 router = APIRouter(prefix="/api", tags=["Algorithmic Equity & Analytics"])
+
+
+def _offline_guard(x_user_id: Optional[str] = None, x_user_role: Optional[str] = None):
+    avail = database.get_site_availability()
+    if avail["online"]:
+        return None
+    is_off, _ = database.is_verified_officer(user_id=x_user_id, user_role=x_user_role)
+    if is_off:
+        return None
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={
+            "success": False,
+            "offline": True,
+            "status": "offline",
+            "error": avail["maintenance_message"],
+            "maintenance_message": avail["maintenance_message"]
+        }
+    )
 
 # Load portfolio records cache
 APPLICANTS_DB = load_sample_dataset()
@@ -23,12 +43,17 @@ APPLICANTS_DB = load_sample_dataset()
     responses={200: {"description": "Fairness audit report generated"}}
 )
 async def get_fairness_audit(
-    affirmative: bool = Query(default=False, description="Apply Mission Bharat affirmative rural calibration")
+    affirmative: bool = Query(default=False, description="Apply Mission Bharat affirmative rural calibration"),
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+    x_user_role: Optional[str] = Header(default=None, alias="X-User-Role")
 ):
     """
     Evaluates disparate impact ratio (DIR) across protected demographic attributes:
     Gender parity, Territory parity, and Educational parity.
     """
+    guard_resp = _offline_guard(x_user_id=x_user_id, x_user_role=x_user_role)
+    if guard_resp is not None:
+        return guard_resp
     global APPLICANTS_DB
     if not APPLICANTS_DB:
         APPLICANTS_DB = load_sample_dataset()
@@ -57,11 +82,17 @@ async def get_fairness_audit(
     summary="Retrieve underwriting model validation performance metrics",
     responses={200: {"description": "Model validation metrics and weights"}}
 )
-async def get_accuracy_metrics():
+async def get_accuracy_metrics(
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+    x_user_role: Optional[str] = Header(default=None, alias="X-User-Role")
+):
     """
     Returns validation performance benchmarks including Accuracy, Precision,
     Recall (Sensitivity), F1-Score, ROC-AUC, test confusion matrix, and calibrated feature weights.
     """
+    guard_resp = _offline_guard(x_user_id=x_user_id, x_user_role=x_user_role)
+    if guard_resp is not None:
+        return guard_resp
     model_params = _load_model_parameters()
     metrics = model_params.get("metrics", {})
     features = model_params.get("features", [])

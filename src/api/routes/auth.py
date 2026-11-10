@@ -35,6 +35,18 @@ async def signup(payload: SignUpRequest):
     Registers a new user account with Supabase Auth / PostgreSQL and local SQLite backup.
     Officers must present the authorized officer clearance key.
     """
+    avail = database.get_site_availability()
+    if not avail["online"] and payload.role != "officer":
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={
+                "success": False,
+                "offline": True,
+                "error": avail["maintenance_message"],
+                "maintenance_message": avail["maintenance_message"]
+            }
+        )
+
     if payload.confirm_password and payload.password != payload.confirm_password:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -83,12 +95,35 @@ async def signin(payload: SignInRequest):
     """
     Authenticates email and password against Supabase Auth and local hash storage.
     Enforces strict role gateways so Applicants cannot access Officer portals and vice-versa.
+    Allows Officer sign-in even during Maintenance Mode so admins can restore site availability.
     """
     expected_role = payload.expected_role or payload.role
+    avail = database.get_site_availability()
+    if not avail["online"] and expected_role == "applicant":
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={
+                "success": False,
+                "offline": True,
+                "error": avail["maintenance_message"],
+                "maintenance_message": avail["maintenance_message"]
+            }
+        )
+
     auth_res = database.login_user(email=payload.email, password=payload.password)
 
     if auth_res.get("success"):
         user_role = auth_res.get("user", {}).get("role", "applicant")
+        if not avail["online"] and user_role != "officer":
+            return JSONResponse(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                content={
+                    "success": False,
+                    "offline": True,
+                    "error": avail["maintenance_message"],
+                    "maintenance_message": avail["maintenance_message"]
+                }
+            )
         if expected_role and user_role != expected_role:
             if expected_role == "officer":
                 return JSONResponse(
