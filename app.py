@@ -282,7 +282,7 @@ if menu in ["1. Apply for a Loan", "6. Apply on Behalf of Citizen"]:
                 "Education & Upskilling",
                 "Green Energy / Solar Installation"
             ])
-            loan_amount_k = st.number_input("Requested Facility (₹ in Thousands, e.g. 250 = ₹2.5 Lakh)", min_value=10, value=250, step=10)
+            loan_amount_inr = st.number_input("Requested Loan Amount (₹)", min_value=1000, value=150000, step=1000)
             tenure_years = st.slider("Loan Tenure (Years)", min_value=1, max_value=30, value=5)
             cibil_score = st.slider("CIBIL Bureau Credit Score", min_value=300, max_value=900, value=780)
             property_area = st.selectbox("Property Territory", ["Semiurban", "Urban", "Rural"])
@@ -307,7 +307,7 @@ if menu in ["1. Apply for a Loan", "6. Apply on Behalf of Citizen"]:
                     'applicant_income': app_income,
                     'coapplicant_income': coapp_income,
                     'loan_purpose': loan_purpose,
-                    'loan_amount': loan_amount_k,
+                    'loan_amount': loan_amount_inr,
                     'loan_term_months': tenure_years * 12,
                     'cibil_score': cibil_score,
                     'property_area': property_area
@@ -378,7 +378,7 @@ elif menu == "3. Live 'What-If' Simulator":
         'full_name': user_name,
         'applicant_income': 75000,
         'coapplicant_income': 20000,
-        'loan_amount': 250,
+        'loan_amount': 150000,
         'loan_term_months': 60,
         'cibil_score': 780,
         'salary_slip': 'Yes',
@@ -390,7 +390,7 @@ elif menu == "3. Live 'What-If' Simulator":
     sc1, sc2 = st.columns([1, 2])
     with sc1:
         st.markdown("#### Adjust Parameters")
-        sim_loan = st.slider("Loan Amount (₹k)", 20, 1000, int(app.get('loan_amount', 250)), step=10)
+        sim_loan = st.number_input("Loan Amount (₹)", min_value=1000, value=max(1000, int(app.get('loan_amount', 150000))), step=1000)
         sim_years = st.slider("Tenure (Years)", 1, 30, max(1, int(app.get('loan_term_months', 60) // 12)))
         sim_coapp = st.number_input("Co-Applicant Income (₹/mo)", 0, 200000, int(app.get('coapplicant_income', 20000)), step=5000)
         sim_cibil = st.slider("Target CIBIL Score", 300, 900, int(app.get('cibil_score', 780)))
@@ -507,7 +507,7 @@ elif menu == "5. Batch Scoring & Portfolio":
                 'ID': r.get('id'),
                 'Gender': r.get('gender'),
                 'Income': r.get('applicant_income'),
-                'Loan (k)': r.get('loan_amount'),
+                'Loan (INR)': f"₹{int(round(float(r.get('loan_amount') or 0))):,}",
                 'CIBIL': r.get('cibil_score'),
                 'Status': p['status'],
                 'Likelihood': f"{p['approval_likelihood']}%",

@@ -166,7 +166,7 @@ def run_tests():
         "full_name": "Pooja Verma",
         "applicant_income": 48000,
         "coapplicant_income": 12000,
-        "loan_amount": 160,
+        "loan_amount": 160000,
         "loan_term_months": 360,
         "cibil_score": 775,
         "property_area": "Semiurban",
@@ -179,15 +179,20 @@ def run_tests():
     assert res.status_code == 200
     pred_data = res.json()
     assert "prediction" in pred_data and "explanation" in pred_data
-    print(f"[PASS] 16. POST /api/predict -> 200 Decision: {pred_data['prediction']['status']} ({pred_data['prediction']['approval_likelihood']}%)")
+    assert pred_data["prediction"]["requested_loan_inr"] == 160000
+
+    res_flex = client.post("/api/predict", json={**sample_app, "loan_amount": 2500, "loan_term_months": 12}, headers=app_headers)
+    assert res_flex.status_code == 200 and res_flex.json()["prediction"]["requested_loan_inr"] == 2500
+    print(f"[PASS] 16. POST /api/predict -> 200 Decision: {pred_data['prediction']['status']} ({pred_data['prediction']['approval_likelihood']}%, flexible INR verified)")
 
     res = client.post("/api/what-if", json={
         "base": sample_app,
-        "adjustments": {"loan_amount": 120, "loan_term_months": 240}
+        "adjustments": {"loan_amount": 120000, "loan_term_months": 240}
     }, headers=app_headers)
     assert res.status_code == 200
     sim_data = res.json()
     assert "simulation" in sim_data and "deltas" in sim_data["simulation"]
+    assert sim_data["simulation"]["simulated"]["requested_loan_inr"] == 120000
     print(f"[PASS] 17. POST /api/what-if -> 200 Simulation Score Delta: {sim_data['simulation']['deltas']['score_change']:+d}")
 
     res = client.post("/api/apply", json=sample_app, headers=off_headers)
@@ -238,23 +243,24 @@ def run_tests():
     assert res.status_code == 200 and res.json()["application"]["application_no"] == created_app_no
     print(f"[PASS] 19. GET /api/application/{created_app_no} -> 401 anonymous, 200 authenticated owner")
 
-    assert client.patch(f"/api/application/{created_app_no}", json={"loan_amount": 135}).status_code == 401
-    assert client.patch(f"/api/application/{created_app_no}", json={"loan_amount": 135}, headers=hdr_b).status_code == 403
+    assert client.patch(f"/api/application/{created_app_no}", json={"loan_amount": 135000}).status_code == 401
+    assert client.patch(f"/api/application/{created_app_no}", json={"loan_amount": 135000}, headers=hdr_b).status_code == 403
     res_patch_app = client.patch(
         f"/api/application/{created_app_no}",
-        json={"loan_amount": 135, "loan_term_months": 240},
+        json={"loan_amount": 135000, "loan_term_months": 240},
         headers=app_headers
     )
     assert res_patch_app.status_code == 200, res_patch_app.text
     reloaded_app = client.get(f"/api/application/{created_app_no}", headers=app_headers).json()["application"]
-    assert float(reloaded_app["loan_amount"]) == 135.0 and int(reloaded_app["loan_term_months"]) == 240
+    assert float(reloaded_app["loan_amount"]) == 135000.0 and int(reloaded_app["loan_term_months"]) == 240
     res_patch_off = client.patch(
         f"/api/application/{created_app_no}",
         json={"loan_term_months": 180},
         headers=off_headers
     )
     assert res_patch_off.status_code == 200, res_patch_off.text
-    assert int(client.get(f"/api/application/{created_app_no}", headers=off_headers).json()["application"]["loan_term_months"]) == 180
+    reloaded_after_off = client.get(f"/api/application/{created_app_no}", headers=off_headers).json()["application"]
+    assert int(reloaded_after_off["loan_term_months"]) == 180 and float(reloaded_after_off["loan_amount"]) == 135000.0
     print(f"[PASS] 19b. PATCH /api/application/{created_app_no} -> Persistent parameter updates & audit entry verified")
 
     res = client.get("/api/saved-applications", headers=app_headers)
@@ -318,9 +324,16 @@ def run_tests():
     assert res_log_post.status_code == 201
     res_log_get = client.get("/api/officer/audit-logs", headers=off_headers)
     assert res_log_get.status_code == 200
-    log_actions = {(l.get("application_no"), l.get("action")) for l in res_log_get.json()["logs"]}
+    logs_list = res_log_get.json()["logs"]
+    log_actions = {(l.get("application_no"), l.get("action")) for l in logs_list}
     assert (created_app_no, "COMPLIANCE_REVIEW") in log_actions
     assert (created_app_no, "Officer Updated Terms") in log_actions
+    assert any(
+        l.get("application_no") == created_app_no
+        and l.get("action") == "Officer Updated Terms"
+        and "₹135,000" in (l.get("notes") or "")
+        for l in logs_list
+    ), "Expected INR formatted audit note for Officer Updated Terms"
     print("[PASS] 23b. GET/POST /api/officer/audit-logs -> 403 for Applicant/anon, 200/201 persistent log for Officer")
 
     assert client.get("/api/officer/backup?format=json").status_code == 403

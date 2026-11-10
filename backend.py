@@ -25,6 +25,8 @@ def _load_from_dataset_js(js_path: str) -> List[Dict[str, Any]]:
         applicants: List[Dict[str, Any]] = []
         for r in records:
             ch = float(r.get('credit_history') if r.get('credit_history') is not None else 1)
+            raw_loan = float(r.get('loan_amount') or 150)
+            loan_inr = raw_loan * 1000.0 if raw_loan <= 1000.0 else raw_loan
             applicants.append({
                 'id': r.get('id', 'UNKNOWN'),
                 'gender': r.get('gender') or 'Male',
@@ -34,7 +36,7 @@ def _load_from_dataset_js(js_path: str) -> List[Dict[str, Any]]:
                 'self_employed': r.get('self_employed') or 'No',
                 'applicant_income': float(r.get('applicant_income') or 3000),
                 'coapplicant_income': float(r.get('coapplicant_income') or 0),
-                'loan_amount': float(r.get('loan_amount') or 100),
+                'loan_amount': loan_inr,
                 'term': float(r.get('term') or 360),
                 'credit_history': ch,
                 'cibil_score': 760 if ch >= 1 else 540,
@@ -83,7 +85,11 @@ def load_sample_dataset(csv_path: Optional[str] = None) -> List[Dict[str, Any]]:
             try:
                 inc = float(row.get('ApplicantIncome') or 3000)
                 coinc = float(row.get('CoapplicantIncome') or 0)
-                loan = float(row.get('LoanAmount') or row.get('LoanAmount_Thousands') or 100)
+                if row.get('LoanAmount_INR') not in (None, ''):
+                    loan = float(row.get('LoanAmount_INR'))
+                else:
+                    raw_loan = float(row.get('LoanAmount') or row.get('LoanAmount_Thousands') or 150)
+                    loan = raw_loan * 1000.0 if raw_loan <= 1000.0 else raw_loan
                 term = float(row.get('Loan_Amount_Term') or row.get('Loan_Amount_Term_Months') or 360)
                 ch_val = row.get('Credit_History')
                 ch = float(ch_val) if (ch_val is not None and str(ch_val).strip() != '') else 1.0

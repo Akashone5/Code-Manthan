@@ -91,7 +91,7 @@ def run_migration():
             'salary_slip': str(r['salary_slip'] or 'Yes'),
             'applicant_income': float(r['applicant_income'] or 0),
             'coapplicant_income': float(r['coapplicant_income'] or 0),
-            'loan_amount': float(r['loan_amount'] or 100),
+            'loan_amount': float(r['loan_amount'] or 150000),
             'loan_term_months': int(r['loan_term_months'] or 60),
             'cibil_score': int(r['cibil_score'] or 750),
             'credit_history': int(r['credit_history'] or 1),

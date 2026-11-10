@@ -19,8 +19,8 @@ def view_and_export():
         name = (r.get('full_name') or 'Applicant')[:18]
         cibil = str(r.get('cibil_score') or '')
         slip = str(r.get('salary_slip') or 'Yes')
-        loan_k = float(r.get('loan_amount') or 0)
-        amt = f"Rs.{int(loan_k * 1000):,}" if loan_k <= 1000 else f"Rs.{int(loan_k):,}"
+        loan_inr = float(r.get('loan_amount') or 0)
+        amt = f"Rs.{int(round(loan_inr)):,}"
         months = int(r.get('loan_term_months') or 60)
         tenure = f"{months // 12} yrs" if months % 12 == 0 else f"{months} mos"
         score = f"{r.get('approval_likelihood')}%"

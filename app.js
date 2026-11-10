@@ -37,7 +37,7 @@ function createBlankApplicantState() {
     salary_slip: 'Yes',
     applicant_income: 25000,
     coapplicant_income: 15000,
-    loan_amount: 150,
+    loan_amount: 150000,
     term: 60,
     cibil_score: 760,
     credit_history: 1,
@@ -75,7 +75,7 @@ const state = {
   backendExplanation: null,
   currentApplicant: createBlankApplicantState(),
   simulated: {
-    loan_amount: 150,
+    loan_amount: 150000,
     coapplicant_income: 15000,
     term: 60,
     cibil_score: 760,
@@ -503,7 +503,7 @@ function resetWorkspaceState() {
   state.backendExplanation = null;
   state.currentApplicant = createBlankApplicantState();
   state.simulated = {
-    loan_amount: 150,
+    loan_amount: 150000,
     coapplicant_income: 15000,
     term: 60,
     cibil_score: 760,
@@ -532,6 +532,10 @@ function resetWorkspaceState() {
 
   const fillForm = document.getElementById('loan-fillup-form');
   if (fillForm) fillForm.reset();
+  if (typeof window.updateFillLoanHint === 'function') {
+    window.updateFillLoanHint(document.getElementById('fill-loan-amount')?.value || 150000);
+  }
+  syncSimLoanInputs(150000);
   const nameInput = document.getElementById('fill-full-name');
   const phoneInput = document.getElementById('fill-phone');
   if (nameInput) nameInput.value = '';
@@ -673,7 +677,7 @@ function applyRecordToCurrentState(rec) {
     salary_slip: salarySlip,
     applicant_income: parseFloat(rec.applicant_income || 0),
     coapplicant_income: parseFloat(rec.coapplicant_income || 0),
-    loan_amount: parseFloat(rec.loan_amount || 150),
+    loan_amount: parseFloat(rec.loan_amount || 150000),
     term: termMonths,
     cibil_score: cibil,
     credit_history: cibil >= 650 ? 1 : 0,
@@ -686,7 +690,7 @@ function applyRecordToCurrentState(rec) {
   };
 
   state.simulated = {
-    loan_amount: state.currentApplicant.loan_amount || 150,
+    loan_amount: state.currentApplicant.loan_amount || 150000,
     coapplicant_income: state.currentApplicant.coapplicant_income || 0,
     term: termMonths,
     cibil_score: cibil,
@@ -694,7 +698,7 @@ function applyRecordToCurrentState(rec) {
     salary_slip: String(salarySlip).toLowerCase() === 'yes'
   };
 
-  setSliderVal('sim-slider-loan', state.simulated.loan_amount);
+  syncSimLoanInputs(state.simulated.loan_amount);
   setSliderVal('sim-slider-coapp', state.simulated.coapplicant_income);
   setSliderVal('sim-slider-term', Math.max(1, Math.round(state.simulated.term / 12)));
   setSliderVal('sim-slider-cibil', state.simulated.cibil_score);
@@ -1249,8 +1253,9 @@ const I18N = {
     lbl_app_income: "Applicant Monthly Income (₹) *",
     lbl_coapp_income: "Co-Applicant Monthly Income (₹)",
     lbl_purpose: "Loan Facility Purpose *",
-    lbl_loan_amount: "Requested Loan (in Thousands ₹) *",
-    hint_loan_thousands: "150 = ₹1,50,000 INR",
+    lbl_loan_amount: "Requested Loan Amount (₹) *",
+    hint_loan_inr: "₹1,50,000 (₹1.5 Lakh)",
+    ph_loan_amount: "e.g. 150000",
     lbl_tenure: "Loan Tenure (1 to 30 Years) *",
     tick_1yr: "1 Year (12m)",
     tick_5yr: "5 Yrs",
@@ -1315,7 +1320,8 @@ const I18N = {
     lbl_sim_dti: "Simulated Debt Burden (DTI):",
     lbl_sim_cibil_tier: "Credit Rating Tier:",
     lbl_sim_doc_status: "Income Documentation:",
-    lbl_sim_loan: "Requested Loan Amount:",
+    lbl_sim_loan: "Requested Loan Amount (₹):",
+    lbl_sim_exact_loan: "Exact amount (₹):",
     lbl_sim_coapp: "Co-Applicant Monthly Income:",
     lbl_sim_term: "Loan Tenure (Duration):",
     lbl_sim_cibil: "Simulated CIBIL Score:",
@@ -1355,7 +1361,7 @@ const I18N = {
     off_lbl_self_emp: "Self-Employed / Profession",
     off_lbl_app_inc: "Applicant Monthly Income (₹)",
     off_lbl_coapp_inc: "Co-Applicant Monthly Income (₹)",
-    off_lbl_loan_amt: "Loan Amount (in Thousands ₹)",
+    off_lbl_loan_amt: "Loan Amount (₹)",
     off_lbl_tenure: "Tenure (Months)",
     off_lbl_credit_hist: "Credit Bureau History",
     off_lbl_area: "Property Territory",
@@ -1673,8 +1679,9 @@ const I18N = {
     lbl_app_income: "आवेदक की मासिक आय (₹) *",
     lbl_coapp_income: "सह-आवेदक की मासिक आय (₹)",
     lbl_purpose: "ऋण सुविधा का उद्देश्य *",
-    lbl_loan_amount: "वांछित ऋण राशि (हजारों ₹ में) *",
-    hint_loan_thousands: "150 = ₹1,50,000 रुपये",
+    lbl_loan_amount: "वांछित ऋण राशि (₹) *",
+    hint_loan_inr: "₹1,50,000 (₹1.5 लाख)",
+    ph_loan_amount: "जैसे: 150000",
     lbl_tenure: "ऋण अवधि (1 से 30 वर्ष) *",
     tick_1yr: "1 वर्ष (12 माह)",
     tick_5yr: "5 वर्ष",
@@ -1739,7 +1746,8 @@ const I18N = {
     lbl_sim_dti: "मासिक ऋण भार (DTI):",
     lbl_sim_cibil_tier: "क्रेडिट रेटिंग श्रेणी:",
     lbl_sim_doc_status: "आय सत्यापन दस्तावेज:",
-    lbl_sim_loan: "वांछित ऋण राशि:",
+    lbl_sim_loan: "वांछित ऋण राशि (₹):",
+    lbl_sim_exact_loan: "सटीक राशि (₹):",
     lbl_sim_coapp: "सह-आवेदक की मासिक आय:",
     lbl_sim_term: "ऋण अवधि:",
     lbl_sim_cibil: "अनुमानित सिबिल स्कोर:",
@@ -1779,7 +1787,7 @@ const I18N = {
     off_lbl_self_emp: "स्वरोजगार / व्यवसाय",
     off_lbl_app_inc: "आवेदक मासिक आय (₹)",
     off_lbl_coapp_inc: "सह-आवेदक मासिक आय (₹)",
-    off_lbl_loan_amt: "ऋण राशि (हजारों ₹ में)",
+    off_lbl_loan_amt: "ऋण राशि (₹)",
     off_lbl_tenure: "अवधि (माह)",
     off_lbl_credit_hist: "क्रेडिट ब्यूरो इतिहास",
     off_lbl_area: "संपत्ति क्षेत्र",
@@ -2266,10 +2274,13 @@ function applyTranslations() {
   setElText('footer-mission-supporting', dict.footer_mission_supporting);
   setElText('footer-disclaimer', dict.footer_disclaimer);
 
+  syncFormHelperDisplays();
   syncBackendModalUI();
 }
 
 function syncFormHelperDisplays() {
+  const loanVal = document.getElementById('fill-loan-amount')?.value || 150000;
+  window.updateFillLoanHint(loanVal);
   const years = parseInt(document.getElementById('fill-loan-years')?.value || 5, 10);
   window.updateFillTenureDisplay(years);
   const cibil = parseInt(document.getElementById('fill-cibil-slider')?.value || 760, 10);
@@ -2277,6 +2288,44 @@ function syncFormHelperDisplays() {
   const slipVal = document.getElementById('fill-salary-slip')?.value || 'Yes';
   window.setSalarySlipChoice(slipVal);
   syncSimSalarySlipVisuals(state.simulated.salary_slip);
+}
+
+function formatInrFlexible(rawAmt, hi = state.currentLang === 'hi') {
+  const amt = Math.max(0, Math.round(Number(rawAmt) || 0));
+  const formatted = `₹${amt.toLocaleString('en-IN')}`;
+  if (amt >= 10000000) {
+    const cr = (amt / 10000000).toFixed(2).replace(/\.?0+$/, '');
+    return `${formatted} (₹${cr} ${hi ? 'करोड़' : 'Cr'})`;
+  }
+  if (amt >= 100000) {
+    const lk = (amt / 100000).toFixed(2).replace(/\.?0+$/, '');
+    return `${formatted} (₹${lk} ${hi ? 'लाख' : 'Lakh'})`;
+  }
+  return formatted;
+}
+
+window.updateFillLoanHint = function(val) {
+  const hintEl = document.getElementById('fill-loan-hint');
+  if (!hintEl) return;
+  const hi = state.currentLang === 'hi';
+  const num = Number(val);
+  if (!val || isNaN(num) || num <= 0) {
+    hintEl.innerText = hi
+      ? 'कोई भी लचीली ऋण राशि (न्यूनतम ₹1,000) दर्ज करें'
+      : 'Enter any flexible loan amount in Rupees (min ₹1,000)';
+    return;
+  }
+  hintEl.innerText = formatInrFlexible(num, hi);
+};
+
+function syncSimLoanInputs(val) {
+  const num = Math.max(1000, Math.round(Number(val) || 150000));
+  const slider = document.getElementById('sim-slider-loan');
+  if (slider) {
+    slider.max = num > 5000000 ? String(Math.ceil(num / 100000) * 100000) : '5000000';
+    slider.value = Math.max(Number(slider.min || 5000), num);
+  }
+  setValue('sim-input-loan', num);
 }
 
 function syncSimSalarySlipVisuals(hasSlip) {
@@ -2332,10 +2381,8 @@ function syncSimulatorSliderLabels() {
   const cibilEl = document.getElementById('val-sim-cibil');
 
   if (loanEl) {
-    const amt = sim.loan_amount || 150;
-    loanEl.innerText = hi
-      ? `₹${(amt / 100).toFixed(1)} लाख (₹${(amt * 1000).toLocaleString('en-IN')})`
-      : `₹${(amt / 100).toFixed(1)} Lakh (₹${(amt * 1000).toLocaleString('en-IN')})`;
+    const amt = sim.loan_amount || 150000;
+    loanEl.innerText = formatInrFlexible(amt, hi);
   }
   if (coappEl) {
     coappEl.innerText = hi
@@ -2420,9 +2467,9 @@ function computePrediction(appData) {
   const coappInc = parseFloat(appData.coapplicant_income || 0);
   const totInc = Math.max(1.0, appInc + coappInc);
 
-  let loanAmtInr = parseFloat(appData.loan_amount || 100);
-  if (loanAmtInr <= 1000) {
-    loanAmtInr = loanAmtInr * 1000.0;
+  let loanAmtInr = parseFloat(appData.loan_amount !== undefined && appData.loan_amount !== null && appData.loan_amount !== '' ? appData.loan_amount : 150000);
+  if (isNaN(loanAmtInr) || loanAmtInr <= 0) {
+    loanAmtInr = 150000.0;
   }
 
   let termMonths = parseFloat(appData.term || appData.loan_term_months || 60);
@@ -2676,7 +2723,7 @@ window.handleLoanApplicationSubmit = async function(event) {
     applicant_income: Number(document.getElementById('fill-app-income')?.value || 25000),
     coapplicant_income: Number(document.getElementById('fill-coapp-income')?.value || 0),
     loan_purpose: document.getElementById('fill-loan-purpose')?.value || 'Home Improvement / Construction',
-    loan_amount: Number(document.getElementById('fill-loan-amount')?.value || 150),
+    loan_amount: Number(document.getElementById('fill-loan-amount')?.value || 150000),
     loan_term_months: termMonths,
     cibil_score: Number(document.getElementById('fill-cibil-slider')?.value || 760),
     property_area: document.getElementById('fill-property-area')?.value || 'Rural',
@@ -2831,6 +2878,7 @@ window.applyWhatIfScenario = async function() {
   state.currentApplicant.salary_slip = sim.salary_slip ? 'Yes' : 'No';
 
   setValue('fill-loan-amount', sim.loan_amount);
+  window.updateFillLoanHint(sim.loan_amount);
   setValue('fill-coapp-income', sim.coapplicant_income);
   const years = Math.max(1, Math.round(sim.term / 12));
   setValue('fill-loan-years', years);
@@ -2935,7 +2983,7 @@ window.saveOfficerTermUpdates = async function() {
   const patchBody = {
     applicant_income: Number(document.getElementById('input-app-income')?.value || 0),
     coapplicant_income: Number(document.getElementById('input-coapp-income')?.value || 0),
-    loan_amount: Number(document.getElementById('input-loan-amount')?.value || 100),
+    loan_amount: Number(document.getElementById('input-loan-amount')?.value || 150000),
     loan_term_months: Number(document.getElementById('input-loan-term')?.value || 60),
     cibil_score: updatedCibil,
     salary_slip: selfEmp === 'Yes' ? 'No' : 'Yes',
@@ -2989,7 +3037,7 @@ window.saveOfficerTermUpdates = async function() {
 window.resetWhatIfToBaseline = function() {
   const base = state.currentApplicant;
   state.simulated = {
-    loan_amount: base.loan_amount || 150,
+    loan_amount: base.loan_amount || 150000,
     coapplicant_income: base.coapplicant_income !== undefined ? base.coapplicant_income : 0,
     term: base.term || 60,
     cibil_score: base.cibil_score || 760,
@@ -2997,7 +3045,7 @@ window.resetWhatIfToBaseline = function() {
     salary_slip: (base.salary_slip || 'Yes') === 'Yes'
   };
 
-  setSliderVal('sim-slider-loan', state.simulated.loan_amount);
+  syncSimLoanInputs(state.simulated.loan_amount);
   setSliderVal('sim-slider-coapp', state.simulated.coapplicant_income);
   setSliderVal('sim-slider-term', Math.round(state.simulated.term / 12));
   setSliderVal('sim-slider-cibil', state.simulated.cibil_score);
@@ -3167,7 +3215,7 @@ window.exportVaultToCSV = function() {
 
   const csvCell = (val) => `"${String(val ?? '').replace(/"/g, '""')}"`;
   let csvContent = 'data:text/csv;charset=utf-8,';
-  csvContent += 'Application No,Submitted At,Updated At,Full Name,CIBIL Score,Salary Slip,Applicant Income,Co-Applicant Income,Loan Amount (k),Tenure (Months),Property Area,AI Score (%),Status,Officer Decision,Officer Remarks,Monthly EMI (INR)\n';
+  csvContent += 'Application No,Submitted At,Updated At,Full Name,CIBIL Score,Salary Slip,Applicant Income,Co-Applicant Income,Loan Amount (INR),Tenure (Months),Property Area,AI Score (%),Status,Officer Decision,Officer Remarks,Monthly EMI (INR)\n';
 
   apps.forEach(a => {
     const row = [
@@ -3179,7 +3227,7 @@ window.exportVaultToCSV = function() {
       csvCell(a.salary_slip || 'Yes'),
       a.applicant_income || 0,
       a.coapplicant_income || 0,
-      a.loan_amount || 100,
+      a.loan_amount || 150000,
       a.loan_term_months || a.term || 60,
       csvCell(a.property_area || 'Urban'),
       a.approval_likelihood || 50,
@@ -3262,8 +3310,8 @@ function renderDatabaseTableRows(allApps) {
     const slipTag = isSlip
       ? `<span style="color: #059669; font-weight: 700;">${hi ? '✓ पर्ची' : '✓ Slip'}</span>`
       : `<span style="color: #D97706; font-weight: 700;">${hi ? '✕ अनुपलब्ध' : '✕ No Slip'}</span>`;
-    const loanAmt = parseFloat(app.loan_amount) || 150;
-    const loanDisplay = loanAmt > 1000 ? `₹${loanAmt.toLocaleString('en-IN')}` : `₹${(loanAmt * 1000).toLocaleString('en-IN')}`;
+    const loanAmt = parseFloat(app.loan_amount || 150000);
+    const loanDisplay = `₹${Math.round(loanAmt).toLocaleString('en-IN')}`;
     const areaDisplay = localizeArea(app.property_area || 'Urban', state.currentLang);
     const statusDisplay = localizeStatus(statusRaw, state.currentLang);
     const offStatus = String(app.officer_status || 'Pending').trim();
@@ -3655,7 +3703,7 @@ function syncFormInputs(app) {
   setValue('input-self-employed', app.self_employed || 'No');
   setValue('input-app-income', app.applicant_income !== undefined ? app.applicant_income : 0);
   setValue('input-coapp-income', app.coapplicant_income !== undefined ? app.coapplicant_income : 0);
-  setValue('input-loan-amount', app.loan_amount || 150);
+  setValue('input-loan-amount', app.loan_amount || 150000);
   setValue('input-loan-term', app.term || 60);
   const cibilVal = app.cibil_score !== undefined ? Number(app.cibil_score) : (app.credit_history === 0 ? 540 : 760);
   setValue('input-credit-history', cibilVal >= 650 ? 1 : 0);
@@ -3810,9 +3858,39 @@ function setupEventListeners() {
   });
 
   document.getElementById('sim-slider-loan')?.addEventListener('input', (e) => {
-    state.simulated.loan_amount = Number(e.target.value);
+    const val = Number(e.target.value) || 150000;
+    state.simulated.loan_amount = val;
+    setValue('sim-input-loan', val);
     syncSimulatorSliderLabels();
     updateSimulationUI();
+  });
+
+  document.getElementById('sim-input-loan')?.addEventListener('input', (e) => {
+    const raw = Number(e.target.value);
+    if (isNaN(raw) || raw <= 0) return;
+    state.simulated.loan_amount = raw;
+    const slider = document.getElementById('sim-slider-loan');
+    if (slider) {
+      slider.max = raw > 5000000 ? String(Math.ceil(raw / 100000) * 100000) : '5000000';
+      slider.value = Math.max(Number(slider.min || 5000), raw);
+    }
+    syncSimulatorSliderLabels();
+    updateSimulationUI();
+  });
+
+  document.getElementById('sim-input-loan')?.addEventListener('change', (e) => {
+    const raw = Number(e.target.value);
+    const clamped = (!isNaN(raw) && raw >= 1000) ? Math.round(raw) : 1000;
+    state.simulated.loan_amount = clamped;
+    syncSimLoanInputs(clamped);
+    syncSimulatorSliderLabels();
+    updateSimulationUI();
+  });
+
+  document.getElementById('loan-fillup-form')?.addEventListener('reset', () => {
+    setTimeout(() => {
+      syncFormHelperDisplays();
+    }, 0);
   });
 
   document.getElementById('sim-slider-coapp')?.addEventListener('input', (e) => {
@@ -3883,7 +3961,7 @@ function setupEventListeners() {
       state.currentApplicant.salary_slip = state.currentApplicant.self_employed === 'Yes' ? 'No' : 'Yes';
       state.currentApplicant.applicant_income = Number(document.getElementById('input-app-income')?.value || 0);
       state.currentApplicant.coapplicant_income = Number(document.getElementById('input-coapp-income')?.value || 0);
-      state.currentApplicant.loan_amount = Number(document.getElementById('input-loan-amount')?.value || 100);
+      state.currentApplicant.loan_amount = Number(document.getElementById('input-loan-amount')?.value || 150000);
       state.currentApplicant.term = Number(document.getElementById('input-loan-term')?.value || 60);
       state.currentApplicant.credit_history = ch;
       state.currentApplicant.cibil_score = ch === 1 ? (prevCibil >= 650 ? prevCibil : 760) : 540;
@@ -4045,8 +4123,8 @@ window.openDecisionLetterModal = function(allowOfficerPreview = false) {
     if (el) el.innerText = text;
   };
 
-  let loanAmtInr = parseFloat(app.loan_amount || 150);
-  if (loanAmtInr <= 1000) loanAmtInr = loanAmtInr * 1000;
+  let loanAmtInr = parseFloat(app.loan_amount !== undefined && app.loan_amount !== null && app.loan_amount !== '' ? app.loan_amount : 150000);
+  if (isNaN(loanAmtInr) || loanAmtInr <= 0) loanAmtInr = 150000;
 
   const termMonths = parseFloat(app.term || app.loan_term_months || 60);
   const years = (termMonths / 12).toFixed(1).replace('.0', '');
@@ -4573,7 +4651,8 @@ function renderPortfolioTable() {
 
     const totalIncome = ((r.applicant_income || 0) + (r.coapplicant_income || 0));
     const formattedIncome = totalIncome > 0 ? `₹${totalIncome.toLocaleString('en-IN')}` : '₹35,000';
-    const loanAmt = r.loan_amount || 100;
+    const rawLoan = parseFloat(r.loan_amount || 150);
+    const loanInr = rawLoan <= 1000 ? rawLoan * 1000 : rawLoan;
 
     return `
       <tr>
@@ -4581,7 +4660,7 @@ function renderPortfolioTable() {
         <td>${escapeHtml(localizeGender(r.gender, state.currentLang))}</td>
         <td><span class="badge ${r.property_area === 'Rural' ? 'badge-warning' : 'badge-info'}">${escapeHtml(localizeArea(r.property_area || 'Urban', state.currentLang))}</span></td>
         <td>${formattedIncome}</td>
-        <td>₹${loanAmt}k <span style="font-size:0.75rem; color:#64748B;">(₹${(loanAmt * 1000).toLocaleString('en-IN')})</span></td>
+        <td>₹${Math.round(loanInr).toLocaleString('en-IN')}</td>
         <td>${cHistory}</td>
         <td><strong style="color: ${probColor};">${probVal}%</strong></td>
         <td>${statusBadge}</td>
@@ -4634,6 +4713,9 @@ window.loadHistoricalCase = async function(caseId) {
   const isClean = r.credit_history === 1 || r.credit_history === undefined || r.credit_history === null;
   const cibil = isClean ? 760 : 540;
 
+  const rawLoan = parseFloat(r.loan_amount || 150);
+  const loanInr = rawLoan <= 1000 ? rawLoan * 1000 : rawLoan;
+
   state.currentApplicant = {
     id: r.id,
     name: `Historical Borrower (${r.id})`,
@@ -4645,7 +4727,7 @@ window.loadHistoricalCase = async function(caseId) {
     employment_type: r.self_employed === 'Yes' ? 'Self-Employed (Business/MSME)' : 'Salaried (Private/Corporate)',
     applicant_income: appInc,
     coapplicant_income: coappInc,
-    loan_amount: r.loan_amount || 150,
+    loan_amount: loanInr,
     term: r.term || 360,
     credit_history: isClean ? 1 : 0,
     cibil_score: cibil,
@@ -4667,7 +4749,7 @@ window.loadHistoricalCase = async function(caseId) {
 
   await addAuditLog(
     'PORTFOLIO_INSPECT',
-    `Inspected historical case ${caseId} (${r.gender}, ${r.property_area}, Loan ₹${r.loan_amount}k)`,
+    `Inspected historical case ${caseId} (${r.gender}, ${r.property_area}, Loan ₹${Math.round(loanInr).toLocaleString('en-IN')})`,
     caseId
   );
 };

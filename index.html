@@ -646,14 +646,18 @@
         <div class="grid-2" style="margin-top: 1rem; gap: 1rem;">
           <div class="sim-box" style="margin-top: 0;">
             <div class="slider-header">
-              <span id="lbl-sim-slider-loan">Requested Loan Amount:</span>
-              <span id="val-sim-loan" class="value-tag">₹1.5 Lakh (₹1,50,000)</span>
+              <span id="lbl-sim-slider-loan">Requested Loan Amount (₹):</span>
+              <span id="val-sim-loan" class="value-tag">₹1,50,000 (₹1.5 Lakh)</span>
             </div>
-            <input type="range" id="sim-slider-loan" class="range-slider" min="30" max="1000" step="10" value="150">
+            <input type="range" id="sim-slider-loan" class="range-slider" min="5000" max="5000000" step="5000" value="150000">
             <div style="display: flex; justify-content: space-between; font-size: 0.72rem; color: #64748B; margin-top: 4px;">
-              <span>₹30,000</span>
-              <span>₹5,00,000</span>
-              <span>₹10,00,000</span>
+              <span>₹5,000</span>
+              <span>₹25,00,000</span>
+              <span>₹50,00,000</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; margin-top: 6px;">
+              <span style="font-size: 0.76rem; color: #4B6359;" data-i18n="lbl_sim_exact_loan">Exact amount (₹):</span>
+              <input type="number" id="sim-input-loan" class="form-control" min="1000" step="1" value="150000" placeholder="e.g. 150000" data-i18n-placeholder="ph_loan_amount" style="width: 135px; padding: 3px 8px; font-size: 0.85rem;">
             </div>
           </div>
 
@@ -844,8 +848,8 @@
 
             <div class="form-row">
               <div class="form-group">
-                <label class="form-label" data-i18n="off_lbl_loan_amt">Loan Amount (in Thousands ₹)</label>
-                <input type="number" id="input-loan-amount" class="form-control" value="110">
+                <label class="form-label" data-i18n="off_lbl_loan_amt">Loan Amount (₹)</label>
+                <input type="number" id="input-loan-amount" class="form-control" value="150000" min="1000" step="1" placeholder="e.g. 150000" data-i18n-placeholder="ph_loan_amount">
               </div>
               <div class="form-group">
                 <label class="form-label" data-i18n="off_lbl_tenure">Tenure (Months)</label>
@@ -1385,9 +1389,9 @@
 
               <div class="form-row">
                 <div class="form-group">
-                  <label class="form-label" id="lbl-fill-loan-amount">Requested Loan (in Thousands ₹) *</label>
-                  <input type="number" id="fill-loan-amount" class="form-control" required value="150" min="10" max="1000" step="5">
-                  <div style="font-size: 0.72rem; color: #4B6359; margin-top: 3px;" data-i18n="hint_loan_thousands">150 = ₹1,50,000 INR</div>
+                  <label class="form-label" id="lbl-fill-loan-amount">Requested Loan Amount (₹) *</label>
+                  <input type="number" id="fill-loan-amount" class="form-control" required value="150000" min="1000" step="1" placeholder="e.g. 150000" data-i18n-placeholder="ph_loan_amount" oninput="updateFillLoanHint(this.value)">
+                  <div id="fill-loan-hint" style="font-size: 0.74rem; color: #4B6359; margin-top: 4px; font-weight: 600;" data-i18n="hint_loan_inr">₹1,50,000 (₹1.5 Lakh)</div>
                 </div>
                 <div class="form-group">
                   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">

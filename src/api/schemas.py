@@ -53,7 +53,7 @@ class LoanApplicationRequest(BaseModel):
     applicant_income: float = Field(default=35000.0, description="Monthly applicant primary income in INR")
     coapplicant_income: float = Field(default=0.0, description="Monthly co-applicant secondary income in INR")
     loan_purpose: Optional[str] = Field(default="Home Purchase", description="Intended purpose for credit")
-    loan_amount: float = Field(default=150.0, description="Requested principal quantum in Lakhs (INR 100k)")
+    loan_amount: float = Field(default=150000.0, description="Requested principal amount in INR (e.g. 150000)")
     loan_term_months: float = Field(default=360.0, description="Repayment tenure in months")
     cibil_score: float = Field(default=750.0, description="Bureau credit score (300 - 900)")
     property_area: Optional[str] = Field(default="Semiurban", description="Property location tier: Urban, Semiurban, Rural")
@@ -77,7 +77,7 @@ class ApplicationUpdateRequest(BaseModel):
 
     applicant_income: Optional[float] = Field(default=None, description="Updated monthly applicant income in INR")
     coapplicant_income: Optional[float] = Field(default=None, description="Updated monthly co-applicant income in INR")
-    loan_amount: Optional[float] = Field(default=None, description="Updated requested loan quantum in Thousands INR")
+    loan_amount: Optional[float] = Field(default=None, description="Updated requested loan amount in INR")
     loan_term_months: Optional[int] = Field(default=None, description="Updated repayment tenure in months")
     cibil_score: Optional[int] = Field(default=None, description="Updated bureau CIBIL score")
     salary_slip: Optional[str] = Field(default=None, description="Updated salary slip availability (Yes/No)")

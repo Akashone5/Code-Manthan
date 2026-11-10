@@ -545,10 +545,15 @@ async def update_application(
 
     updated = database.update_application_details(application_no, raw_updates, prediction, explanation)
     if is_officer:
+        raw_amt = merged.get('loan_amount')
+        try:
+            amt_label = f"₹{int(round(float(raw_amt))):,}"
+        except (TypeError, ValueError):
+            amt_label = f"₹{raw_amt}"
         database.add_audit_log(
             application_no=application_no,
             action="Officer Updated Terms",
-            notes=f"Adjusted facility parameters (Amount: {merged.get('loan_amount')}k, Term: {merged.get('loan_term_months')}m)",
+            notes=f"Adjusted facility parameters (Amount: {amt_label}, Term: {merged.get('loan_term_months')}m)",
             remarks=f"Score updated to {prediction.get('approval_likelihood')}%",
             officer_id=caller_uid,
             officer_name=actor_name or caller_name or "Loan Officer",

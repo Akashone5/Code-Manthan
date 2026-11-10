@@ -128,6 +128,7 @@ def _get_configured_officer_key() -> str:
     return 'OFFICER-2026'
 
 def init_db():
+    migrated_loan_count = 0
     with get_sqlite_conn() as conn:
         cursor = conn.cursor()
 
@@ -255,6 +256,32 @@ def init_db():
         ''')
 
         now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cursor.execute("SELECT setting_value FROM system_settings WHERE setting_key = ?", ("loan_amount_inr_migrated",))
+        migrated_row = cursor.fetchone()
+        if not migrated_row or str(migrated_row['setting_value']).strip().lower() != "true":
+            cursor.execute('''
+                UPDATE loan_applications
+                SET loan_amount = ROUND(loan_amount * 1000.0, 2)
+                WHERE loan_amount > 0
+                  AND loan_amount <= 1000.0
+                  AND (
+                      COALESCE(monthly_emi, 0) <= 0
+                      OR ABS((loan_amount * 1000.0 / CASE WHEN loan_term_months > 0 THEN loan_term_months ELSE 1 END) - monthly_emi)
+                         < ABS((loan_amount / CASE WHEN loan_term_months > 0 THEN loan_term_months ELSE 1 END) - monthly_emi)
+                  )
+            ''')
+            migrated_loan_count = cursor.rowcount or 0
+            cursor.execute('''
+                INSERT INTO system_settings (setting_key, setting_value, updated_by, updated_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(setting_key) DO UPDATE SET
+                    setting_value = excluded.setting_value,
+                    updated_by = excluded.updated_by,
+                    updated_at = excluded.updated_at
+            ''', ("loan_amount_inr_migrated", "true", "System Migration", now_str))
+            if migrated_loan_count > 0:
+                print(f"[MIGRATION] Upgraded {migrated_loan_count} loan_amount rows from thousands to direct INR.")
+
         cursor.execute("SELECT COUNT(*) FROM audit_logs")
         if cursor.fetchone()[0] == 0:
             baseline_audits = [
@@ -362,6 +389,10 @@ def init_db():
                             updated_by = excluded.updated_by,
                             updated_at = excluded.updated_at
                     ''', ("officer_pwd_env_last", pwd_fp, "Environment Variable (OFFICER_ADMIN_PASSWORD)", now_str))
+
+    if migrated_loan_count > 0:
+        checkpoint_db('TRUNCATE')
+        sync_csv_export()
 
 def _persist_session(token: str, user_id: str, role: str):
     if not token or not user_id:
@@ -618,7 +649,7 @@ def sync_csv_export():
             writer.writerow([
                 'Application No', 'Submission Date', 'Updated At', 'Full Name', 'Email', 'Phone', 'Gender',
                 'Marital Status', 'Dependents', 'Education', 'Employment Type', 'Salary Slip Available',
-                'Monthly Income (INR)', 'Co-Applicant Income (INR)', 'Loan Amount (k)',
+                'Monthly Income (INR)', 'Co-Applicant Income (INR)', 'Loan Amount (INR)',
                 'Tenure (Months)', 'CIBIL Score', 'Property Area', 'Approval Score (%)',
                 'Status', 'Officer Status', 'Officer Remarks', 'Estimated EMI (INR)', 'DTI (%)', 'Explanation Summary'
             ])
@@ -647,6 +678,31 @@ def _generate_unique_application_no() -> str:
             if not cursor.fetchone():
                 return candidate
     return f"MB-{current_year}-{uuid.uuid4().hex[:6].upper()}"
+
+def _parse_loan_amount_inr(
+    data: Dict[str, Any],
+    prediction_result: Optional[Dict[str, Any]] = None,
+    fallback: float = 150000.0
+) -> float:
+    unit = str(data.get('loan_amount_unit') or '').strip().lower()
+    raw = data.get('loan_amount')
+    if raw not in (None, ''):
+        try:
+            val = float(str(raw).replace(',', '').replace('₹', '').replace('Rs.', '').replace('Rs', '').strip())
+            if unit in ('k', 'thousands') and val <= 1000.0:
+                return round(val * 1000.0, 2)
+            if val > 0:
+                return round(val, 2)
+        except (TypeError, ValueError):
+            pass
+    if prediction_result and prediction_result.get('requested_loan_inr') not in (None, ''):
+        try:
+            pred_val = float(prediction_result['requested_loan_inr'])
+            if pred_val > 0:
+                return round(pred_val, 2)
+        except (TypeError, ValueError):
+            pass
+    return float(fallback)
 
 def save_application(applicant_data: Dict[str, Any], prediction_result: Dict[str, Any],
                      explanation_result: Dict[str, Any], user_id: Optional[str] = None) -> Dict[str, Any]:
@@ -694,7 +750,7 @@ def save_application(applicant_data: Dict[str, Any], prediction_result: Dict[str
         'salary_slip': salary_slip,
         'applicant_income': float(applicant_data.get('applicant_income', 0)),
         'coapplicant_income': float(applicant_data.get('coapplicant_income', 0)),
-        'loan_amount': float(applicant_data.get('loan_amount', 100)),
+        'loan_amount': _parse_loan_amount_inr(applicant_data, prediction_result, fallback=150000.0),
         'loan_term_months': term_months,
         'cibil_score': cibil,
         'credit_history': credit_hist,
@@ -791,7 +847,7 @@ def update_application_details(
         'updated_at': now_str,
         'applicant_income': float(updated_fields.get('applicant_income', existing.get('applicant_income', 0))),
         'coapplicant_income': float(updated_fields.get('coapplicant_income', existing.get('coapplicant_income', 0))),
-        'loan_amount': float(updated_fields.get('loan_amount', existing.get('loan_amount', 100))),
+        'loan_amount': _parse_loan_amount_inr(updated_fields, fallback=float(existing.get('loan_amount') or 150000.0)),
         'loan_term_months': term_months,
         'cibil_score': cibil,
         'credit_history': credit_hist,

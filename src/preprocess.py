@@ -29,16 +29,33 @@ def normalize_applicant(raw_data: Dict[str, Any]) -> Dict[str, Any]:
     )
     tot_inc = max(1.0, app_inc + coapp_inc)
 
-    loan_raw = _safe_float(
-        raw_data.get('loan_amount') or raw_data.get('LoanAmount') or raw_data.get('requested_loan'),
-        default=100.0
-    )
-    if loan_raw <= 1000.0:
-        loan_amt_inr = loan_raw * 1000.0
-        loan_amount_k = loan_raw
+    explicit_unit = str(raw_data.get('loan_amount_unit') or '').strip().lower()
+    if raw_data.get('loan_amount') not in (None, ''):
+        loan_raw = _safe_float(raw_data.get('loan_amount'), default=150000.0)
+        if explicit_unit in ('k', 'thousands') and loan_raw <= 1000.0:
+            loan_amt_inr = loan_raw * 1000.0
+        else:
+            loan_amt_inr = loan_raw
+    elif raw_data.get('requested_loan') not in (None, ''):
+        loan_raw = _safe_float(raw_data.get('requested_loan'), default=150000.0)
+        if explicit_unit in ('k', 'thousands') and loan_raw <= 1000.0:
+            loan_amt_inr = loan_raw * 1000.0
+        else:
+            loan_amt_inr = loan_raw
+    elif raw_data.get('loan_amount_inr') not in (None, ''):
+        loan_amt_inr = _safe_float(raw_data.get('loan_amount_inr'), default=150000.0)
+    elif raw_data.get('LoanAmount_Thousands') not in (None, ''):
+        raw_k = _safe_float(raw_data.get('LoanAmount_Thousands'), default=150.0)
+        loan_amt_inr = raw_k * 1000.0 if raw_k <= 1000.0 else raw_k
+    elif raw_data.get('LoanAmount') not in (None, ''):
+        raw_k = _safe_float(raw_data.get('LoanAmount'), default=150.0)
+        loan_amt_inr = raw_k * 1000.0 if (explicit_unit not in ('inr', 'rs', 'rupees') and raw_k <= 1000.0) else raw_k
     else:
-        loan_amt_inr = loan_raw
-        loan_amount_k = loan_raw / 1000.0
+        loan_amt_inr = 150000.0
+
+    if loan_amt_inr <= 0.0:
+        loan_amt_inr = 150000.0
+    loan_amount_k = loan_amt_inr / 1000.0
 
     term_months = _safe_float(
         raw_data.get('loan_term_months') or raw_data.get('Loan_Amount_Term') or raw_data.get('term') or raw_data.get('tenure'),
