@@ -14,10 +14,11 @@ services:
       - SUPABASE_URL=${SUPABASE_URL:-}
       - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-}
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-}
-      - OFFICER_REGISTRATION_KEY=${OFFICER_REGISTRATION_KEY:-OFFICER-2026}
+      - OFFICER_REGISTRATION_KEY=${OFFICER_REGISTRATION_KEY:-replace-with-institutional-secret}
+      - SITE_ONLINE=${SITE_ONLINE:-true}
+      - SQLITE_DB_PATH=${SQLITE_DB_PATH:-/app/data/meridian_loans.db}
     volumes:
-      - ./meridian_loans.db:/app/meridian_loans.db
-      - ./meridian_loan_applications_export.csv:/app/meridian_loan_applications_export.csv
+      - ./data:/app/data
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]

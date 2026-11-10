@@ -1,17 +1,7 @@
-"""
-Algorithmic Fairness & Demographic Parity Auditor
-Audits underwriting decisions against the Four-Fifths (80%) Rule for adverse impact.
-Monitors demographic equity across Gender, Property Territory, and Educational Background.
-"""
-
 from typing import List, Dict, Any
 from .train import predict_loan
 
 def check_fairness(applicants_list: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """
-    Evaluates Disparate Impact Ratio (DIR) across protected and benchmark groups in an O(N) single pass.
-    Verifies adherence to equal credit opportunity standards and the 80% rule.
-    """
     groups = {
         'male': {'total': 0, 'approved': 0},
         'female': {'total': 0, 'approved': 0},
@@ -26,7 +16,6 @@ def check_fairness(applicants_list: List[Dict[str, Any]]) -> Dict[str, Any]:
         pred = predict_loan(app)
         is_approved = (pred.get('status') == 'Approved')
 
-        # Gender
         gender = str(app.get('gender', '')).strip().lower()
         if gender == 'male':
             groups['male']['total'] += 1
@@ -35,7 +24,6 @@ def check_fairness(applicants_list: List[Dict[str, Any]]) -> Dict[str, Any]:
             groups['female']['total'] += 1
             if is_approved: groups['female']['approved'] += 1
 
-        # Property Area
         area = str(app.get('property_area', '')).strip().lower()
         if area == 'semiurban':
             groups['semiurban']['total'] += 1
@@ -47,7 +35,6 @@ def check_fairness(applicants_list: List[Dict[str, Any]]) -> Dict[str, Any]:
             groups['urban']['total'] += 1
             if is_approved: groups['urban']['approved'] += 1
 
-        # Education
         edu = str(app.get('education', '')).strip().lower()
         if 'not' in edu or 'non' in edu:
             groups['non_graduate']['total'] += 1

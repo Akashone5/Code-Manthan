@@ -1,8 +1,3 @@
-"""
-Meridian Credit Underwriting & Risk Assessment Engine
-Mission Bharat Retail Lending Division
-"""
-
 from .preprocess import normalize_applicant
 from .train import predict_loan
 from .explain import explain_decision

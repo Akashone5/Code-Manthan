@@ -1,19 +1,7 @@
-"""
-Pydantic Request and Response Schemas
-Type-safe data contracts for authentication, credit underwriting,
-explainability, fairness auditing, and portfolio management.
-"""
-
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field, ConfigDict
 
-
-# =====================================================================
-# Authentication Schemas
-# =====================================================================
-
 class SignUpRequest(BaseModel):
-    """Payload for registering a new applicant or officer account."""
     full_name: str = Field(..., description="Full legal name of the user", min_length=2)
     email: str = Field(..., description="Unique email address for authentication")
     phone: Optional[str] = Field(default="", description="Contact mobile number")
@@ -22,22 +10,16 @@ class SignUpRequest(BaseModel):
     role: str = Field(default="applicant", description="Account classification: 'applicant' or 'officer'")
     officer_key: Optional[str] = Field(default=None, description="Clearance key required for officer provisioning")
 
-
 class SignInRequest(BaseModel):
-    """Payload for user sign-in credential verification."""
     email: str = Field(..., description="Registered account email")
     password: str = Field(..., description="Account password")
     expected_role: Optional[str] = Field(default=None, description="Target gateway role verification ('applicant' or 'officer')")
     role: Optional[str] = Field(default=None, description="Fallback alias for expected_role")
 
-
 class ForgotPasswordRequest(BaseModel):
-    """Payload to request password recovery instructions."""
     email: str = Field(..., description="Email address for dispatching password reset instructions")
 
-
 class UserProfileResponse(BaseModel):
-    """Public user identity profile."""
     id: str
     full_name: str
     email: str
@@ -45,32 +27,19 @@ class UserProfileResponse(BaseModel):
     role: str
     created_at: Optional[str] = None
 
-
 class AuthSuccessResponse(BaseModel):
-    """Response returned upon successful authentication or registration."""
     success: bool = True
     message: Optional[str] = None
     user: Optional[Dict[str, Any]] = None
     token: Optional[str] = None
     session_id: Optional[str] = None
 
-
 class BaseMessageResponse(BaseModel):
-    """Standard message response."""
     success: bool
     message: Optional[str] = None
     error: Optional[str] = None
 
-
-# =====================================================================
-# Underwriting & Prediction Schemas
-# =====================================================================
-
 class LoanApplicationRequest(BaseModel):
-    """
-    Loan application payload supporting standard credit fields.
-    Accepts arbitrary extra applicant metadata fields.
-    """
     model_config = ConfigDict(extra='allow')
 
     full_name: Optional[str] = Field(default="Applicant", description="Borrower legal name")
@@ -92,51 +61,35 @@ class LoanApplicationRequest(BaseModel):
     user_id: Optional[str] = Field(default=None, description="Foreign key linking to authenticated profile")
     applicant_id: Optional[str] = Field(default=None, description="Alias for user_id")
 
-
 class WhatIfRequest(BaseModel):
-    """Payload for counterfactual sensitivity simulation."""
     base: Dict[str, Any] = Field(..., description="Baseline applicant feature set")
     adjustments: Dict[str, Any] = Field(..., description="Proposed counterfactual adjustments (e.g. tenure, income)")
 
-
 class OfficerSanctionRequest(BaseModel):
-    """Payload for loan officer adjudication."""
     application_no: str = Field(..., description="Unique application identifier (e.g. MB-2026-1001)")
     status: str = Field(default="Approved", description="Decision verdict: Approved, Conditional, or Rejected")
     remarks: Optional[str] = Field(default=None, description="Officer analytical remarks and justification")
     note: Optional[str] = Field(default=None, description="Alternative field for officer remarks")
     officer_role: Optional[str] = Field(default=None, description="Role verification parameter")
 
-
-# =====================================================================
-# Analytical & Response Schemas
-# =====================================================================
-
 class SavedApplicationsResponse(BaseModel):
-    """Collection response for retrieved loan applications."""
     success: bool = True
     role: str
     total_saved: int
     applications: List[Dict[str, Any]]
 
-
 class SingleApplicationResponse(BaseModel):
-    """Single application lookup response."""
     success: bool = True
     application: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
 
-
 class FairnessReportResponse(BaseModel):
-    """Demographic parity and 80% four-fifths rule fairness report."""
     total_audited_records: int
     gender_fairness: Dict[str, Any]
     territory_fairness: Dict[str, Any]
     equity_certification: str
 
-
 class AccuracyMetricsResponse(BaseModel):
-    """Model performance and validation metric summary."""
     model_name: str
     overall_accuracy_percent: float
     precision_percent: float
@@ -146,26 +99,20 @@ class AccuracyMetricsResponse(BaseModel):
     confusion_matrix: Dict[str, int]
     total_validation_samples: int
 
-
 class HealthResponse(BaseModel):
-    """Service health and database status."""
     status: str
     service: str
     database: str
     site_online: bool = True
     site_status: str = "online"
 
-
 class SiteAvailabilityUpdateRequest(BaseModel):
-    """Payload to switch website public availability online or offline (Maintenance Mode)."""
     online: bool = Field(..., description="True to make portal publicly online, False for maintenance/offline mode")
     title: Optional[str] = Field(default=None, description="Custom heading displayed when portal is offline")
     maintenance_message: Optional[str] = Field(default=None, description="Custom maintenance notice shown to visitors")
     officer_key: Optional[str] = Field(default=None, description="Optional officer clearance key when toggling from maintenance overlay")
 
-
 class SiteAvailabilityResponse(BaseModel):
-    """Website online/offline status response."""
     success: bool = True
     online: bool
     status: str

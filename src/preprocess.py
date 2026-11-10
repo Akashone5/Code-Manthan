@@ -1,8 +1,3 @@
-"""
-Applicant Preprocessing & Normalization Pipeline
-Standardizes raw financial, demographic, and bureau inputs into calibrated underwriting features.
-"""
-
 from typing import Dict, Any
 
 def _safe_float(val: Any, default: float = 0.0) -> float:
@@ -24,10 +19,6 @@ def _safe_int(val: Any, default: int = 0) -> int:
         return default
 
 def normalize_applicant(raw_data: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Normalizes applicant data from heterogeneous sources (REST API, Web Intake, Streamlit, CSV).
-    Handles key aliases, currency representations, and derived credit risk ratios.
-    """
     app_inc = _safe_float(
         raw_data.get('applicant_income') or raw_data.get('ApplicantIncome') or raw_data.get('income'),
         default=0.0
@@ -38,7 +29,6 @@ def normalize_applicant(raw_data: Dict[str, Any]) -> Dict[str, Any]:
     )
     tot_inc = max(1.0, app_inc + coapp_inc)
 
-    # Loan Amount parsing (Standard convention: values <= 1000 represent thousands in INR)
     loan_raw = _safe_float(
         raw_data.get('loan_amount') or raw_data.get('LoanAmount') or raw_data.get('requested_loan'),
         default=100.0
@@ -50,7 +40,6 @@ def normalize_applicant(raw_data: Dict[str, Any]) -> Dict[str, Any]:
         loan_amt_inr = loan_raw
         loan_amount_k = loan_raw / 1000.0
 
-    # Loan Tenure (Months)
     term_months = _safe_float(
         raw_data.get('loan_term_months') or raw_data.get('Loan_Amount_Term') or raw_data.get('term') or raw_data.get('tenure'),
         default=360.0
@@ -59,13 +48,11 @@ def normalize_applicant(raw_data: Dict[str, Any]) -> Dict[str, Any]:
         years = _safe_float(raw_data.get('loan_term_years'), default=30.0)
         term_months = years * 12.0
 
-    # Derived Prudential Underwriting Ratios
     monthly_emi = loan_amt_inr / max(1.0, term_months)
     dti_percent = (monthly_emi / tot_inc) * 100.0
     annual_income = tot_inc * 12.0
     lti_ratio = loan_amt_inr / max(1.0, annual_income)
 
-    # Bureau & Credit History
     raw_cibil = raw_data.get('cibil_score') or raw_data.get('credit_score')
     if raw_cibil is not None and str(raw_cibil).strip() != '':
         cibil = _safe_int(raw_cibil, default=750)
@@ -76,7 +63,6 @@ def normalize_applicant(raw_data: Dict[str, Any]) -> Dict[str, Any]:
 
     credit_history = 1 if cibil >= 650 else 0
 
-    # Employment & Income Verification
     emp_type = str(raw_data.get('employment_type') or raw_data.get('Self_Employed') or 'Salaried').strip()
     emp_lower = emp_type.lower()
     is_freelance = any(w in emp_lower for w in ['freelanc', 'gig', 'contract', 'consult'])
@@ -85,7 +71,6 @@ def normalize_applicant(raw_data: Dict[str, Any]) -> Dict[str, Any]:
     raw_slip = str(raw_data.get('salary_slip') or raw_data.get('has_salary_slip') or 'Yes').strip().capitalize()
     salary_slip = 'Yes' if raw_slip in ['Yes', 'True', '1'] else 'No'
 
-    # Demographic & Property
     raw_area = str(raw_data.get('property_area') or raw_data.get('Property_Area') or 'Rural').strip().capitalize()
     property_area = raw_area if raw_area in ['Urban', 'Semiurban', 'Rural'] else 'Rural'
 

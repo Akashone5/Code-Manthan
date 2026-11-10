@@ -1,8 +1,3 @@
-"""
-Loan Underwriting and Decisioning Router
-Exposes scoring, SHAP explainability, scenario simulation, and vault operations.
-"""
-
 from typing import Optional, Dict, Any
 from fastapi import APIRouter, Header, Query, Request, status
 from fastapi.responses import JSONResponse
@@ -17,7 +12,6 @@ from src.api.schemas import (
 )
 
 router = APIRouter(prefix="/api", tags=["Loan Underwriting & Decisioning"])
-
 
 def _offline_guard(x_user_id: Optional[str] = None, x_user_role: Optional[str] = None, officer_key: Optional[str] = None):
     avail = database.get_site_availability()
@@ -37,7 +31,6 @@ def _offline_guard(x_user_id: Optional[str] = None, x_user_role: Optional[str] =
         }
     )
 
-
 @router.post(
     "/apply",
     summary="Submit loan application with automated scoring and persistence",
@@ -53,10 +46,6 @@ async def submit_application(
     x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
     x_user_role: Optional[str] = Header(default=None, alias="X-User-Role")
 ):
-    """
-    Submits a loan application. Executes machine learning risk assessment,
-    generates SHAP factor explanations, and persists the record to PostgreSQL and SQLite.
-    """
     guard_resp = _offline_guard(x_user_id=x_user_id, x_user_role=x_user_role)
     if guard_resp is not None:
         return guard_resp
@@ -96,7 +85,6 @@ async def submit_application(
             content={"success": False, "error": str(e)}
         )
 
-
 @router.post(
     "/predict",
     summary="Execute instant credit risk assessment & factor explainability",
@@ -111,9 +99,6 @@ async def predict_decision(
     x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
     x_user_role: Optional[str] = Header(default=None, alias="X-User-Role")
 ):
-    """
-    Evaluates credit probability and returns explainable positive and friction factor drivers.
-    """
     guard_resp = _offline_guard(x_user_id=x_user_id, x_user_role=x_user_role)
     if guard_resp is not None:
         return guard_resp
@@ -145,7 +130,6 @@ async def predict_decision(
             content={"success": False, "error": str(e)}
         )
 
-
 @router.post(
     "/what-if",
     summary="Simulate counterfactual scenario underwriting adjustments",
@@ -160,10 +144,6 @@ async def scenario_simulation(
     x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
     x_user_role: Optional[str] = Header(default=None, alias="X-User-Role")
 ):
-    """
-    Simulates changes to loan quantum, co-applicant income, or tenure to compute
-    instant score and EMI deltas.
-    """
     guard_resp = _offline_guard(x_user_id=x_user_id, x_user_role=x_user_role)
     if guard_resp is not None:
         return guard_resp
@@ -179,7 +159,6 @@ async def scenario_simulation(
             content={"success": False, "error": str(e)}
         )
 
-
 @router.post(
     "/officer/sanction",
     summary="Officer final adjudication, status update, and audit remarks",
@@ -191,14 +170,17 @@ async def scenario_simulation(
 )
 async def officer_sanction(
     payload: OfficerSanctionRequest,
-    x_user_role: Optional[str] = Header(default=None, alias="X-User-Role")
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+    x_user_role: Optional[str] = Header(default=None, alias="X-User-Role"),
+    x_officer_key: Optional[str] = Header(default=None, alias="X-Officer-Key")
 ):
-    """
-    Allows authorized credit officers to sanction, conditionally approve, or reject loan files,
-    recording an audit log with remarks.
-    """
     role = payload.officer_role or x_user_role
-    if role != "officer":
+    is_officer, _ = database.is_verified_officer(
+        user_id=x_user_id,
+        user_role=role,
+        officer_key=x_officer_key
+    )
+    if not is_officer:
         return JSONResponse(
             status_code=status.HTTP_403_FORBIDDEN,
             content={
@@ -225,7 +207,6 @@ async def officer_sanction(
             content={"success": False, "error": f"Application {payload.application_no} not found"}
         )
 
-
 @router.get(
     "/saved-applications",
     summary="Retrieve role-isolated loan applications vault",
@@ -236,14 +217,36 @@ async def list_saved_applications(
     role: Optional[str] = Query(default=None, description="Viewer role: applicant or officer"),
     email: Optional[str] = Query(default=None, description="Optional email filter"),
     x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
-    x_user_role: Optional[str] = Header(default=None, alias="X-User-Role")
+    x_user_role: Optional[str] = Header(default=None, alias="X-User-Role"),
+    x_officer_key: Optional[str] = Header(default=None, alias="X-Officer-Key")
 ):
-    """
-    Retrieves saved applications. Applicants only receive their own records;
-    Officers receive the full portfolio vault.
-    """
     resolved_user_id = user_id or x_user_id
-    resolved_role = role or x_user_role or ("applicant" if resolved_user_id else "officer")
+    resolved_role = (role or x_user_role or ("applicant" if resolved_user_id else "")).strip().lower()
+
+    if resolved_role == "officer":
+        is_officer, _ = database.is_verified_officer(
+            user_id=resolved_user_id,
+            user_role=resolved_role,
+            officer_key=x_officer_key
+        )
+        if not is_officer:
+            return JSONResponse(
+                status_code=status.HTTP_403_FORBIDDEN,
+                content={
+                    "success": False,
+                    "error": "Forbidden: Verified Loan Officer clearance required for portfolio-wide vault access."
+                }
+            )
+    elif not resolved_user_id:
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content={
+                "success": False,
+                "error": "Authentication required to access saved applications."
+            }
+        )
+    else:
+        resolved_role = "applicant"
 
     if resolved_role != "officer":
         guard_resp = _offline_guard(x_user_id=resolved_user_id, x_user_role=resolved_role)
@@ -265,7 +268,6 @@ async def list_saved_applications(
         }
     )
 
-
 @router.get(
     "/application/{application_no}",
     summary="Retrieve single loan application file details",
@@ -275,10 +277,14 @@ async def list_saved_applications(
         404: {"description": "Application not found"}
     }
 )
-async def get_application(application_no: str):
-    """
-    Fetches full dossier for a specific application reference number.
-    """
+async def get_application(
+    application_no: str,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+    x_user_role: Optional[str] = Header(default=None, alias="X-User-Role")
+):
+    guard_resp = _offline_guard(x_user_id=x_user_id, x_user_role=x_user_role)
+    if guard_resp is not None:
+        return guard_resp
     app = database.get_application_by_number(application_no)
     if app:
         return JSONResponse(

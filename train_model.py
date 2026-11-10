@@ -11,7 +11,6 @@ def train_and_score_model():
     print("                   Mission Bharat Retail Credit Division")
     print("=" * 76)
 
-    # 1. Resolve Dataset Paths
     base_dir = os.path.dirname(os.path.abspath(__file__))
     train_paths = [
         r'E:\archive\train_u6lujuX_CVtuZ9i (1).csv',
@@ -68,7 +67,6 @@ def train_and_score_model():
         ]
     print(f"           Successfully loaded {len(train_raw)} historical loan applications.")
 
-    # 2. Feature Extraction & Engineering
     feature_names = [
         'DTI_Percent',
         'ApplicantIncome',
@@ -103,7 +101,6 @@ def train_and_score_model():
             deps_str = str(r.get('Dependents', '0')).strip()
             deps_val = 3.0 if '3' in deps_str else (float(deps_str) if deps_str.isdigit() else 0.0)
             
-            # Credit history benchmark (1.0 = clean bureau score 750+, 0.0 = subprime 530)
             ch_raw = r.get('Credit_History')
             credit_hist = float(ch_raw) if (ch_raw is not None and str(ch_raw).strip() != '') else 1.0
 
@@ -133,7 +130,6 @@ def train_and_score_model():
     print(f"\n[STEP 2/5] Engineered {n_features} Quantitative Features across {n_samples} valid cases.")
     print("           - Features: " + ", ".join(feature_names[:6]) + "...")
 
-    # Calculate normalization parameters (Mean & Std Dev)
     means = [sum(X_train_raw[i][j] for i in range(n_samples)) / n_samples for j in range(n_features)]
     stds = []
     for j in range(n_features):
@@ -141,10 +137,8 @@ def train_and_score_model():
         std = math.sqrt(var)
         stds.append(std if std > 1e-6 else 1.0)
 
-    # Normalize training data
     X_norm = [[(X_train_raw[i][j] - means[j]) / stds[j] for j in range(n_features)] for i in range(n_samples)]
 
-    # 3. Model Training: Logistic Regression via Gradient Descent with L2 Regularization
     print("\n[STEP 3/5] Training Mathematical Logistic Regression (L2 Regularized SGD)...")
     random.seed(42)
     indices = list(range(n_samples))
@@ -180,7 +174,6 @@ def train_and_score_model():
         for j in range(n_features):
             weights[j] -= learning_rate * ((grad_w[j] / n_tr) + (l2_lambda * weights[j]))
 
-    # Model Evaluation on Validation Set (20% holdout)
     tp, fp, tn, fn = 0, 0, 0, 0
     for idx in val_idx:
         xi = X_norm[idx]
@@ -216,7 +209,6 @@ def train_and_score_model():
         effect = "INCREASES APPROVAL" if w > 0 else "INCREASES RISK"
         print(f"    * {name:24s}: {w:+.4f}  [{effect}]")
 
-    # Save Model Weights to JSON
     model_artifact = {
         'model_type': 'L2_Regularized_Logistic_Regression',
         'bias': bias,
@@ -236,7 +228,6 @@ def train_and_score_model():
         json.dump(model_artifact, f, indent=2)
     print(f"\n[OK] Trained model weights saved to: {artifact_path}")
 
-    # 4. Inference / Prediction on User's Cleaned Data
     if not cleaned_csv:
         print("[WARNING] Cleaned dataset not found for batch scoring.")
         return
@@ -267,7 +258,6 @@ def train_and_score_model():
         deps_str = str(r.get('Dependents', '0')).strip()
         deps_val = 3.0 if '3' in deps_str else (float(deps_str) if deps_str.isdigit() else 0.0)
 
-        # Intake credit benchmark default
         credit_hist = 1.0
 
         raw_feat = [
@@ -275,15 +265,12 @@ def train_and_score_model():
             married, grad, self_emp, deps_val, credit_hist
         ]
 
-        # Normalize using learned scalers
         norm_feat = [(raw_feat[j] - means[j]) / stds[j] for j in range(n_features)]
 
-        # Linear model logit & probability
         z = bias + sum(weights[j] * norm_feat[j] for j in range(n_features))
         prob = 1.0 / (1.0 + math.exp(-max(-500.0, min(500.0, z))))
         score_pct = int(round(prob * 100.0))
 
-        # Status & Risk Tier
         if score_pct >= 65:
             decision = 'Approved'
             tier = 'Tier 1 (Low Risk)'
@@ -297,7 +284,6 @@ def train_and_score_model():
         status_counts[decision] += 1
         tier_counts[tier] += 1
 
-        # Attribution / Explainability
         contributions = []
         for j in range(n_features):
             impact = weights[j] * norm_feat[j]
@@ -329,7 +315,6 @@ def train_and_score_model():
             'Primary_Risk_Factor': top_friction
         })
 
-    # 5. Export Scored Predictions CSV
     output_csv = os.path.join(base_dir, 'scored_loan_predictions_367.csv')
     print(f"\n[STEP 5/5] Exporting Scored Predictions to: {output_csv}")
     
@@ -354,7 +339,6 @@ def train_and_score_model():
     print(f"[SUCCESS] Complete inference file ready at: {output_csv}")
     print("=" * 76)
 
-    # Show first 5 scored cases
     print("\nSAMPLE SCORED APPLICANTS (Top 5):")
     print(f"{'Loan ID':<10} {'Income':<8} {'Loan (k)':<9} {'EMI':<8} {'DTI %':<7} {'Prob %':<7} {'Decision':<12} {'Risk Tier'}")
     print("-" * 76)

@@ -1,16 +1,6 @@
-"""
-Explainable Credit Underwriting (XAI) Engine
-Generates transparent factor attributions, risk friction points, and remediation roadmaps.
-Designed in compliance with RBI digital lending requirements for adverse action notifications.
-"""
-
 from typing import Dict, Any, List
 
 def explain_decision(applicant: Dict[str, Any], prediction: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Decomposes the credit underwriting decision into clear, human-understandable positive drivers,
-    risk factors, and practical steps for loan qualification.
-    """
     cibil = prediction.get('cibil_score', 750)
     dti = prediction.get('dti_percent', 0.0)
     emi = prediction.get('monthly_emi', 0)
@@ -27,7 +17,6 @@ def explain_decision(applicant: Dict[str, Any], prediction: Dict[str, Any]) -> D
     negative_factors: List[Dict[str, str]] = []
     recommendations: List[str] = []
 
-    # 1. Credit History Analysis
     if cibil >= 720:
         positive_factors.append({
             'factor': 'Prime Credit Bureau Record',
@@ -50,7 +39,6 @@ def explain_decision(applicant: Dict[str, Any], prediction: Dict[str, Any]) -> D
             'Settle any outstanding overdue accounts or obtain a formal No-Objection Certificate (NOC) to elevate your bureau score above 680.'
         )
 
-    # 2. Debt-to-Income (DTI) Analysis
     if dti <= 30.0:
         positive_factors.append({
             'factor': 'Comfortable Debt Service Coverage',
@@ -73,7 +61,6 @@ def explain_decision(applicant: Dict[str, Any], prediction: Dict[str, Any]) -> D
             'Extend loan tenure or moderate the requested loan amount to bring your monthly obligation below 40% of income.'
         )
 
-    # 3. Income Substantiation
     if salary_slip in ['Yes', 'True', '1']:
         positive_factors.append({
             'factor': 'Verified Formal Income',
@@ -100,7 +87,6 @@ def explain_decision(applicant: Dict[str, Any], prediction: Dict[str, Any]) -> D
                 'Submit formal bank account statements or an employer certification letter in lieu of salary slips.'
             )
 
-    # 4. Joint Household Cash Flow
     if coapp > 0:
         positive_factors.append({
             'factor': 'Earning Co-Applicant Strength',
@@ -117,7 +103,6 @@ def explain_decision(applicant: Dict[str, Any], prediction: Dict[str, Any]) -> D
             'Add an earning family member or spouse as a joint co-applicant to expand eligible debt service capacity.'
         )
 
-    # 5. Priority Lending Territory
     if area == 'Rural':
         positive_factors.append({
             'factor': 'Mission Bharat Rural Corridor Priority',
@@ -131,7 +116,6 @@ def explain_decision(applicant: Dict[str, Any], prediction: Dict[str, Any]) -> D
             'impact': '+4% Score Boost'
         })
 
-    # Decision Summary
     if status == 'Approved':
         summary = (
             f"Loan approved. With a credit assessment score of {score}%, the application fulfills "

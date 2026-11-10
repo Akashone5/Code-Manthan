@@ -1,9 +1,4 @@
-"""
-Comprehensive Automated System Test Suite
-Validates authentication, role clearance, feature normalization, credit scoring,
-explainability, fairness auditing, and dual-persistence database operations.
-"""
-
+import os
 from src.preprocess import normalize_applicant
 from src.train import predict_loan
 from src.explain import explain_decision
@@ -16,12 +11,10 @@ def run_tests():
     print("  MERIDIAN FAIRLEND SYSTEM VALIDATION & TEST SUITE")
     print("=" * 70)
 
-    # Test 1: Historical Dataset Loading
     dataset = load_sample_dataset()
     assert len(dataset) > 0, "Failed to load sample dataset"
     print("[OK] Test 1: Historical portfolio loaded successfully")
 
-    # Test 2: Preprocessing & Normalization
     raw_sample = {
         'ApplicantIncome': '45,000',
         'CoapplicantIncome': '15,000',
@@ -37,40 +30,35 @@ def run_tests():
     assert norm['dti_percent'] < 10.0, "DTI calculation mismatch"
     print(f"[OK] Test 2: Feature normalization pipeline verified (DTI: {norm['dti_percent']}%, EMI: Rs. {norm['monthly_emi']})")
 
-    # Test 3: Credit Decision & Scoring
     pred = predict_loan(norm)
     assert pred['status'] in ['Approved', 'Conditional', 'Rejected'], "Invalid decision status"
     assert 2 <= pred['approval_likelihood'] <= 98, "Score points outside valid range"
     print(f"[OK] Test 3: Underwriting scoring engine operational ({pred['status']}, Likelihood: {pred['approval_likelihood']}%)")
 
-    # Test 4: Explainability & Roadmap Generation
     exp = explain_decision(norm, pred)
     assert 'positive_factors' in exp and len(exp['positive_factors']) > 0, "Missing positive factors"
     assert 'verdict_summary' in exp, "Missing verdict summary"
     print(f"[OK] Test 4: Explainability engine verified ({len(exp['positive_factors'])} positive drivers, {len(exp['negative_factors'])} friction points)")
 
-    # Test 5: Algorithmic Fairness Audit
     fairness = check_fairness(dataset[:100])
     assert 'gender_fairness' in fairness, "Missing gender fairness audit"
     assert 'territory_fairness' in fairness, "Missing territory fairness audit"
     print(f"[OK] Test 5: Algorithmic fairness auditor verified (DIR Gender: {fairness['gender_fairness']['disparate_impact_ratio']})")
 
-    # Test 6: Counterfactual Scenario Simulation
     sim = simulate_what_if(norm, {'loan_amount': '100', 'loan_term_months': '240'})
     assert 'deltas' in sim, "Missing simulation deltas"
     print(f"[OK] Test 6: Scenario simulator operational (Score delta: {sim['deltas']['score_change']:+d})")
 
-    # Test 7: Authentication - Applicant & Officer Credentials
     app_login = database.login_user('applicant@meridianbank.in', 'Applicant@123')
     assert app_login.get('success'), "Applicant login failed"
     assert app_login['user']['role'] == 'applicant', "Applicant role mismatch"
 
-    off_login = database.login_user('officer@meridianbank.in', 'Officer@2026')
+    officer_pwd = os.environ.get('OFFICER_ADMIN_PASSWORD', 'Officer@2026')
+    off_login = database.login_user('officer@meridianbank.in', officer_pwd)
     assert off_login.get('success'), "Officer login failed"
     assert off_login['user']['role'] == 'officer', "Officer role mismatch"
     print(f"[OK] Test 7: Authentication verified for Applicant ({app_login['user']['email']}) and Officer ({off_login['user']['email']})")
 
-    # Test 8: Security - Officer Clearance Key Verification
     try:
         database.register_user('Fake Officer', 'fake.officer.test@example.com', '9811000000', 'Password@123', 'officer', 'INVALID_KEY')
         assert False, "Should have rejected unauthorized officer registration"
@@ -78,7 +66,6 @@ def run_tests():
         pass
     print("[OK] Test 8: Security clearance verified (unauthorized officer registration blocked)")
 
-    # Test 9: Database Dual-Persistence & Audit Logging
     test_applicant = {
         'full_name': 'Kavita Patel',
         'phone': '9811223344',
@@ -100,7 +87,6 @@ def run_tests():
     assert saved.get('application_no'), "Failed to persist application"
     print(f"[OK] Test 9: Persistence verified -> Application No: {saved['application_no']} (Linked to User ID: {app_login['user']['id']})")
 
-    # Test 10: Multi-Tenant Role Isolation (Applicant sees only own, Officer sees all)
     app_vault = database.get_all_saved_applications(user_id=app_login['user']['id'], role='applicant')
     off_vault = database.get_all_saved_applications(role='officer')
     assert len(app_vault) <= len(off_vault), "Applicant should not see more applications than officer"

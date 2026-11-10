@@ -21,19 +21,23 @@ function resolveApiBase() {
   return 'http://localhost:5000';
 }
 
+const DEFAULT_OFFLINE_TITLE_EN = 'Portal Temporarily Offline';
+const DEFAULT_OFFLINE_MSG_EN = 'Meridian FairLend AI is currently offline for scheduled maintenance. Online underwriting will resume shortly.';
+
 const state = {
-  currentRole: 'applicant', 
-  currentLang: localStorage.getItem('meridian_lang') || 'en', 
+  currentRole: 'applicant',
+  currentLang: localStorage.getItem('meridian_lang') || 'en',
   currentTab: 'apply-view',
   hasApplied: false,
   affirmativeMode: false,
   backendConnected: false,
+  backendHealthMeta: null,
   apiBase: resolveApiBase(),
   siteAvailability: {
     online: true,
     status: 'online',
-    title: 'Portal Temporarily Offline',
-    maintenance_message: 'Meridian FairLend AI is currently offline for scheduled maintenance. Online underwriting will resume shortly.',
+    title: DEFAULT_OFFLINE_TITLE_EN,
+    maintenance_message: DEFAULT_OFFLINE_MSG_EN,
     updated_by: 'System Administrator',
     updated_at: ''
   },
@@ -51,8 +55,8 @@ const state = {
     salary_slip: 'Yes',
     applicant_income: 75000,
     coapplicant_income: 20000,
-    loan_amount: 250, 
-    term: 84, 
+    loan_amount: 250,
+    term: 84,
     cibil_score: 780,
     credit_history: 1,
     property_area: 'Semiurban',
@@ -79,10 +83,6 @@ const state = {
   portfolioSearch: ''
 };
 
-
-// ============================================================================
-// AUTHENTICATION & ROLE-BASED ACCESS CONTROL (SUPABASE & PERSISTENT SESSION)
-// ============================================================================
 let currentAuthUser = null;
 let currentAuthToken = null;
 
@@ -92,6 +92,49 @@ function buildAuthHeaders(extra = {}) {
   if (currentAuthUser?.role) headers['X-User-Role'] = String(currentAuthUser.role);
   if (currentAuthToken) headers['Authorization'] = `Bearer ${currentAuthToken}`;
   return headers;
+}
+
+function getLangDict() {
+  return I18N[state.currentLang] || I18N.en;
+}
+
+function localizeArea(area, lang = state.currentLang) {
+  const raw = String(area || 'Urban').trim();
+  const low = raw.toLowerCase();
+  if (lang === 'hi') {
+    if (low === 'rural') return 'ग्रामीण भारत';
+    if (low === 'semiurban' || low === 'semi-urban') return 'अर्ध-शहरी';
+    if (low === 'urban') return 'शहरी / महानगर';
+    return raw;
+  }
+  if (low === 'rural') return 'Rural Bharat';
+  if (low === 'semiurban' || low === 'semi-urban') return 'Semi-Urban';
+  if (low === 'urban') return 'Urban Metro';
+  return raw;
+}
+
+function localizeStatus(status, lang = state.currentLang) {
+  const low = String(status || 'Approved').trim().toLowerCase();
+  if (lang === 'hi') {
+    if (low === 'approved') return 'स्वीकृत';
+    if (low === 'conditional') return 'सशर्त स्वीकृत';
+    if (low === 'rejected') return 'अस्वीकृत';
+    return status;
+  }
+  if (low === 'approved') return 'Approved';
+  if (low === 'conditional') return 'Conditional';
+  if (low === 'rejected') return 'Rejected';
+  return status;
+}
+
+function localizeGender(gender, lang = state.currentLang) {
+  const low = String(gender || '').trim().toLowerCase();
+  if (lang === 'hi') {
+    if (low === 'female') return 'महिला';
+    if (low === 'male') return 'पुरुष';
+    return 'अघोषित';
+  }
+  return gender || 'Not Disclosed';
 }
 
 window.switchAuthTab = function(tabName) {
@@ -121,7 +164,6 @@ window.switchAuthTab = function(tabName) {
     if (formSignup) formSignup.style.display = 'block';
     document.getElementById('signup-fullname')?.focus();
   } else {
-    // Default to applicant
     btnApp?.classList.add('active');
     if (formApp) formApp.style.display = 'block';
     document.getElementById('signin-applicant-email')?.focus();
@@ -189,6 +231,8 @@ window.showAuthAlert = function(msg, isError = true) {
 
 window.handleSignIn = async function(e, expectedRole = 'applicant') {
   e.preventDefault();
+  const hi = state.currentLang === 'hi';
+  const dict = getLangDict();
   const isOfficer = expectedRole === 'officer';
   const emailInput = document.getElementById(isOfficer ? 'signin-officer-email' : 'signin-applicant-email');
   const pwdInput = document.getElementById(isOfficer ? 'signin-officer-password' : 'signin-applicant-password');
@@ -198,14 +242,17 @@ window.handleSignIn = async function(e, expectedRole = 'applicant') {
   const password = pwdInput?.value.trim();
 
   if (!email || !password) {
-    window.showAuthAlert('Please enter both email address and password.');
+    window.showAuthAlert(hi ? 'कृपया ईमेल पता और पासवर्ड दोनों दर्ज करें।' : 'Please enter both email address and password.');
     return;
   }
 
-  const defaultBtnHtml = isOfficer ? '<span>🛡️</span> Sign In as Loan Officer' : '<span>👤</span> Sign In as Applicant';
+  const defaultBtnHtml = isOfficer
+    ? `<span>🛡️</span> <span data-i18n="btn_signin_officer">${dict.btn_signin_officer}</span>`
+    : `<span>👤</span> <span data-i18n="btn_signin_app">${dict.btn_signin_app}</span>`;
+
   if (btn) {
     btn.disabled = true;
-    btn.innerHTML = '<span>⏳</span> Verifying Clearance...';
+    btn.innerHTML = `<span>⏳</span> ${hi ? 'सत्यापन हो रहा है...' : 'Verifying Clearance...'}`;
   }
 
   try {
@@ -220,20 +267,20 @@ window.handleSignIn = async function(e, expectedRole = 'applicant') {
       window.applyAuthenticatedSession(data.user, data.token);
     } else if (res.status === 503 && data.offline) {
       await window.checkSiteAvailability();
-      window.showAuthAlert(data.error || 'Portal is temporarily offline for scheduled maintenance.');
+      window.showAuthAlert(data.error || (hi ? 'पोर्टल रखरखाव के लिए अस्थायी रूप से ऑफ़लाइन है।' : 'Portal is temporarily offline for scheduled maintenance.'));
     } else {
-      window.showAuthAlert(data.error || 'Authentication failed. Please verify credentials.');
+      window.showAuthAlert(data.error || (hi ? 'प्रमाणीकरण विफल रहा। कृपया विवरण जांचें।' : 'Authentication failed. Please verify credentials.'));
     }
   } catch (err) {
-    // Offline local fallback verification
-    if (isOfficer && email.toLowerCase() === 'officer@meridianbank.in' && password === 'Officer@2026') {
-      const fallbackUser = { id: '80ac8a07-45a2-40ec-aff5-5b605e4ca044', email, full_name: 'Vikram Sharma (Lead Credit Officer)', phone: '9811223344', role: 'officer' };
-      window.applyAuthenticatedSession(fallbackUser, 'offline-token-officer');
-    } else if (!isOfficer && (!state.siteAvailability || state.siteAvailability.online !== false) && email.toLowerCase() === 'applicant@meridianbank.in' && password === 'Applicant@123') {
+    if (!isOfficer && (!state.siteAvailability || state.siteAvailability.online !== false) && email.toLowerCase() === 'applicant@meridianbank.in' && password === 'Applicant@123') {
       const fallbackUser = { id: '03416d3d-ff2b-4101-9453-7509939590fc', email, full_name: 'Ananya Rao', phone: '9876543210', role: 'applicant' };
       window.applyAuthenticatedSession(fallbackUser, 'offline-token-applicant');
     } else {
-      window.showAuthAlert(`Unable to reach backend API at ${state.apiBase}. Verify network connection or API settings.`);
+      window.showAuthAlert(
+        hi
+          ? `${state.apiBase} पर बैकएंड एपीआई से संपर्क नहीं हो सका। कृपया नेटवर्क या सर्वर स्थिति जांचें।`
+          : `Unable to reach backend API at ${state.apiBase}. Verify network connection or API settings.`
+      );
     }
   } finally {
     if (btn) {
@@ -245,6 +292,8 @@ window.handleSignIn = async function(e, expectedRole = 'applicant') {
 
 window.handleSignUp = async function(e) {
   e.preventDefault();
+  const hi = state.currentLang === 'hi';
+  const dict = getLangDict();
   const fullName = document.getElementById('signup-fullname')?.value.trim();
   const email = document.getElementById('signup-email')?.value.trim();
   const phone = document.getElementById('signup-phone')?.value.trim();
@@ -255,23 +304,23 @@ window.handleSignUp = async function(e) {
   const btn = document.getElementById('btn-signup-submit');
 
   if (password !== confirmPassword) {
-    window.showAuthAlert('Passwords do not match. Please re-enter.');
+    window.showAuthAlert(hi ? 'पासवर्ड मेल नहीं खाते। कृपया पुनः दर्ज करें।' : 'Passwords do not match. Please re-enter.');
     return;
   }
 
   if (password.length < 8) {
-    window.showAuthAlert('Password must be at least 8 characters long.');
+    window.showAuthAlert(hi ? 'पासवर्ड कम से कम 8 अक्षरों का होना चाहिए।' : 'Password must be at least 8 characters long.');
     return;
   }
 
   if (role === 'officer' && !officerKey) {
-    window.showAuthAlert('Officer Clearance Key is required for loan officer account creation.');
+    window.showAuthAlert(hi ? 'ऋण अधिकारी खाता बनाने के लिए अधिकारी क्लीयरेंस पासकी आवश्यक है।' : 'Officer Clearance Key is required for loan officer account creation.');
     return;
   }
 
   if (btn) {
     btn.disabled = true;
-    btn.innerHTML = '<span>⏳</span> Registering Account...';
+    btn.innerHTML = `<span>⏳</span> ${hi ? 'खाता पंजीकृत हो रहा है...' : 'Registering Account...'}`;
   }
 
   try {
@@ -291,7 +340,7 @@ window.handleSignUp = async function(e) {
 
     const data = await res.json();
     if (res.ok && data.success) {
-      window.showAuthAlert('Account created successfully! Redirecting to Sign In...', false);
+      window.showAuthAlert(hi ? 'खाता सफलतापूर्वक बन गया! साइन-इन पर ले जाया जा रहा है...' : 'Account created successfully! Redirecting to Sign In...', false);
       setTimeout(() => {
         const targetRole = role === 'officer' ? 'officer' : 'applicant';
         window.switchAuthTab(targetRole);
@@ -299,16 +348,16 @@ window.handleSignUp = async function(e) {
       }, 1200);
     } else if (res.status === 503 && data.offline) {
       await window.checkSiteAvailability();
-      window.showAuthAlert(data.error || 'Registration paused while website is in maintenance mode.');
+      window.showAuthAlert(data.error || (hi ? 'पोर्टल रखरखाव मोड में होने के कारण पंजीकरण अस्थायी रूप से रुका है।' : 'Registration paused while website is in maintenance mode.'));
     } else {
-      window.showAuthAlert(data.error || 'Account registration failed.');
+      window.showAuthAlert(data.error || (hi ? 'खाता पंजीकरण विफल रहा।' : 'Account registration failed.'));
     }
   } catch (err) {
-    window.showAuthAlert(`Network error contacting ${state.apiBase}. Please verify backend availability.`);
+    window.showAuthAlert(hi ? `${state.apiBase} से संपर्क करने में नेटवर्क त्रुटि हुई।` : `Network error contacting ${state.apiBase}. Please verify backend availability.`);
   } finally {
     if (btn) {
       btn.disabled = false;
-      btn.innerHTML = '<span>✨</span> Create Verified Account';
+      btn.innerHTML = `<span>✨</span> <span data-i18n="btn_signup_submit">${dict.btn_signup_submit}</span>`;
     }
   }
 };
@@ -341,19 +390,37 @@ window.handleLogout = function() {
 };
 
 window.openForgotPassword = function() {
-  const email = prompt("Enter your registered email address to receive password recovery instructions:");
+  const hi = state.currentLang === 'hi';
+  const promptText = hi
+    ? 'पासवर्ड रिकवरी निर्देश प्राप्त करने के लिए अपना पंजीकृत ईमेल पता दर्ज करें:'
+    : 'Enter your registered email address to receive password recovery instructions:';
+  const email = prompt(promptText);
   if (email && email.trim()) {
     fetch(`${state.apiBase}/api/auth/forgot-password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: email.trim() })
     }).then(r => r.json()).then(data => {
-      alert(data.message || `Password recovery link dispatched to ${email}.`);
+      alert(data.message || (hi ? `पासवर्ड रिकवरी लिंक ${email} पर भेजा गया है।` : `Password recovery link dispatched to ${email}.`));
     }).catch(() => {
-      alert(`Password recovery instructions sent to ${email}. Please check your inbox.`);
+      alert(hi ? `पासवर्ड रिकवरी निर्देश ${email} पर भेजे गए हैं। कृपया अपना इनबॉक्स जांचें।` : `Password recovery instructions sent to ${email}. Please check your inbox.`);
     });
   }
 };
+
+function updateAuthRoleUI() {
+  const dict = getLangDict();
+  const roleEl = document.getElementById('user-display-role');
+  const isOfficer = currentAuthUser?.role === 'officer' || state.currentRole === 'officer';
+  if (roleEl && currentAuthUser) {
+    roleEl.innerText = isOfficer ? dict.role_badge_officer : dict.role_badge_applicant;
+    roleEl.className = `user-auth-role-badge ${currentAuthUser.role}`;
+  }
+  const dbTab = document.querySelector('[data-tab="database-view"]');
+  if (dbTab) {
+    dbTab.innerHTML = isOfficer ? dict.nav_vault_officer : dict.nav_vault_applicant;
+  }
+}
 
 window.applyAuthenticatedSession = function(user, token) {
   currentAuthUser = user;
@@ -364,16 +431,9 @@ window.applyAuthenticatedSession = function(user, token) {
     if (token) localStorage.setItem('meridian_auth_token', token);
   } catch (e) {}
 
-  // Update UI Widget
   const nameEl = document.getElementById('user-display-name');
-  const roleEl = document.getElementById('user-display-role');
   if (nameEl) nameEl.innerText = user.full_name || user.email;
-  if (roleEl) {
-    roleEl.innerText = user.role === 'officer' ? 'LOAN OFFICER' : 'APPLICANT';
-    roleEl.className = `user-auth-role-badge ${user.role}`;
-  }
 
-  // Hide Auth Portal & Maintenance Screen, Reveal Dashboard Shell
   const maintOverlay = document.getElementById('maintenance-overlay');
   const portal = document.getElementById('auth-portal');
   const shell = document.getElementById('app-shell');
@@ -381,7 +441,6 @@ window.applyAuthenticatedSession = function(user, token) {
   if (portal) portal.style.display = 'none';
   if (shell) shell.style.display = 'block';
 
-  // Role segregation
   state.currentRole = user.role;
 
   if (user.role === 'applicant') {
@@ -389,35 +448,23 @@ window.applyAuthenticatedSession = function(user, token) {
       if (shell) shell.style.display = 'none';
       if (maintOverlay) maintOverlay.style.display = 'flex';
     }
-    // Auto-fill applicant form with profile information
     const nameInput = document.getElementById('fill-full-name') || document.getElementById('fill-name');
     const phoneInput = document.getElementById('fill-phone');
     if (nameInput && !nameInput.value) nameInput.value = user.full_name || '';
     if (phoneInput && !phoneInput.value) phoneInput.value = user.phone || '';
 
-    // Hide officer tabs & controls
     document.querySelectorAll('.nav-officer-item').forEach(el => el.style.display = 'none');
     document.querySelectorAll('.nav-common-item').forEach(el => el.style.display = 'flex');
-
-    // Rename Tab 3 for applicant
-    const dbTab = document.querySelector('[data-tab="database-view"]');
-    if (dbTab) dbTab.innerHTML = '<span>🗄️</span> 3. My Applications Vault';
-
-    // Open Apply View
+    updateAuthRoleUI();
     document.querySelector('[data-tab="apply-view"]')?.click();
   } else {
-    // Officer view: full access
     document.querySelectorAll('.nav-officer-item').forEach(el => el.style.display = 'flex');
     document.querySelectorAll('.nav-common-item').forEach(el => el.style.display = 'flex');
-
-    // Rename Tab 3 for officer
-    const dbTab = document.querySelector('[data-tab="database-view"]');
-    if (dbTab) dbTab.innerHTML = '<span>🗄️</span> 3. Central Application Vault (Institution-Wide)';
-
-    // Open Central Vault
+    updateAuthRoleUI();
     document.querySelector('[data-tab="database-view"]')?.click();
   }
 
+  applyTranslations();
   syncSiteAvailabilityUI();
   window.refreshDatabaseTable();
 };
@@ -471,26 +518,41 @@ function syncSiteAvailabilityUI() {
   const avail = state.siteAvailability || { online: true };
   const isOnline = avail.online !== false;
   const isOfficer = currentAuthUser && currentAuthUser.role === 'officer';
+  const hi = state.currentLang === 'hi';
+  const dict = getLangDict();
 
   const maintOverlay = document.getElementById('maintenance-overlay');
   const portal = document.getElementById('auth-portal');
   const shell = document.getElementById('app-shell');
 
+  const rawTitle = (avail.title || '').trim();
+  const rawMsg = (avail.maintenance_message || '').trim();
+  const displayTitle = (!rawTitle || rawTitle === DEFAULT_OFFLINE_TITLE_EN)
+    ? dict.default_maint_title
+    : rawTitle;
+  const displayMsg = (!rawMsg || rawMsg === DEFAULT_OFFLINE_MSG_EN)
+    ? dict.default_maint_msg
+    : rawMsg;
+
   const maintTitle = document.getElementById('maint-title');
   const maintMsg = document.getElementById('maint-message');
   const maintMeta = document.getElementById('maint-meta');
-  if (maintTitle) maintTitle.innerText = avail.title || 'Portal Temporarily Offline';
-  if (maintMsg) maintMsg.innerText = avail.maintenance_message || 'Meridian FairLend AI is currently offline for scheduled maintenance.';
+  if (maintTitle) maintTitle.innerText = displayTitle;
+  if (maintMsg) maintMsg.innerText = displayMsg;
   if (maintMeta) {
-    maintMeta.innerText = avail.updated_at
-      ? `Updated ${avail.updated_at} by ${avail.updated_by || 'Administrator'}`
-      : 'Managed by Meridian Institutional Operations';
+    if (avail.updated_at) {
+      maintMeta.innerText = hi
+        ? `अद्यतन: ${avail.updated_at} • द्वारा: ${avail.updated_by || 'सिस्टम प्रशासक'}`
+        : `Updated ${avail.updated_at} by ${avail.updated_by || 'Administrator'}`;
+    } else {
+      maintMeta.innerText = dict.maint_meta_default;
+    }
   }
 
   const authPill = document.getElementById('auth-site-status-pill');
   if (authPill) {
     authPill.className = `site-status-pill ${isOnline ? 'online' : 'offline'}`;
-    authPill.innerHTML = `<span class="status-dot"></span> ${isOnline ? 'Website: ONLINE' : 'Website: OFFLINE'}`;
+    authPill.innerHTML = `<span class="status-dot"></span> ${isOnline ? dict.pill_site_online : dict.pill_site_offline}`;
   }
 
   const officerPill = document.getElementById('officer-site-toggle-pill');
@@ -499,7 +561,7 @@ function syncSiteAvailabilityUI() {
     officerPill.className = `site-status-pill nav-officer-item ${isOnline ? 'online' : 'offline'}`;
     officerPill.style.display = isOfficer ? 'inline-flex' : 'none';
   }
-  if (officerPillText) officerPillText.innerText = isOnline ? 'Website: ONLINE' : 'Website: OFFLINE';
+  if (officerPillText) officerPillText.innerText = isOnline ? dict.pill_site_online : dict.pill_site_offline;
 
   const offlineBanner = document.getElementById('officer-offline-alert-banner');
   if (offlineBanner) {
@@ -511,20 +573,18 @@ function syncSiteAvailabilityUI() {
   const cockpitToggleBtn = document.getElementById('btn-cockpit-quick-toggle');
   if (cockpitBadge) {
     cockpitBadge.className = `badge ${isOnline ? 'badge-success' : 'badge-danger'}`;
-    cockpitBadge.innerText = isOnline ? 'ONLINE (LIVE)' : 'OFFLINE (MAINTENANCE)';
+    cockpitBadge.innerText = isOnline ? dict.cockpit_badge_online : dict.cockpit_badge_offline;
   }
   if (cockpitSub) {
-    cockpitSub.innerText = isOnline
-      ? 'All public underwriting, application intake, and applicant login routes are active.'
-      : (avail.maintenance_message || 'Public portal is offline; visitors see the maintenance notice.');
+    cockpitSub.innerText = isOnline ? dict.cockpit_sub_online : displayMsg;
   }
   if (cockpitToggleBtn) {
     if (isOnline) {
       cockpitToggleBtn.style.background = '#DC2626';
-      cockpitToggleBtn.innerHTML = '<span>🔴</span> Take Website Offline';
+      cockpitToggleBtn.innerHTML = `<span>🔴</span> ${dict.btn_take_offline}`;
     } else {
       cockpitToggleBtn.style.background = '#059669';
-      cockpitToggleBtn.innerHTML = '<span>🟢</span> Bring Website Online';
+      cockpitToggleBtn.innerHTML = `<span>🟢</span> ${dict.btn_bring_online}`;
     }
   }
 
@@ -532,12 +592,14 @@ function syncSiteAvailabilityUI() {
   const modalDetail = document.getElementById('modal-site-status-detail');
   if (modalBadge) {
     modalBadge.className = `badge ${isOnline ? 'badge-success' : 'badge-danger'}`;
-    modalBadge.innerText = isOnline ? 'ONLINE' : 'OFFLINE';
+    modalBadge.innerText = isOnline ? dict.badge_online : dict.badge_offline;
   }
   if (modalDetail) {
     modalDetail.innerText = isOnline
-      ? 'Website is live and accessible to all applicants & visitors.'
-      : `Offline since ${avail.updated_at || 'just now'} (${avail.updated_by || 'Officer'}).`;
+      ? dict.modal_site_live_desc
+      : (hi
+        ? `ऑफ़लाइन समय: ${avail.updated_at || 'अभी'} (${avail.updated_by || 'ऋण अधिकारी'})।`
+        : `Offline since ${avail.updated_at || 'just now'} (${avail.updated_by || 'Officer'}).`);
   }
 
   if (!isOnline && !isOfficer) {
@@ -556,6 +618,7 @@ function syncSiteAvailabilityUI() {
 }
 
 window.checkSiteAvailability = async function(isManual = false) {
+  const hi = state.currentLang === 'hi';
   try {
     const controller = new AbortController();
     const tid = setTimeout(() => controller.abort(), 3500);
@@ -568,15 +631,20 @@ window.checkSiteAvailability = async function(isManual = false) {
         state.siteAvailability = data;
         syncSiteAvailabilityUI();
         if (isManual) {
-          window.showMeridianToast(data.online ? '🟢 Website is ONLINE and ready.' : '🔴 Website is currently OFFLINE (Maintenance Mode).', !data.online);
+          window.showMeridianToast(
+            data.online
+              ? (hi ? '🟢 वेबसाइट ऑनलाइन है और सक्रिय है।' : '🟢 Website is ONLINE and ready.')
+              : (hi ? '🔴 वेबसाइट वर्तमान में ऑफ़लाइन (रखरखाव मोड) में है।' : '🔴 Website is currently OFFLINE (Maintenance Mode).'),
+            !data.online
+          );
         } else if (wasOffline && data.online) {
-          window.showMeridianToast('🟢 Website is back ONLINE!');
+          window.showMeridianToast(hi ? '🟢 वेबसाइट पुनः ऑनलाइन हो गई है!' : '🟢 Website is back ONLINE!');
         }
         return data;
       }
     }
   } catch (e) {
-    if (isManual) window.showMeridianToast('Checking status... server unreachable right now.', true);
+    if (isManual) window.showMeridianToast(hi ? 'स्थिति जांच विफल: सर्वर अभी उपलब्ध नहीं है।' : 'Checking status... server unreachable right now.', true);
   }
   return state.siteAvailability;
 };
@@ -586,8 +654,8 @@ window.openSiteAvailabilityModal = function() {
   if (!modal) return;
   const titleInput = document.getElementById('site-maint-title-input');
   const msgInput = document.getElementById('site-maint-msg-input');
-  if (titleInput) titleInput.value = state.siteAvailability?.title || 'Portal Temporarily Offline';
-  if (msgInput) msgInput.value = state.siteAvailability?.maintenance_message || 'Meridian FairLend AI is currently offline for scheduled maintenance. Online underwriting will resume shortly.';
+  if (titleInput) titleInput.value = state.siteAvailability?.title || DEFAULT_OFFLINE_TITLE_EN;
+  if (msgInput) msgInput.value = state.siteAvailability?.maintenance_message || DEFAULT_OFFLINE_MSG_EN;
   syncSiteAvailabilityUI();
   modal.style.display = 'flex';
 };
@@ -603,11 +671,9 @@ window.quickToggleWebsiteAvailability = function() {
 };
 
 window.setWebsiteOnlineState = async function(targetOnline, customTitle = null, customMsg = null, officerKey = null) {
+  const hi = state.currentLang === 'hi';
   try {
-    const reqHeaders = { 'Content-Type': 'application/json' };
-    if (currentAuthUser?.id) reqHeaders['X-User-Id'] = String(currentAuthUser.id);
-    if (currentAuthUser?.role) reqHeaders['X-User-Role'] = String(currentAuthUser.role);
-    if (currentAuthToken) reqHeaders['Authorization'] = `Bearer ${currentAuthToken}`;
+    const reqHeaders = buildAuthHeaders({ 'Content-Type': 'application/json' });
     if (officerKey) reqHeaders['X-Officer-Key'] = String(officerKey);
 
     const bodyPayload = { online: Boolean(targetOnline) };
@@ -622,7 +688,7 @@ window.setWebsiteOnlineState = async function(targetOnline, customTitle = null, 
     });
     const data = await res.json();
     if (!res.ok || !data.success) {
-      window.showMeridianToast(data.error || 'Failed to update website availability.', true);
+      window.showMeridianToast(data.error || (hi ? 'वेबसाइट स्थिति अपडेट करने में त्रुटि।' : 'Failed to update website availability.'), true);
       return false;
     }
 
@@ -631,13 +697,13 @@ window.setWebsiteOnlineState = async function(targetOnline, customTitle = null, 
     window.closeSiteAvailabilityModal();
     window.showMeridianToast(
       data.online
-        ? '🟢 Website is now ONLINE & publicly accessible.'
-        : '🔴 Website is now OFFLINE (Public Maintenance Mode active).',
+        ? (hi ? '🟢 वेबसाइट अब ऑनलाइन और सार्वजनिक रूप से उपलब्ध है।' : '🟢 Website is now ONLINE & publicly accessible.')
+        : (hi ? '🔴 वेबसाइट अब ऑफ़लाइन (सार्वजनिक रखरखाव मोड सक्रिय) है।' : '🔴 Website is now OFFLINE (Public Maintenance Mode active).'),
       !data.online
     );
     return true;
   } catch (e) {
-    window.showMeridianToast('Network error updating website status.', true);
+    window.showMeridianToast(hi ? 'वेबसाइट स्थिति अपडेट करने में नेटवर्क त्रुटि।' : 'Network error updating website status.', true);
     return false;
   }
 };
@@ -650,13 +716,18 @@ window.toggleMaintAdminDrawer = function() {
 
 window.handleMaintOfficerSignIn = async function(e) {
   e.preventDefault();
+  const hi = state.currentLang === 'hi';
+  const dict = getLangDict();
   const email = document.getElementById('maint-officer-email')?.value.trim();
   const password = document.getElementById('maint-officer-password')?.value.trim();
   const alertEl = document.getElementById('maint-admin-alert');
   const btn = document.getElementById('btn-maint-officer-signin');
   if (!email || !password) return;
 
-  if (btn) { btn.disabled = true; btn.innerHTML = '<span>⏳</span> Signing In...'; }
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<span>⏳</span> ${hi ? 'साइन इन हो रहा है...' : 'Signing In...'}`;
+  }
   try {
     const res = await fetch(`${state.apiBase}/api/auth/signin`, {
       method: 'POST',
@@ -667,33 +738,37 @@ window.handleMaintOfficerSignIn = async function(e) {
     if (res.ok && data.success) {
       if (alertEl) alertEl.style.display = 'none';
       window.applyAuthenticatedSession(data.user, data.token);
-      window.showMeridianToast('🛡️ Officer authenticated. Use the banner above to bring the website Online.');
+      window.showMeridianToast(hi ? '🛡️ अधिकारी सत्यापन सफल। वेबसाइट ऑनलाइन करने के लिए ऊपर दिए गए बैनर का उपयोग करें।' : '🛡️ Officer authenticated. Use the banner above to bring the website Online.');
     } else {
       if (alertEl) {
         alertEl.className = 'auth-alert auth-alert-error';
-        alertEl.innerHTML = '⚠️ ' + (data.error || 'Officer authentication failed.');
+        alertEl.innerHTML = '⚠️ ' + (data.error || (hi ? 'अधिकारी प्रमाणीकरण विफल रहा।' : 'Officer authentication failed.'));
         alertEl.style.display = 'block';
       }
     }
   } catch (err) {
     if (alertEl) {
       alertEl.className = 'auth-alert auth-alert-error';
-      alertEl.innerHTML = '⚠️ Network error reaching authentication gateway.';
+      alertEl.innerHTML = `⚠️ ${hi ? 'प्रमाणीकरण गेटवे तक पहुंचने में नेटवर्क त्रुटि।' : 'Network error reaching authentication gateway.'}`;
       alertEl.style.display = 'block';
     }
   } finally {
-    if (btn) { btn.disabled = false; btn.innerHTML = '<span>🛡️</span> Sign In to Officer Cockpit'; }
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = `<span>🛡️</span> <span data-i18n="btn_maint_signin">${dict.btn_maint_signin}</span>`;
+    }
   }
 };
 
 window.handleMaintPasskeyBringOnline = async function() {
+  const hi = state.currentLang === 'hi';
   const passInput = document.getElementById('maint-passkey-input');
   const alertEl = document.getElementById('maint-admin-alert');
   const keyVal = passInput?.value.trim();
   if (!keyVal) {
     if (alertEl) {
       alertEl.className = 'auth-alert auth-alert-error';
-      alertEl.innerHTML = '⚠️ Please enter the Officer Clearance Key (e.g. OFFICER-2026).';
+      alertEl.innerHTML = `⚠️ ${hi ? 'कृपया अपना अधिकारी क्लीयरेंस पासकी दर्ज करें।' : 'Please enter your Officer Clearance Key.'}`;
       alertEl.style.display = 'block';
     }
     return;
@@ -701,7 +776,7 @@ window.handleMaintPasskeyBringOnline = async function() {
   const ok = await window.setWebsiteOnlineState(true, null, null, keyVal);
   if (!ok && alertEl) {
     alertEl.className = 'auth-alert auth-alert-error';
-    alertEl.innerHTML = '⚠️ Invalid Officer Clearance Key.';
+    alertEl.innerHTML = `⚠️ ${hi ? 'अमान्य अधिकारी क्लीयरेंस पासकी।' : 'Invalid Officer Clearance Key.'}`;
     alertEl.style.display = 'block';
   }
 };
@@ -807,29 +882,123 @@ const DEFAULT_BASELINE_APPLICATIONS = [
 
 const I18N = {
   en: {
+    page_title: "Meridian FairLend AI • MISSION BHARAT | Explainable Loan Decision System",
     lang_btn: "🇮🇳 हिन्दी (Hindi)",
+    title_lang_btn: "Bilingual Language Switcher",
     brand_title: "Meridian FairLend AI",
     brand_badge: "Mission Bharat",
     brand_sub: "AI-Powered Explainable Lending & Demographic Equity Platform",
-    nav_apply: "📝 1. Apply for a Loan",
-    nav_report: "📊 2. My Decision Report & Explanations",
-    nav_sim: "🎛️ 3. \"What-If\" Live Simulator",
-    nav_officer: "⚙️ Underwriting Cockpit & SHAP Waterfall",
-    nav_vault: "🗄️ Application Vault & Registry",
-    nav_accuracy: "🎯 Model Accuracy Report",
-    nav_fairness: "⚖️ Fairness Across Groups",
-    nav_portfolio: "📁 Historical Portfolio",
+    maint_header_pill: "WEBSITE OFFLINE",
+    maint_card_badge: "SCHEDULED MAINTENANCE • PORTAL OFFLINE",
+    default_maint_title: DEFAULT_OFFLINE_TITLE_EN,
+    default_maint_msg: DEFAULT_OFFLINE_MSG_EN,
+    maint_meta_default: "Managed by Meridian Institutional Operations",
+    btn_check_status: "Check Website Status",
+    btn_admin_ctrl: "Officer / Admin Control",
+    maint_override_title: "Administrator / Officer Override",
+    maint_override_desc: "Sign in with Loan Officer credentials to access the cockpit, or enter your Officer Clearance Key to publish the website back online immediately.",
+    btn_maint_signin: "Sign In to Officer Cockpit",
+    lbl_quick_publish_key: "Quick Publish With Officer Clearance Key",
+    ph_passkey: "Enter officer clearance key",
+    btn_bring_online: "Bring Website Online",
+    btn_take_offline: "Take Website Offline",
+    pill_site_online: "Website: ONLINE",
+    pill_site_offline: "Website: OFFLINE",
+    auth_gateway_badge: "Institutional Access Gateway",
+    mission_strip_left: '<strong style="color: #064E3B;">Track:</strong> Application Development &nbsp;|&nbsp; <strong style="color: #064E3B;">Domain:</strong> Banking &amp; Lending &nbsp;|&nbsp; <strong style="color: #064E3B;">System:</strong> भारत ऋण पारदर्शिता एवं समावेशन मंच',
+    auth_mission_right: "Dual-Sync Core Engine • RBI Digital Lending Standards",
+    auth_hero_tag: "🏛️ SECURE CREDIT UNDERWRITING GATEWAY",
+    auth_hero_title: "Explainable Loan Decision System",
+    auth_hero_desc: "Empowering transparent, fair, and algorithmic credit decisions across Bharat with SHAP explainability and demographic parity auditing.",
+    auth_card_sub: "Mission Bharat • Institutional Credit Underwriting & Algorithmic Equity",
+    auth_tab_applicant: "Applicant Sign In",
+    auth_tab_officer: "Officer Sign In",
+    auth_tab_signup: "Create Account",
+    auth_tag_applicant: "APPLICANT PORTAL • PERSONAL ACCESS",
+    auth_tag_officer: "LOAN OFFICER TERMINAL • INSTITUTIONAL ACCESS",
+    lbl_app_email: "Applicant Email Address",
+    ph_app_email: "applicant@domain.com",
+    lbl_password: "Password",
+    link_forgot_pwd: "Forgot Password?",
+    title_show_hide_pwd: "Show/Hide Password",
+    btn_signin_app: "Sign In as Applicant",
+    auth_demo_app_title: "Applicant Evaluation Account",
+    auth_demo_app_btn: "👤 Ananya Rao (Applicant Demo)",
+    lbl_officer_email: "Institutional Officer Email",
+    lbl_officer_pwd: "Officer Password",
+    btn_signin_officer: "Sign In as Loan Officer",
+    auth_officer_security_title: "Authorized Institutional Portal",
+    auth_officer_security_note: "Officer login requires verified bank credentials issued by your branch administrator. Protected by sliding-window brute-force defense.",
+    lbl_su_name: "Full Name",
+    ph_su_name: "e.g. Ananya Rao",
+    lbl_su_email: "Email Address",
+    lbl_su_phone: "Mobile Number",
+    ph_su_phone: "10-digit mobile number",
+    lbl_su_role_type: "Account Role Type",
+    su_role_app_title: "Applicant",
+    su_role_app_desc: "Apply & Track Loan",
+    su_role_off_title: "Loan Officer",
+    su_role_off_desc: "Audit & Decisioning",
+    lbl_su_passkey: "Officer Clearance Key (Passkey)",
+    su_passkey_hint: "Institutional authorization required. Obtain your Officer Clearance Key from your branch administrator.",
+    lbl_su_pwd: "Password (Min 8 chars, letter + digit)",
+    lbl_su_confirm_pwd: "Confirm Password",
+    btn_signup_submit: "Create Verified Account",
+    auth_comp_1: "🔒 End-to-End Encrypted Session",
+    auth_comp_2: "PBKDF2-HMAC-SHA256 Cryptography",
+    auth_comp_3: "Persistent Vault & Cloud Sync",
+    auth_comp_4: "RBI Fair Lending Framework",
+    role_badge_applicant: "APPLICANT",
+    role_badge_officer: "LOAN OFFICER",
+    title_site_toggle_pill: "Control public website availability (Online / Offline)",
+    title_signout: "Sign Out of Session",
+    btn_signout: "Sign Out",
+    title_backend_badge: "Click to check or configure REST Backend API connection",
+    nav_apply: "<span>📝</span> 1. Apply for a Loan",
+    nav_report: "<span>📊</span> 2. My Decision Report",
+    nav_vault_applicant: "<span>🗄️</span> 3. My Applications Vault",
+    nav_vault_officer: "<span>🗄️</span> 3. Central Application Vault (Institution-Wide)",
+    nav_portfolio: "<span>📁</span> 4. Historical Portfolio",
+    nav_officer: "<span>⚙️</span> Underwriting Cockpit & SHAP Waterfall",
+    nav_accuracy: '<span>🎯</span> Model Accuracy Report <span class="tag">80% Accuracy</span>',
+    nav_fairness: '<span>⚖️</span> Fairness Across Groups <span class="tag">80% Rule</span>',
+    off_banner_title: "🔴 Website is Currently OFFLINE (Public Maintenance Mode Active)",
+    off_banner_desc: "Public visitors and applicants currently see the Maintenance Notice screen. Officer operations remain accessible.",
+    btn_put_online_now: "Put Website Online Now",
+    btn_configure_notice: "Configure Notice",
+    sub_banner_title: "Your Application Has Been Submitted!",
+    sub_banner_ref_lbl: "Reference:",
+    sub_banner_desc: "Stored securely in Meridian Vault. Review your instant underwriting report below:",
+    btn_dl_sanction: "Download Sanction Letter",
+    btn_dismiss: "Dismiss",
+    hero_gauge_lbl: "Automated Approval Likelihood",
+    hero_baseline_lbl: "Approval Baseline: ≥ 50%",
+    apply_eyebrow: "Mission Bharat • Direct Borrower Application Portal",
     apply_heading: "Submit a Retail Loan Application",
     apply_subheading: "Fill in your personal profile, monthly earnings, CIBIL score, and requested facility. Your application is automatically analyzed by AI and permanently recorded in the Meridian Application Vault & Registry.",
+    apply_storage_lbl: "Storage Engine",
+    apply_storage_val: "Secure Application Vault",
+    apply_suc_title: "Application Successfully Saved in Database!",
+    apply_suc_ref_prefix: "Your application has been assigned Reference ID",
+    apply_suc_ref_suffix: "and recorded permanently in the Meridian Vault.",
+    apply_suc_status_lbl: "Status:",
+    apply_suc_score_lbl: "AI Score:",
+    apply_suc_emi_lbl: "Monthly EMI:",
+    apply_suc_cibil_lbl: "CIBIL Tier:",
+    btn_inspect_cockpit: "Inspect in Cockpit",
+    btn_view_db_table: "View Database Table",
     sec_personal: "1. Personal & Demographic Profile",
     lbl_name: "Full Name of Applicant *",
+    ph_fill_name: "e.g. Ananya Rao, Devansh Kulkarni",
     lbl_phone: "Contact Mobile Number *",
+    ph_fill_phone: "10-digit mobile (e.g. 9876543210)",
     lbl_gender: "Gender *",
     lbl_married: "Marital Status *",
     lbl_dependents: "Number of Dependents *",
     lbl_education: "Highest Education Level *",
     lbl_employment: "Primary Employment & Livelihood *",
     lbl_salary_slip: "Official Salary Slip Available? *",
+    hint_doc_proof: "Documentary Proof",
     txt_slip_yes: "✓ Yes (Salary Slip Available)",
     txt_slip_no: "✕ No (Bank Statement / Digital Invoices)",
     lbl_area: "Property & Residence Territory *",
@@ -838,10 +1007,65 @@ const I18N = {
     lbl_coapp_income: "Co-Applicant Monthly Income (₹)",
     lbl_purpose: "Loan Facility Purpose *",
     lbl_loan_amount: "Requested Loan (in Thousands ₹) *",
+    hint_loan_thousands: "150 = ₹1,50,000 INR",
     lbl_tenure: "Loan Tenure (1 to 30 Years) *",
+    tick_1yr: "1 Year (12m)",
+    tick_5yr: "5 Yrs",
+    tick_10yr: "10 Yrs",
+    tick_15yr: "15 Yrs",
+    tick_20yr: "20 Yrs",
+    tick_30yr: "30 Years (360m)",
+    tick_none: "₹0 (None)",
+    lbl_choose_year: "Choose any year:",
+    lbl_years_flex: "years (Flexible from 1 to 30 yrs)",
     lbl_cibil: "CIBIL Credit Bureau Score *",
-    btn_submit_app: "🚀 Submit Application",
-    sim_title: "🎛️ Interactive \"What-If\" Counterfactual Simulator",
+    tick_cibil_300: "300 (Subprime)",
+    tick_cibil_300_poor: "300 (Poor / Default)",
+    tick_cibil_650: "650 (Qualifying)",
+    tick_cibil_750: "750 (Prime)",
+    tick_cibil_900: "900 (Stellar)",
+    tick_cibil_900_perf: "900 (Perfect)",
+    rbi_consent_title: "RBI Digital Lending & Fair Lending Statutory Consent (2022 Guidelines)",
+    rbi_consent_html: '<strong>Statutory Borrower Declaration (CICRA 2005 &amp; DPDP Act 2023):</strong> I hereby grant explicit consent to <strong>Meridian FairLend AI</strong> under <strong>Mission Bharat</strong> to access my credit bureau history (CIBIL/CRIF) and process my personal data locally in accordance with the <strong>RBI Digital Lending Directions 2022</strong>. I acknowledge that all underwriting decisions are non-discriminatory, transparent, explainable (XAI), and subject to a statutory <strong>3-Day Look-Up / Cooling-Off Period</strong> without exit penalty.',
+    apply_footer_note: "🔒 Guaranteed Data Encryption • Stored in Meridian Vault • Auditable under RBI Fair Practices Code",
+    btn_reset_form: "Reset Form",
+    btn_submit_app: "Submit & Record in Database",
+    opt_female: "Female",
+    opt_male: "Male",
+    opt_married_yes: "Married (Yes)",
+    opt_married_no: "Unmarried (No)",
+    opt_dep_0: "0 (None)",
+    opt_dep_1: "1 Dependent",
+    opt_dep_2: "2 Dependents",
+    opt_dep_3p: "3+ Dependents",
+    opt_edu_grad: "Graduate / Post-Graduate / Professional",
+    opt_edu_nongrad: "Non-Graduate (High School / Vocational)",
+    opt_grad_short: "Graduate",
+    opt_not_grad_short: "Not Graduate",
+    opt_self_yes: "Yes (Business / Artisan)",
+    opt_self_no: "No (Salaried)",
+    opt_ch_1: "1 (Meets Guidelines / Clean)",
+    opt_ch_0: "0 (Does Not Meet / Default History)",
+    opt_emp_freelance: "Freelancing / Gig Economy / Tech Freelancer",
+    opt_emp_priv: "Salaried (Private / Corporate)",
+    opt_emp_govt: "Salaried (Government / PSU)",
+    opt_emp_msme: "Self-Employed (Small Business / MSME)",
+    opt_emp_farmer: "Farmer (Agriculture / Cultivator)",
+    opt_emp_artisan: "Artisan / Rural Handloom Weaver",
+    opt_emp_retail: "Retail Merchant / Shop Owner",
+    opt_area_rural_full: "Rural Bharat (Mission Bharat Priority Corridor)",
+    opt_area_semi_full: "Semi-Urban Developing Center",
+    opt_area_urban_full: "Urban / Metro City",
+    opt_area_rural_short: "Rural Bharat",
+    opt_area_semi_short: "Semi-Urban",
+    opt_area_urban_short: "Urban Metro",
+    opt_purp_home: "Home Construction / Renovation / Purchase",
+    opt_purp_msme: "Small Business / MSME Working Capital",
+    opt_purp_agri: "Agricultural Equipment / Irrigation / Solar",
+    opt_purp_edu: "Higher Education / Skill Training",
+    opt_purp_veh: "Vehicle / Two-Wheeler / Commercial Transport",
+    opt_purp_med: "Personal / Family Health Facility",
+    sim_title: '🎛️ Interactive "What-If" Counterfactual Simulator',
     sim_sub: "Simulate changes to your loan amount, tenure, co-applicant income, CIBIL, and salary slip to see exact real-time approval adjustments.",
     lbl_sim_likelihood: "Simulated Likelihood:",
     lbl_sim_emi: "Simulated Monthly EMI:",
@@ -853,11 +1077,16 @@ const I18N = {
     lbl_sim_term: "Loan Tenure (Duration):",
     lbl_sim_cibil: "Simulated CIBIL Score:",
     lbl_sim_slip_toggle: "Salary Slip Attached in Simulation:",
+    btn_yes: "Yes",
+    btn_no: "No",
     btn_apply_whatif: "⚡ Apply This Scenario to My Application",
     btn_reset_whatif: "↺ Reset to Baseline",
-    strengths_title: "Top Factors Working In Your Favor",
+    strengths_title: "Top Factors Helping Your Application",
+    strengths_sub: "Key strengths identified in your data that increased your approval score",
     frictions_title: "Top Barriers Influencing This Outcome",
+    frictions_sub: "Primary friction points or risks reducing your probability of sanction",
     roadmap_title: "Personalized Eligibility Roadmap",
+    roadmap_sub: "Transparent, actionable steps to qualify or maximize loan amount",
     btn_open_letter: "View & Download Official Sanction Letter",
     prompt_apply_letter: "Apply for a loan to generate and download your official RBI-compliant Sanction Letter.",
     btn_apply_loan_link: "Apply for Loan →",
@@ -867,39 +1096,305 @@ const I18N = {
     approved_desc: "Your credit and financial profile comfortably satisfies Meridian Mission Bharat underwriting benchmarks.",
     conditional_desc: "Your application is near the approval threshold. Minor adjustments or guarantor backing will secure an offer.",
     rejected_desc: "Current risk markers exceed credit policy guidelines. Review the specific factors and remediation plan below.",
-    footer_eyebrow: "MISSION BHARAT • THE BIGGER PICTURE",
-    footer_heading: "India's Credit Inclusion Snapshot",
-    footer_subtitle: "Progress is real. Access to fair, understandable credit still matters.",
+    cockpit_site_eyebrow: "🌐 Website Availability & Maintenance Control",
+    cockpit_site_lbl: "Public Portal Status:",
+    cockpit_badge_online: "ONLINE (LIVE)",
+    cockpit_badge_offline: "OFFLINE (MAINTENANCE)",
+    cockpit_sub_online: "All public underwriting, application intake, and applicant login routes are active.",
+    btn_customize_offline: "Customize Offline Page",
+    off_intake_title: "Applicant Underwriting Intake",
+    off_intake_sub: "Inspect and customize applicant variables for instant scoring",
+    off_lbl_name: "Full Name / Reference",
+    off_lbl_gender: "Gender",
+    off_lbl_married: "Marital Status",
+    off_lbl_dependents: "Dependents",
+    off_lbl_edu: "Education",
+    off_lbl_self_emp: "Self-Employed / Profession",
+    off_lbl_app_inc: "Applicant Monthly Income (₹)",
+    off_lbl_coapp_inc: "Co-Applicant Monthly Income (₹)",
+    off_lbl_loan_amt: "Loan Amount (in Thousands ₹)",
+    off_lbl_tenure: "Tenure (Months)",
+    off_lbl_credit_hist: "Credit Bureau History",
+    off_lbl_area: "Property Territory",
+    off_met_ml: "ML Likelihood",
+    off_met_dti: "DTI Burden",
+    off_met_emi: "Estimated EMI",
+    off_met_lti: "Loan-to-Income",
+    off_shap_title: "SHAP / Feature Attribution Waterfall",
+    off_shap_sub: "Marginal log-odds contribution of each variable to this specific decision",
+    off_shap_leg_pos: "● Approval (+%)",
+    off_shap_leg_neg: "● Risk (-%)",
+    off_action_title: "Officer Action & Regulatory Audit",
+    off_action_sub: "Authorize sanction, apply Mission Bharat subsidy, or record adverse action",
+    ph_officer_remarks: "Enter official underwriting remarks (e.g., CIBIL score verified, DTI ratio compliant)...",
+    btn_sanction_approve: "✓ Sanction Loan",
+    btn_sanction_subvention: "⚡ Mission Bharat Rural Subvention Pass",
+    btn_sanction_decline: "✕ Adverse Action (Decline)",
+    off_audit_title: "Underwriter Decision & Compliance Audit Log",
+    off_audit_sub: "Complete chronological trail for internal RBI compliance inspection",
+    off_th_time: "Timestamp",
+    off_th_by: "Reviewed By",
+    off_th_appid: "Applicant ID",
+    off_th_act: "Action Recorded",
+    off_th_note: "Underwriter Regulatory Justification",
+    mod_met_acc: "Overall Model Accuracy",
+    mod_met_prec: "Precision (Sanction Quality)",
+    mod_met_rec: "Recall / Sensitivity",
+    mod_met_auc: "ROC-AUC Discriminator",
+    mod_cm_title: "Confusion Matrix (Holdout Validation)",
+    mod_cm_sub: "Empirical out-of-sample evaluation on lending portfolio split",
+    mod_cm_badge: "Evaluated",
+    cm_pred_y: "Predicted Approved (Y)",
+    cm_pred_n: "Predicted Rejected (N)",
+    cm_act_y: "Actual Approved",
+    cm_act_n: "Actual Rejected",
+    cm_tp_lbl: "True Positive (TP)",
+    cm_tp_sub: "Accurately Approved",
+    cm_fn_lbl: "False Negative (FN)",
+    cm_fn_sub: "Creditworthy Missed",
+    cm_fp_lbl: "False Positive (FP)",
+    cm_fp_sub: "Risky Sanctions",
+    cm_tn_lbl: "True Negative (TN)",
+    cm_tn_sub: "Accurately Identified Risk",
+    cm_takeaway: "<strong>Underwriter Takeaway:</strong> With high validation recall sensitivity, the calibrated model ensures creditworthy applicants are not arbitrarily excluded from formal credit.",
+    mod_feat_title: "Global Feature Importance & Polarities",
+    mod_feat_sub: "Normalized feature weights across entire Bharat loan portfolio",
+    mod_gov_title: "Model Architecture & Regulatory Governance Summary",
+    mod_gov_sub: "Compliance documentation for RBI and Fair Lending Auditing Authorities",
+    gov_algo_t: "Algorithm:",
+    gov_algo_d: "Calibrated L2-Regularized Logistic Regression with explicit weight normalization. Offers complete mathematical transparency over black-box deep learning.",
+    gov_xai_t: "Explainability Mechanism:",
+    gov_xai_d: "Linear additive SHAP-congruent attribution decomposing raw log-odds into marginal feature percentage points for applicants and loan officers.",
+    gov_fair_t: "Fair Lending Safeguards:",
+    gov_fair_d: "Mandatory 80% Disparate Impact Ratio testing, Demographic Parity evaluation, and Equal Opportunity TPR matching across rural and gender strata.",
+    fair_hero_eyebrow: "Mission Bharat Equity Intervention",
+    fair_hero_title: "Affirmative Financial Inclusion Calibration",
+    fair_hero_desc: "Standard legacy banking models penalize rural and thin-file borrowers due to lack of formal commercial credit tracks. Toggle the Mission Bharat calibration engine to offset structural geographic disparities.",
+    fair_toggle_lbl: "Enable Mission Bharat Calibration:",
+    fair_tbl_title: "Demographic Parity & Disparate Impact Audit Table",
+    fair_tbl_sub: "Evaluating compliance against the 80% (Four-Fifths) Fair Lending Rule and TPR Parity",
+    fair_th_cat: "Protected Category",
+    fair_th_grp: "Demographic Group",
+    fair_th_n: "Sample Size (N)",
+    fair_th_rate: "Approval Rate",
+    fair_th_tpr: "Equal Opp. TPR (Recall)",
+    fair_th_dir: "Disparate Impact Ratio",
+    fair_th_status: "Regulatory Status",
+    fair_c1_t: "Disparate Impact Ratio (DIR):",
+    fair_c1_d: "Selection rate of unprivileged group divided by privileged group. A ratio <strong>&ge; 0.80</strong> complies with the EEOC / Fair Housing four-fifths standard.",
+    fair_c2_t: "Equal Opportunity (TPR Parity):",
+    fair_c2_d: "True Positive Rate equality guarantees that creditworthy applicants from rural regions have an equal opportunity of being approved as urban peers.",
+    fair_c3_t: "Mission Bharat Impact:",
+    fair_c3_d: "Enabling calibration raises rural approval from <strong>71.5% to 84.1%</strong>, elevating DIR from 0.83 to 0.97 and eliminating systematic geographic exclusion.",
+    port_title: "Historical Loan Applications (Bharat Lending Pool)",
+    port_sub: "Search, filter and inspect historical borrower files",
+    ph_portfolio_search: "Search by Loan ID or Region (e.g. LP001003, Rural)...",
+    flt_all: "All",
+    flt_approved: "Approved",
+    flt_rejected: "Rejected",
+    flt_rural: "Rural",
+    flt_women: "Women",
+    port_th_id: "Loan ID",
+    port_th_gender: "Gender",
+    port_th_area: "Property Area",
+    port_th_income: "Household Income",
+    port_th_req: "Requested Loan",
+    port_th_hist: "Bureau History",
+    port_th_prob: "ML Likelihood",
+    port_th_status: "Predicted Status",
+    port_th_act: "Action",
+    btn_prev_page: "← Previous",
+    btn_next_page: "Next →",
+    db_title: "Official Meridian Application Vault & Registry",
+    db_sub: "All loan applications submitted via the portal are permanently recorded and available here",
+    btn_export_csv: "Export to Excel / CSV",
+    btn_export_json: "Export JSON",
+    btn_refresh: "Refresh",
+    db_th_appno: "Application No",
+    db_th_date: "Submitted Date",
+    db_th_name: "Applicant Name",
+    db_th_cibil: "CIBIL Score",
+    db_th_slip: "Salary Slip",
+    db_th_income: "Total Income",
+    db_th_req: "Requested Facility",
+    db_th_area: "Territory",
+    db_th_score: "AI Score",
+    db_th_status: "Status",
+    db_th_actions: "Actions",
+    db_excel_tip: '<strong>Access on Laptop:</strong> Click <strong>"Export to Excel / CSV"</strong> above to immediately open all applications in Microsoft Excel or Google Sheets.',
+    db_sync_note: "Auto-synced with Persistent Central Database",
     footer_mission_badge: "OUR MISSION",
     footer_mission_statement: "Make every credit decision easier to understand.",
     footer_mission_supporting: "Explain the decision. Identify improvement opportunities. Evaluate fairness responsibly.",
-    footer_disclaimer: "© 2026 Meridian FairLend. Operating in compliance with the Reserve Bank of India (RBI) Regulatory Framework for Digital Lending."
+    footer_division: "MISSION BHARAT • RETAIL CREDIT DIVISION • 2026",
+    footer_disclaimer: "© 2026 Meridian FairLend. Operating in compliance with the Reserve Bank of India (RBI) Regulatory Framework for Digital Lending.",
+    let_bank_name: "MERIDIAN FAIRLEND AI",
+    let_division: "Mission Bharat • Inclusive Retail Credit Division",
+    let_office: "Reg. Office: Nariman Point, Mumbai 400021 • RBI Reg #N-13.01928",
+    let_ref_lbl: "Reference:",
+    let_date_lbl: "Date:",
+    let_app_name_lbl: "Applicant Name:",
+    let_fac_lbl: "Requested Facility:",
+    let_tenure_lbl: "Tenure:",
+    let_area_lbl: "Territory:",
+    kfs_title: "OFFICIAL RBI KEY FACT STATEMENT (KFS)",
+    kfs_compliant: "RBI Digital Lending Compliant",
+    kfs_row_principal: "Sanctioned Facility Amount (Principal)",
+    kfs_row_apr: "All-Inclusive Annual Percentage Rate (APR)",
+    kfs_row_tenure: "Loan Tenure / Repayment Installments",
+    kfs_row_emi: "Equated Monthly Installment (EMI)",
+    kfs_row_interest: "Total Interest Amount Payable",
+    kfs_row_total: "Total Repayment Amount (Principal + Interest)",
+    kfs_row_proc: "Upfront Processing & Verification Fees",
+    kfs_val_proc: "₹0 (Nil - Mission Bharat Subsidy)",
+    kfs_row_prepay: "Prepayment / Foreclosure Charges",
+    kfs_val_prepay: "₹0 (Nil per RBI Master Circular)",
+    kfs_row_cooling: "Statutory Cooling-Off / Look-Up Period",
+    kfs_val_cooling: "3 Business Days (Full exit without penalty)",
+    let_factors_heading: "Transparent Factor Determination (Under RBI Fair Lending Code):",
+    let_ombudsman_html: '<strong>RBI Fair Practices Code &amp; Statutory Redressal Mechanism:</strong><br>• <strong>Principal Grievance Redressal Officer:</strong> Smt. Shalini Verma, Nodal Grievance Officer, Meridian FairLend AI, Nariman Point, Mumbai 400021. Toll-Free: <code>1800-209-4000</code> | Email: <code>grievance.bharat@meridian.fin</code> (Resolution SLA: within 15 working days).<br>• <strong>RBI Integrated Ombudsman Scheme:</strong> If your grievance is not redressed within 30 days, you have the statutory right under the Reserve Bank of India Integrated Ombudsman Scheme, 2021 to lodge a complaint online at <strong><a href="https://cms.rbi.org.in" target="_blank" style="color: #064E3B; font-weight: 700; text-decoration: underline;">https://cms.rbi.org.in</a></strong> or dial toll-free <code>14448</code>.',
+    btn_print_pdf: "Print / Save PDF",
+    btn_close: "Close",
+    modal_api_title: "FastAPI Backend Connection Hub",
+    modal_api_origin: "Active REST API Origin",
+    modal_api_status_lbl: "Status:",
+    modal_api_docs_note: 'All authentication, underwriting scoring, SHAP explainability, and fairness checks communicate live with FastAPI (<a id="modal-swagger-link" href="/docs" target="_blank" style="color: #064E3B; font-weight: 700; text-decoration: underline;">OpenAPI /docs</a>).',
+    modal_api_custom_t: "Connect Custom Internet Backend URL (Optional):",
+    modal_api_custom_d: "If serving frontend separately, enter your deployed internet API base URL:",
+    btn_save_url: "Save URL",
+    btn_auto_detect: "Auto-Detect",
+    btn_test_reconnect: "Test & Reconnect",
+    modal_site_title: "Website Online / Offline Control",
+    modal_site_curr_lbl: "Current Public Availability",
+    badge_online: "ONLINE",
+    badge_offline: "OFFLINE",
+    modal_site_live_desc: "Website is live and accessible to all applicants & visitors.",
+    modal_site_heading_lbl: "Offline Screen Heading",
+    ph_site_heading: "Portal Temporarily Offline",
+    modal_site_msg_lbl: "Custom Maintenance Notice for Visitors",
+    ph_site_msg: "Enter message visitors will see while website is offline...",
+    modal_site_how: "<strong>How Offline Mode Works:</strong> Taking the website offline shows public visitors and applicants a branded <em>Maintenance Page</em> and returns HTTP <code>503</code> on public routes. Loan Officers can still log in at any time to restore Online access.",
+    btn_go_online: "Go Online (Live)"
   },
   hi: {
+    page_title: "मेरिडियन फेयरलेंड एआई • मिशन भारत | पारदर्शी ऋण निर्णय प्रणाली",
     lang_btn: "🇬🇧 English",
+    title_lang_btn: "द्विभाषी भाषा चयनकर्ता",
     brand_title: "मेरिडियन फेयरलेंड एआई (Meridian FairLend AI)",
     brand_badge: "मिशन भारत",
     brand_sub: "एआई-संचालित पारदर्शी ऋण निर्णय एवं सामाजिक समानता मंच",
-    nav_apply: "📝 1. ऋण के लिए आवेदन करें",
-    nav_report: "📊 2. मेरा निर्णय एवं पात्रता रिपोर्ट",
-    nav_sim: "🎛️ 3. 'व्हाट-इफ' लाइव सिमुलेटर",
-    nav_officer: "⚙️ ऋण अधिकारी कॉकपिट एवं SHAP विश्लेषण",
-    nav_vault: "🗄️ आवेदन वॉल्ट एवं रजिस्ट्री",
-    nav_accuracy: "🎯 मॉडल सटीकता रिपोर्ट",
-    nav_fairness: "⚖️ समूह समानता एवं निष्पक्षता",
-    nav_portfolio: "📁 ऐतिहासिक पोर्टफोलियो",
+    maint_header_pill: "वेबसाइट ऑफ़लाइन",
+    maint_card_badge: "निर्धारित रखरखाव • पोर्टल ऑफ़लाइन",
+    default_maint_title: "पोर्टल अस्थायी रूप से ऑफ़लाइन है",
+    default_maint_msg: "मेरिडियन फेयरलेंड एआई इस समय निर्धारित सिस्टम रखरखाव के लिए ऑफ़लाइन है। ऑनलाइन ऋण सेवाएं शीघ्र ही पुनः शुरू होंगी।",
+    maint_meta_default: "मेरिडियन संस्थागत परिचालन द्वारा प्रबंधित",
+    btn_check_status: "वेबसाइट स्थिति जांचें",
+    btn_admin_ctrl: "अधिकारी / एडमिन नियंत्रण",
+    maint_override_title: "प्रशासक / अधिकारी ओवरराइड",
+    maint_override_desc: "कॉकपिट खोलने के लिए ऋण अधिकारी विवरण से साइन इन करें, या वेबसाइट को तुरंत ऑनलाइन करने के लिए अपनी अधिकारी क्लीयरेंस पासकी दर्ज करें।",
+    btn_maint_signin: "अधिकारी कॉकपिट में साइन इन करें",
+    lbl_quick_publish_key: "अधिकारी क्लीयरेंस पासकी से तुरंत लाइव करें",
+    ph_passkey: "अधिकारी क्लीयरेंस पासकी दर्ज करें",
+    btn_bring_online: "वेबसाइट ऑनलाइन चालू करें",
+    btn_take_offline: "वेबसाइट ऑफ़लाइन करें",
+    pill_site_online: "वेबसाइट: ऑनलाइन",
+    pill_site_offline: "वेबसाइट: ऑफ़लाइन",
+    auth_gateway_badge: "संस्थागत प्रवेश द्वार",
+    mission_strip_left: '<strong style="color: #064E3B;">श्रेणी:</strong> एप्लिकेशन डेवलपमेंट &nbsp;|&nbsp; <strong style="color: #064E3B;">क्षेत्र:</strong> बैंकिंग एवं ऋण सेवा &nbsp;|&nbsp; <strong style="color: #064E3B;">प्रणाली:</strong> भारत ऋण पारदर्शिता एवं समावेशन मंच',
+    auth_mission_right: "डुअल-सिंक कोर इंजन • RBI डिजिटल लेंडिंग मानक",
+    auth_hero_tag: "🏛️ सुरक्षित ऋण अंडरराइटिंग प्रवेश द्वार",
+    auth_hero_title: "व्याख्यात्मक ऋण निर्णय प्रणाली",
+    auth_hero_desc: "SHAP पारदर्शिता और जनसांख्यिकीय निष्पक्षता ऑडिट के साथ पूरे भारत में निष्पक्ष, स्पष्ट और भरोसेमंद ऋण निर्णय प्रदान करना।",
+    auth_card_sub: "मिशन भारत • संस्थागत ऋण मूल्यांकन एवं सामाजिक निष्पक्षता",
+    auth_tab_applicant: "आवेदक साइन इन",
+    auth_tab_officer: "अधिकारी साइन इन",
+    auth_tab_signup: "नया खाता बनाएं",
+    auth_tag_applicant: "आवेदक पोर्टल • व्यक्तिगत लॉगिन",
+    auth_tag_officer: "ऋण अधिकारी टर्मिनल • संस्थागत लॉगिन",
+    lbl_app_email: "आवेदक ईमेल पता",
+    ph_app_email: "applicant@domain.com",
+    lbl_password: "पासवर्ड",
+    link_forgot_pwd: "पासवर्ड भूल गए?",
+    title_show_hide_pwd: "पासवर्ड दिखाएं / छिपाएं",
+    btn_signin_app: "आवेदक के रूप में साइन इन करें",
+    auth_demo_app_title: "आवेदक डेमो मूल्यांकन खाता",
+    auth_demo_app_btn: "👤 अनन्या राव (आवेदक डेमो)",
+    lbl_officer_email: "संस्थागत अधिकारी ईमेल",
+    lbl_officer_pwd: "अधिकारी पासवर्ड",
+    btn_signin_officer: "ऋण अधिकारी के रूप में साइन इन करें",
+    auth_officer_security_title: "अधिकृत संस्थागत पोर्टल",
+    auth_officer_security_note: "अधिकारी लॉगिन के लिए शाखा प्रशासक द्वारा जारी सत्यापित बैंक प्रमाण-पत्र आवश्यक हैं। यह स्लाइडिंग-विंडो सुरक्षा द्वारा रक्षित है।",
+    lbl_su_name: "पूरा नाम",
+    ph_su_name: "जैसे: अनन्या राव",
+    lbl_su_email: "ईमेल पता",
+    lbl_su_phone: "मोबाइल नंबर",
+    ph_su_phone: "10 अंकों का मोबाइल नंबर",
+    lbl_su_role_type: "खाते की भूमिका चुनें",
+    su_role_app_title: "आवेदक",
+    su_role_app_desc: "ऋण आवेदन एवं स्थिति देखें",
+    su_role_off_title: "ऋण अधिकारी",
+    su_role_off_desc: "ऑडिट एवं स्वीकृति निर्णय",
+    lbl_su_passkey: "अधिकारी क्लीयरेंस पासकी",
+    su_passkey_hint: "संस्थागत अनुमति आवश्यक है। अपनी अधिकारी क्लीयरेंस पासकी शाखा प्रशासक से प्राप्त करें।",
+    lbl_su_pwd: "पासवर्ड (न्यूनतम 8 अक्षर, अक्षर + अंक)",
+    lbl_su_confirm_pwd: "पासवर्ड की पुष्टि करें",
+    btn_signup_submit: "सत्यापित खाता बनाएं",
+    auth_comp_1: "🔒 एंड-टू-एंड एन्क्रिप्टेड सत्र",
+    auth_comp_2: "PBKDF2-HMAC-SHA256 सुरक्षा",
+    auth_comp_3: "स्थायी वॉल्ट एवं क्लाउड सिंक",
+    auth_comp_4: "RBI फेयर लेंडिंग फ्रेमवर्क",
+    role_badge_applicant: "आवेदक",
+    role_badge_officer: "ऋण अधिकारी",
+    title_site_toggle_pill: "सार्वजनिक वेबसाइट स्थिति बदलें (ऑनलाइन / ऑफ़लाइन)",
+    title_signout: "सत्र से लॉग आउट करें",
+    btn_signout: "लॉग आउट",
+    title_backend_badge: "REST बैकएंड एपीआई कनेक्शन जांचने या बदलने के लिए क्लिक करें",
+    nav_apply: "<span>📝</span> 1. ऋण के लिए आवेदन करें",
+    nav_report: "<span>📊</span> 2. मेरी निर्णय रिपोर्ट",
+    nav_vault_applicant: "<span>🗄️</span> 3. मेरे आवेदन वॉल्ट",
+    nav_vault_officer: "<span>🗄️</span> 3. केंद्रीय आवेदन वॉल्ट (बैंक-व्यापी)",
+    nav_portfolio: "<span>📁</span> 4. ऐतिहासिक पोर्टफोलियो",
+    nav_officer: "<span>⚙️</span> अधिकारी कॉकपिट एवं SHAP विश्लेषण",
+    nav_accuracy: '<span>🎯</span> मॉडल सटीकता रिपोर्ट <span class="tag">80% सटीकता</span>',
+    nav_fairness: '<span>⚖️</span> समूह निष्पक्षता ऑडिट <span class="tag">80% नियम</span>',
+    off_banner_title: "🔴 वेबसाइट वर्तमान में ऑफ़लाइन है (सार्वजनिक रखरखाव मोड सक्रिय)",
+    off_banner_desc: "सामान्य आगंतुकों और आवेदकों को अभी रखरखाव सूचना दिख रही है। अधिकारी कार्य सुलभ हैं।",
+    btn_put_online_now: "वेबसाइट अभी ऑनलाइन करें",
+    btn_configure_notice: "सूचना संपादित करें",
+    sub_banner_title: "आपका ऋण आवेदन सफलतापूर्वक जमा हो गया है!",
+    sub_banner_ref_lbl: "संदर्भ संख्या:",
+    sub_banner_desc: "मेरिडियन वॉल्ट में सुरक्षित दर्ज। नीचे अपनी त्वरित ऋण निर्णय रिपोर्ट देखें:",
+    btn_dl_sanction: "स्वीकृति पत्र डाउनलोड करें",
+    btn_dismiss: "बंद करें",
+    hero_gauge_lbl: "स्वचालित स्वीकृति संभावना",
+    hero_baseline_lbl: "स्वीकृति आधार सीमा: ≥ 50%",
+    apply_eyebrow: "मिशन भारत • प्रत्यक्ष आवेदक ऋण पोर्टल",
     apply_heading: "खुदरा ऋण आवेदन पत्र जमा करें",
-    apply_subheading: "अपना विवरण, मासिक आय, सिबिल स्कोर और ऋण राशि भरें। आपका आवेदन एआई द्वारा विश्लेषित होकर मेरिडियन सुरक्षित वॉल्ट एवं डेटाबेस में स्थायी रूप से सुरक्षित होगा।",
+    apply_subheading: "अपना विवरण, मासिक आय, सिबिल स्कोर और वांछित ऋण राशि भरें। आपका आवेदन एआई द्वारा विश्लेषित होकर मेरिडियन सुरक्षित वॉल्ट एवं रजिस्ट्री में स्थायी रूप से दर्ज होगा।",
+    apply_storage_lbl: "डेटा संग्रह इंजन",
+    apply_storage_val: "सुरक्षित आवेदन वॉल्ट",
+    apply_suc_title: "आवेदन डेटाबेस में सफलतापूर्वक सहेजा गया!",
+    apply_suc_ref_prefix: "आपके आवेदन को संदर्भ संख्या",
+    apply_suc_ref_suffix: "आवंटित की गई है और इसे मेरिडियन वॉल्ट में स्थायी रूप से दर्ज कर लिया गया है।",
+    apply_suc_status_lbl: "स्थिति:",
+    apply_suc_score_lbl: "AI स्कोर:",
+    apply_suc_emi_lbl: "मासिक किस्त:",
+    apply_suc_cibil_lbl: "सिबिल श्रेणी:",
+    btn_inspect_cockpit: "कॉकपिट में जांचें",
+    btn_view_db_table: "डेटाबेस तालिका देखें",
     sec_personal: "1. व्यक्तिगत एवं जनसांख्यिकीय विवरण",
     lbl_name: "आवेदक का पूरा नाम *",
+    ph_fill_name: "जैसे: अनन्या राव, देवांश कुलकर्णी",
     lbl_phone: "मोबाइल नंबर *",
+    ph_fill_phone: "10 अंकों का मोबाइल नंबर (जैसे 9876543210)",
     lbl_gender: "लिंग *",
     lbl_married: "वैवाहिक स्थिति *",
     lbl_dependents: "आश्रितों की संख्या *",
-    lbl_education: "शिक्षा स्तर *",
+    lbl_education: "उच्चतम शिक्षा स्तर *",
     lbl_employment: "रोजगार एवं आजीविका का प्रकार *",
-    lbl_salary_slip: "क्या आधिकारिक वेतन पर्ची (Salary Slip) उपलब्ध है? *",
-    txt_slip_yes: "✓ हाँ (वेतन पर्ची संलग्न है)",
+    lbl_salary_slip: "आधिकारिक वेतन पर्ची (Salary Slip) उपलब्ध है? *",
+    hint_doc_proof: "दस्तावेज़ी प्रमाण",
+    txt_slip_yes: "✓ हाँ (वेतन पर्ची उपलब्ध है)",
     txt_slip_no: "✕ नहीं (बैंक विवरण / डिजिटल इनवॉइस)",
     lbl_area: "निवास / संपत्ति क्षेत्र *",
     sec_financial: "2. आय, ऋण मांग एवं सिबिल ब्यूरो",
@@ -907,11 +1402,66 @@ const I18N = {
     lbl_coapp_income: "सह-आवेदक की मासिक आय (₹)",
     lbl_purpose: "ऋण सुविधा का उद्देश्य *",
     lbl_loan_amount: "वांछित ऋण राशि (हजारों ₹ में) *",
+    hint_loan_thousands: "150 = ₹1,50,000 रुपये",
     lbl_tenure: "ऋण अवधि (1 से 30 वर्ष) *",
-    lbl_cibil: "सिबिल क्रेडिट स्कोर (300 से 900) *",
-    btn_submit_app: "🚀 ऋण आवेदन जमा करें",
-    sim_title: "🎛️ इंटरएक्टिव 'व्हाट-इफ' ऋण सिमुलेटर",
-    sim_sub: "ऋण राशि, अवधि, सह-आवेदक आय, सिबिल और वेतन पर्ची बदलकर देखें कि आपकी ऋण स्वीकृति संभावना पर क्या प्रभाव पड़ता है।",
+    tick_1yr: "1 वर्ष (12 माह)",
+    tick_5yr: "5 वर्ष",
+    tick_10yr: "10 वर्ष",
+    tick_15yr: "15 वर्ष",
+    tick_20yr: "20 वर्ष",
+    tick_30yr: "30 वर्ष (360 माह)",
+    tick_none: "₹0 (कोई नहीं)",
+    lbl_choose_year: "कोई भी वर्ष चुनें:",
+    lbl_years_flex: "वर्ष (1 से 30 वर्ष तक लचीली अवधि)",
+    lbl_cibil: "सिबिल क्रेडिट ब्यूरो स्कोर *",
+    tick_cibil_300: "300 (निम्न)",
+    tick_cibil_300_poor: "300 (कमज़ोर / डिफ़ॉल्ट)",
+    tick_cibil_650: "650 (योग्य)",
+    tick_cibil_750: "750 (उत्कृष्ट)",
+    tick_cibil_900: "900 (सर्वोत्तम)",
+    tick_cibil_900_perf: "900 (परिपूर्ण)",
+    rbi_consent_title: "RBI डिजिटल लेंडिंग एवं निष्पक्ष ऋण वैधानिक सहमति (2022 दिशानिर्देश)",
+    rbi_consent_html: '<strong>वैधानिक आवेदक घोषणा (CICRA 2005 एवं DPDP अधिनियम 2023):</strong> मैं <strong>मिशन भारत</strong> के तहत <strong>मेरिडियन फेयरलेंड एआई</strong> को <strong>RBI डिजिटल लेंडिंग दिशानिर्देश 2022</strong> के अनुरूप मेरा क्रेडिट ब्यूरो इतिहास (CIBIL/CRIF) जांचने और डेटा संसाधित करने की स्पष्ट सहमति देता/देती हूँ। मैं स्वीकार करता/करती हूँ कि सभी निर्णय गैर-भेदभावपूर्ण, पारदर्शी (XAI) हैं और बिना किसी दंड शुल्क के वैधानिक <strong>3 कार्य दिवस कूलिंग-ऑफ / समीक्षा अवधि</strong> के अधीन हैं।',
+    apply_footer_note: "🔒 सुरक्षित डेटा एन्क्रिप्शन • मेरिडियन वॉल्ट में संग्रहीत • RBI फेयर प्रैक्टिसेज कोड के अंतर्गत ऑडिट योग्य",
+    btn_reset_form: "फॉर्म रीसेट करें",
+    btn_submit_app: "आवेदन जमा करें एवं डेटाबेस में सहेजें",
+    opt_female: "महिला",
+    opt_male: "पुरुष",
+    opt_married_yes: "विवाहित (हाँ)",
+    opt_married_no: "अविवाहित (नहीं)",
+    opt_dep_0: "0 (कोई नहीं)",
+    opt_dep_1: "1 आश्रित",
+    opt_dep_2: "2 आश्रित",
+    opt_dep_3p: "3+ आश्रित",
+    opt_edu_grad: "स्नातक / स्नातकोत्तर / पेशेवर",
+    opt_edu_nongrad: "गैर-स्नातक (हाई स्कूल / व्यावसायिक)",
+    opt_grad_short: "स्नातक",
+    opt_not_grad_short: "गैर-स्नातक",
+    opt_self_yes: "हाँ (व्यवसाय / कारीगर)",
+    opt_self_no: "नहीं (वेतनभोगी)",
+    opt_ch_1: "1 (मानकों के अनुकूल / स्वच्छ रिकॉर्ड)",
+    opt_ch_0: "0 (मानक अपूर्ण / पूर्व बकाया इतिहास)",
+    opt_emp_freelance: "फ्रीलांसिंग / गिग अर्थव्यवस्था / स्वतंत्र सलाहकार",
+    opt_emp_priv: "वेतनभोगी (निजी / कॉर्पोरेट)",
+    opt_emp_govt: "वेतनभोगी (सरकारी / पीएसयू)",
+    opt_emp_msme: "स्वरोजगार (लघु व्यवसाय / MSME)",
+    opt_emp_farmer: "किसान (कृषि / उत्पादक)",
+    opt_emp_artisan: "कारीगर / ग्रामीण हथकरघा शिल्पकार",
+    opt_emp_retail: "खुदरा व्यापारी / दुकान मालिक",
+    opt_area_rural_full: "ग्रामीण भारत (मिशन भारत प्राथमिकता क्षेत्र)",
+    opt_area_semi_full: "अर्ध-शहरी विकासशील केंद्र",
+    opt_area_urban_full: "शहरी / महानगर",
+    opt_area_rural_short: "ग्रामीण भारत",
+    opt_area_semi_short: "अर्ध-शहरी",
+    opt_area_urban_short: "शहरी / महानगर",
+    opt_purp_home: "गृह निर्माण / नवीनीकरण / क्रय",
+    opt_purp_msme: "लघु व्यवसाय / MSME कार्यशील पूंजी",
+    opt_purp_agri: "कृषि उपकरण / सिंचाई / सौर ऊर्जा",
+    opt_purp_edu: "उच्च शिक्षा / कौशल प्रशिक्षण",
+    opt_purp_veh: "वाहन / दुपहिया / वाणिज्यिक परिवहन",
+    opt_purp_med: "व्यक्तिगत / पारिवारिक चिकित्सा आवश्यकता",
+    sim_title: '🎛️ इंटरएक्टिव "व्हाट-इफ" ऋण सिमुलेटर',
+    sim_sub: "ऋण राशि, अवधि, सह-आवेदक आय, सिबिल और वेतन पर्ची बदलकर देखें कि आपकी स्वीकृति संभावना पर क्या प्रभाव पड़ता है।",
     lbl_sim_likelihood: "अनुमानित स्वीकृति संभावना:",
     lbl_sim_emi: "अनुमानित मासिक किस्त (EMI):",
     lbl_sim_dti: "मासिक ऋण भार (DTI):",
@@ -919,30 +1469,207 @@ const I18N = {
     lbl_sim_doc_status: "आय सत्यापन दस्तावेज:",
     lbl_sim_loan: "वांछित ऋण राशि:",
     lbl_sim_coapp: "सह-आवेदक की मासिक आय:",
-    lbl_sim_term: "ऋण अवधि (वर्ष):",
+    lbl_sim_term: "ऋण अवधि:",
     lbl_sim_cibil: "अनुमानित सिबिल स्कोर:",
     lbl_sim_slip_toggle: "सिमुलेटर में वेतन पर्ची स्थिति:",
+    btn_yes: "हाँ",
+    btn_no: "नहीं",
     btn_apply_whatif: "⚡ यह विकल्प मेरे आवेदन पर लागू करें",
     btn_reset_whatif: "↺ मूल स्थिति पर रीसेट करें",
     strengths_title: "आपके पक्ष में प्रमुख सकारात्मक कारक",
+    strengths_sub: "आपके डेटा में पहचानी गई प्रमुख खूबियाँ जिन्होंने स्वीकृति स्कोर बढ़ाया",
     frictions_title: "स्वीकृति में प्रमुख बाधाएं / जोखिम कारक",
-    roadmap_title: "ऋण पात्रता सुधारने की चरणबद्ध योजना",
+    frictions_sub: "वे मुख्य कारक या जोखिम जो ऋण स्वीकृति की संभावना कम कर रहे हैं",
+    roadmap_title: "व्यक्तिगत पात्रता सुधार योजना",
+    roadmap_sub: "ऋण पात्रता बढ़ाने या अधिकतम राशि प्राप्त करने के स्पष्ट एवं व्यावहारिक कदम",
     btn_open_letter: "आधिकारिक ऋण स्वीकृति पत्र देखें एवं डाउनलोड करें",
-    prompt_apply_letter: "अपना आधिकारिक स्वीकृति पत्र डाउनलोड करने के लिए ऋण आवेदन जमा करें।",
+    prompt_apply_letter: "अपना आधिकारिक RBI-अनुपालित स्वीकृति पत्र प्राप्त करने के लिए ऋण आवेदन जमा करें।",
     btn_apply_loan_link: "ऋण आवेदन करें →",
     approved_title: "ऋण स्वीकृत होने की प्रबल संभावना",
-    conditional_title: "समीक्षाधीन / संदेहास्पद स्थिति",
+    conditional_title: "समीक्षाधीन / सशर्त पात्रता",
     rejected_title: "उच्च जोखिम / वर्तमान में स्वीकृति कठिन",
     approved_desc: "आपका वित्तीय एवं क्रेडिट प्रोफाइल मेरिडियन मिशन भारत के ऋण मानकों के सर्वथा अनुकूल है।",
-    conditional_desc: "आपका आवेदन स्वीकृति सीमा के अत्यंत निकट है। थोड़े सुधार या सह-आवेदक से ऋण तुरंत स्वीकृत हो सकता है।",
-    rejected_desc: "वर्तमान जोखिम संकेत बैंक की नीतियों से अधिक हैं। नीचे दिए गए कारणों और सुधार योजना का अवलोकन करें।",
-    footer_eyebrow: "मिशन भारत • वृहद परिप्रेक्ष्य",
-    footer_heading: "भारत में वित्तीय समावेशन की वास्तविक स्थिति",
-    footer_subtitle: "प्रगति वास्तविक है। पारदर्शी एवं न्यायसंगत ऋण तक सभी की पहुंच अभी भी अत्यंत आवश्यक है।",
+    conditional_desc: "आपका आवेदन स्वीकृति सीमा के अत्यंत निकट है। थोड़े सुधार या सह-आवेदक के सहयोग से प्रस्ताव सुरक्षित हो सकता है।",
+    rejected_desc: "वर्तमान जोखिम संकेत ऋण नीति मानकों से अधिक हैं। नीचे दिए गए कारणों और सुधार योजना का अवलोकन करें।",
+    cockpit_site_eyebrow: "🌐 वेबसाइट उपलब्धता एवं रखरखाव नियंत्रण",
+    cockpit_site_lbl: "सार्वजनिक पोर्टल स्थिति:",
+    cockpit_badge_online: "ऑनलाइन (सक्रिय)",
+    cockpit_badge_offline: "ऑफ़लाइन (रखरखाव मोड)",
+    cockpit_sub_online: "सभी सार्वजनिक मूल्यांकन, आवेदन प्रविष्टि और आवेदक लॉगिन मार्ग सक्रिय हैं।",
+    btn_customize_offline: "ऑफ़लाइन पृष्ठ संपादित करें",
+    off_intake_title: "आवेदक अंडरराइटिंग मूल्यांकन इनपुट",
+    off_intake_sub: "त्वरित स्कोरिंग के लिए आवेदक के मापदंड जांचें और समायोजित करें",
+    off_lbl_name: "पूरा नाम / संदर्भ",
+    off_lbl_gender: "लिंग",
+    off_lbl_married: "वैवाहिक स्थिति",
+    off_lbl_dependents: "आश्रित",
+    off_lbl_edu: "शिक्षा",
+    off_lbl_self_emp: "स्वरोजगार / व्यवसाय",
+    off_lbl_app_inc: "आवेदक मासिक आय (₹)",
+    off_lbl_coapp_inc: "सह-आवेदक मासिक आय (₹)",
+    off_lbl_loan_amt: "ऋण राशि (हजारों ₹ में)",
+    off_lbl_tenure: "अवधि (माह)",
+    off_lbl_credit_hist: "क्रेडिट ब्यूरो इतिहास",
+    off_lbl_area: "संपत्ति क्षेत्र",
+    off_met_ml: "एआई संभावना",
+    off_met_dti: "DTI ऋण भार",
+    off_met_emi: "अनुमानित EMI",
+    off_met_lti: "ऋण-आय अनुपात",
+    off_shap_title: "SHAP / कारक योगदान वाटरफॉल विश्लेषण",
+    off_shap_sub: "इस विशिष्ट निर्णय में प्रत्येक कारक का सीमांत लॉग-ऑड्स योगदान",
+    off_shap_leg_pos: "● स्वीकृति (+%)",
+    off_shap_leg_neg: "● जोखिम (-%)",
+    off_action_title: "अधिकारी कार्रवाई एवं नियामक ऑडिट",
+    off_action_sub: "ऋण स्वीकृत करें, मिशन भारत सब्सिडी पास लागू करें, या अस्वीकृति दर्ज करें",
+    ph_officer_remarks: "आधिकारिक अंडरराइटिंग टिप्पणी दर्ज करें (जैसे: सिबिल सत्यापित, DTI अनुपात मानक के अनुरूप)...",
+    btn_sanction_approve: "✓ ऋण स्वीकृत करें",
+    btn_sanction_subvention: "⚡ मिशन भारत ग्रामीण सब्सिडी पास",
+    btn_sanction_decline: "✕ प्रतिकूल कार्रवाई (अस्वीकार)",
+    off_audit_title: "अंडरराइटर निर्णय एवं अनुपालन ऑडिट लॉग",
+    off_audit_sub: "आंतरिक RBI अनुपालन निरीक्षण के लिए पूर्ण कालानुक्रमिक रिकॉर्ड",
+    off_th_time: "दिनांक व समय",
+    off_th_by: "समीक्षाकर्ता",
+    off_th_appid: "आवेदन संख्या",
+    off_th_act: "दर्ज कार्रवाई",
+    off_th_note: "नियामक स्पष्टीकरण / टिप्पणी",
+    mod_met_acc: "समग्र मॉडल सटीकता",
+    mod_met_prec: "परिशुद्धता (Precision)",
+    mod_met_rec: "संवेदनशीलता (Recall)",
+    mod_met_auc: "ROC-AUC सूचकांक",
+    mod_cm_title: "कन्फ्यूज़न मैट्रिक्स (होल्डआउट सत्यापन)",
+    mod_cm_sub: "ऋण पोर्टफोलियो के परीक्षण विभाजन पर वास्तविक मूल्यांकन परिणाम",
+    mod_cm_badge: "मूल्यांकित",
+    cm_pred_y: "अनुमानित स्वीकृत (Y)",
+    cm_pred_n: "अनुमानित अस्वीकृत (N)",
+    cm_act_y: "वास्तविक स्वीकृत",
+    cm_act_n: "वास्तविक अस्वीकृत",
+    cm_tp_lbl: "सही स्वीकृत (TP)",
+    cm_tp_sub: "सटीक रूप से स्वीकृत",
+    cm_fn_lbl: "छूटे पात्र मामले (FN)",
+    cm_fn_sub: "पात्र आवेदक वंचित",
+    cm_fp_lbl: "जोखिमयुक्त स्वीकृति (FP)",
+    cm_fp_sub: "गलत सकारात्मक स्वीकृति",
+    cm_tn_lbl: "सही अस्वीकृत (TN)",
+    cm_tn_sub: "जोखिम की सटीक पहचान",
+    cm_takeaway: "<strong>अंडरराइटर निष्कर्ष:</strong> उच्च रिकॉल संवेदनशीलता के साथ यह मॉडल सुनिश्चित करता है कि कोई भी पात्र एवं विश्वसनीय आवेदक औपचारिक ऋण से वंचित न रहे।",
+    mod_feat_title: "वैश्विक कारक महत्व एवं प्रभाव दिशा",
+    mod_feat_sub: "समग्र भारत ऋण पोर्टफोलियो में प्रत्येक विशेषता का मानकीकृत भार",
+    mod_gov_title: "मॉडल वास्तुकला एवं नियामक शासन सारांश",
+    mod_gov_sub: "RBI एवं निष्पक्ष ऋण ऑडिट प्राधिकरणों हेतु अनुपालन प्रलेखन",
+    gov_algo_t: "एल्गोरिदम:",
+    gov_algo_d: "स्पष्ट भार मानकीकरण के साथ कैलिब्रेटेड L2-नियमित लॉजिस्टिक रिग्रेशन। यह अपारदर्शी ब्लैक-बॉक्स मॉडल के विपरीत पूर्ण गणितीय पारदर्शिता देता है।",
+    gov_xai_t: "व्याख्यात्मक प्रणाली:",
+    gov_xai_d: "रैखिक योगात्मक SHAP-समरूप विश्लेषण जो कच्चे लॉग-ऑड्स को आवेदकों व अधिकारियों के लिए सरल प्रतिशत कारकों में विभाजित करता है।",
+    gov_fair_t: "निष्पक्ष ऋण सुरक्षा मानक:",
+    gov_fair_d: "ग्रामीण एवं लैंगिक वर्गों में अनिवार्य 80% असमान प्रभाव अनुपात (DIR) परीक्षण, जनसांख्यिकीय समता तथा समान अवसर TPR मिलान।",
+    fair_hero_eyebrow: "मिशन भारत सामाजिक समता पहल",
+    fair_hero_title: "सकारात्मक वित्तीय समावेशन अंशांकन",
+    fair_hero_desc: "पारंपरिक बैंकिंग मॉडल औपचारिक क्रेडिट इतिहास की कमी के कारण ग्रामीण और नए आवेदकों को दंडित करते हैं। क्षेत्रीय असमानताओं को संतुलित करने के लिए मिशन भारत कैलिब्रेशन चालू करें।",
+    fair_toggle_lbl: "मिशन भारत समावेशन कैलिब्रेशन सक्षम करें:",
+    fair_tbl_title: "जनसांख्यिकीय समता एवं असमान प्रभाव (DIR) ऑडिट तालिका",
+    fair_tbl_sub: "80% (फोर-फिफ्थ्स) निष्पक्ष ऋण नियम और TPR समता के अनुपालन का मूल्यांकन",
+    fair_th_cat: "संरक्षित श्रेणी",
+    fair_th_grp: "जनसांख्यिकीय समूह",
+    fair_th_n: "नमूना आकार (N)",
+    fair_th_rate: "स्वीकृति दर",
+    fair_th_tpr: "समान अवसर TPR",
+    fair_th_dir: "असमान प्रभाव अनुपात (DIR)",
+    fair_th_status: "नियामक स्थिति",
+    fair_c1_t: "असमान प्रभाव अनुपात (DIR):",
+    fair_c1_d: "आरक्षित समूह की स्वीकृति दर को प्रमुख बेंचमार्क समूह की दर से विभाजित करने पर प्राप्त अनुपात। <strong>&ge; 0.80</strong> का अनुपात 80% निष्पक्षता मानक का पूर्ण पालन करता है।",
+    fair_c2_t: "समान अवसर (TPR समता):",
+    fair_c2_d: "सही सकारात्मक दर (TPR) की समानता सुनिश्चित करती है कि ग्रामीण क्षेत्रों के पात्र आवेदकों को शहरी आवेदकों के समान स्वीकृति का अवसर मिले।",
+    fair_c3_t: "मिशन भारत प्रभाव:",
+    fair_c3_d: "समावेशन कैलिब्रेशन चालू करने से ग्रामीण स्वीकृति दर <strong>71.5% से बढ़कर 84.1%</strong> और DIR 0.83 से 0.97 हो जाता है, जिससे क्षेत्रीय भेदभाव समाप्त होता है।",
+    port_title: "ऐतिहासिक ऋण आवेदन (भारत ऋण पूल)",
+    port_sub: "ऐतिहासिक आवेदक फाइलों को खोजें, फ़िल्टर करें और जांचें",
+    ph_portfolio_search: "लोन आईडी या क्षेत्र द्वारा खोजें (जैसे LP001003, Rural)...",
+    flt_all: "सभी",
+    flt_approved: "स्वीकृत",
+    flt_rejected: "अस्वीकृत",
+    flt_rural: "ग्रामीण",
+    flt_women: "महिला",
+    port_th_id: "लोन आईडी",
+    port_th_gender: "लिंग",
+    port_th_area: "संपत्ति क्षेत्र",
+    port_th_income: "पारिवारिक आय",
+    port_th_req: "मांगी गई राशि",
+    port_th_hist: "क्रेडिट इतिहास",
+    port_th_prob: "एआई संभावना",
+    port_th_status: "अनुमानित स्थिति",
+    port_th_act: "कार्रवाई",
+    btn_prev_page: "← पिछला",
+    btn_next_page: "अगला →",
+    db_title: "आधिकारिक मेरिडियन आवेदन वॉल्ट एवं रजिस्ट्री",
+    db_sub: "पोर्टल के माध्यम से जमा किए गए सभी ऋण आवेदन यहां स्थायी रूप से सुरक्षित हैं",
+    btn_export_csv: "Excel / CSV में निर्यात करें",
+    btn_export_json: "JSON निर्यात करें",
+    btn_refresh: "ताज़ा करें",
+    db_th_appno: "आवेदन संख्या",
+    db_th_date: "जमा दिनांक",
+    db_th_name: "आवेदक का नाम",
+    db_th_cibil: "सिबिल स्कोर",
+    db_th_slip: "वेतन पर्ची",
+    db_th_income: "कुल आय",
+    db_th_req: "वांछित ऋण",
+    db_th_area: "क्षेत्र",
+    db_th_score: "AI स्कोर",
+    db_th_status: "स्थिति",
+    db_th_actions: "कार्रवाई",
+    db_excel_tip: '<strong>लैपटॉप पर उपयोग:</strong> सभी आवेदन तुरंत Microsoft Excel या Google Sheets में खोलने के लिए ऊपर <strong>"Excel / CSV में निर्यात करें"</strong> पर क्लिक करें।',
+    db_sync_note: "स्थायी केंद्रीय डेटाबेस के साथ स्वतः सिंक",
     footer_mission_badge: "हमारा संकल्प",
     footer_mission_statement: "प्रत्येक ऋण निर्णय को समझने में सरल एवं पारदर्शी बनाना।",
     footer_mission_supporting: "निर्णय का स्पष्ट कारण बताएं। सुधार के अवसर पहचानें। निष्पक्षता का जिम्मेदारी से मूल्यांकन करें।",
-    footer_disclaimer: "© 2026 मेरिडियन फेयरलेंड। भारतीय रिज़र्व बैंक (RBI) डिजिटल लेंडिंग दिशा-निर्देशों के पूर्णतः अनुपालन में संचालित।"
+    footer_division: "मिशन भारत • खुदरा ऋण प्रभाग • 2026",
+    footer_disclaimer: "© 2026 मेरिडियन फेयरलेंड। भारतीय रिज़र्व बैंक (RBI) डिजिटल लेंडिंग दिशा-निर्देशों के पूर्णतः अनुपालन में संचालित।",
+    let_bank_name: "मेरिडियन फेयरलेंड एआई (MERIDIAN FAIRLEND AI)",
+    let_division: "मिशन भारत • समावेशी खुदरा ऋण प्रभाग",
+    let_office: "पंजीकृत कार्यालय: नरीमन पॉइंट, मुंबई 400021 • RBI पंजीकरण #N-13.01928",
+    let_ref_lbl: "संदर्भ संख्या:",
+    let_date_lbl: "दिनांक:",
+    let_app_name_lbl: "आवेदक का नाम:",
+    let_fac_lbl: "वांछित ऋण राशि:",
+    let_tenure_lbl: "ऋण अवधि:",
+    let_area_lbl: "निवास / संपत्ति क्षेत्र:",
+    kfs_title: "आधिकारिक भारतीय रिज़र्व बैंक मुख्य तथ्य विवरण (KFS)",
+    kfs_compliant: "RBI डिजिटल लेंडिंग अनुपालित",
+    kfs_row_principal: "स्वीकृत ऋण सुविधा राशि (मूलधन)",
+    kfs_row_apr: "सर्व-समावेशी वार्षिक प्रतिशत ब्याज दर (APR)",
+    kfs_row_tenure: "ऋण अवधि / पुनर्भुगतान किस्तें",
+    kfs_row_emi: "समान मासिक किस्त (EMI)",
+    kfs_row_interest: "कुल देय ब्याज राशि",
+    kfs_row_total: "कुल पुनर्भुगतान राशि (मूलधन + ब्याज)",
+    kfs_row_proc: "प्रोसेसिंग एवं सत्यापन शुल्क",
+    kfs_val_proc: "₹0 (शून्य - मिशन भारत सब्सिडी)",
+    kfs_row_prepay: "पूर्व-भुगतान / फोरक्लोज़र शुल्क",
+    kfs_val_prepay: "₹0 (RBI मास्टर परिपत्र के अनुसार शून्य)",
+    kfs_row_cooling: "वैधानिक कूलिंग-ऑफ / समीक्षा अवधि",
+    kfs_val_cooling: "3 कार्य दिवस (बिना किसी जुर्माने के पूर्ण निकास)",
+    let_factors_heading: "पारदर्शी कारक निर्धारण (RBI निष्पक्ष ऋण संहिता के अंतर्गत):",
+    let_ombudsman_html: '<strong>RBI फेयर प्रैक्टिसेज कोड एवं वैधानिक शिकायत निवारण प्रणाली:</strong><br>• <strong>प्रधान शिकायत निवारण अधिकारी:</strong> श्रीमती शालिनी वर्मा, नोडल शिकायत अधिकारी, मेरिडियन फेयरलेंड एआई, नरीमन पॉइंट, मुंबई 400021। टोल-फ्री: <code>1800-209-4000</code> | ईमेल: <code>grievance.bharat@meridian.fin</code> (समाधान समय-सीमा: 15 कार्य दिवसों के भीतर)।<br>• <strong>RBI एकीकृत लोकपाल योजना:</strong> यदि आपकी शिकायत का समाधान 30 दिनों में नहीं होता है, तो आपको भारतीय रिज़र्व बैंक एकीकृत लोकपाल योजना, 2021 के अंतर्गत <strong><a href="https://cms.rbi.org.in" target="_blank" style="color: #064E3B; font-weight: 700; text-decoration: underline;">https://cms.rbi.org.in</a></strong> पर ऑनलाइन शिकायत दर्ज करने अथवा टोल-फ्री <code>14448</code> पर कॉल करने का वैधानिक अधिकार है।',
+    btn_print_pdf: "प्रिंट / पीडीएफ सहेजें",
+    btn_close: "बंद करें",
+    modal_api_title: "FastAPI बैकएंड कनेक्शन हब",
+    modal_api_origin: "सक्रिय REST API सर्वर पता",
+    modal_api_status_lbl: "स्थिति:",
+    modal_api_docs_note: 'सभी प्रमाणीकरण, अंडरराइटिंग स्कोरिंग, SHAP व्याख्या और निष्पक्षता जांच सीधे FastAPI सर्वर से जुड़े हैं (<a id="modal-swagger-link" href="/docs" target="_blank" style="color: #064E3B; font-weight: 700; text-decoration: underline;">OpenAPI /docs</a>)।',
+    modal_api_custom_t: "कस्टम इंटरनेट बैकएंड URL जोड़ें (वैकल्पिक):",
+    modal_api_custom_d: "यदि आप अलग फ्रंटएंड होस्ट उपयोग कर रहे हैं, तो अपना तैनात बैकएंड URL दर्ज करें:",
+    btn_save_url: "URL सहेजें",
+    btn_auto_detect: "स्वतः पहचानें",
+    btn_test_reconnect: "परीक्षण करें एवं पुनः जुड़ें",
+    modal_site_title: "वेबसाइट ऑनलाइन / ऑफ़लाइन नियंत्रण",
+    modal_site_curr_lbl: "वर्तमान सार्वजनिक उपलब्धता",
+    badge_online: "ऑनलाइन",
+    badge_offline: "ऑफ़लाइन",
+    modal_site_live_desc: "वेबसाइट लाइव है और सभी आवेदकों व आगंतुकों के लिए उपलब्ध है।",
+    modal_site_heading_lbl: "ऑफ़लाइन स्क्रीन शीर्षक",
+    ph_site_heading: "पोर्टल अस्थायी रूप से ऑफ़लाइन है",
+    modal_site_msg_lbl: "आगंतुकों के लिए रखरखाव संदेश",
+    ph_site_msg: "वेबसाइट ऑफ़लाइन रहने पर आगंतुकों को दिखने वाला संदेश दर्ज करें...",
+    modal_site_how: "<strong>ऑफ़लाइन मोड कैसे काम करता है:</strong> वेबसाइट को ऑफ़लाइन करने पर सामान्य आगंतुकों और आवेदकों को एक ब्रांडेड <em>रखरखाव पृष्ठ</em> दिखाई देता है और सार्वजनिक मार्ग HTTP <code>503</code> लौटाते हैं। ऋण अधिकारी किसी भी समय लॉग इन करके ऑनलाइन सेवा बहाल कर सकते हैं।",
+    btn_go_online: "ऑनलाइन करें (लाइव)"
   }
 };
 
@@ -955,20 +1682,65 @@ function syncBackendModalUI() {
   if (customInput) customInput.value = state.apiBase;
 }
 
+function updateBackendStatusUI() {
+  const hi = state.currentLang === 'hi';
+  const badgeText = document.getElementById('backend-status-text');
+  const pulseDot = document.getElementById('backend-pulse-dot');
+  const modalBadge = document.getElementById('modal-backend-status-badge');
+  const modalDesc = document.getElementById('modal-backend-status-desc');
+  syncBackendModalUI();
+
+  if (state.backendConnected) {
+    const healthData = state.backendHealthMeta || {};
+    const hostLabel = (() => {
+      try { return new URL(state.apiBase).host; } catch (e) { return state.apiBase; }
+    })();
+    if (pulseDot) pulseDot.style.background = '#10B981';
+    if (badgeText) {
+      badgeText.innerText = hi ? `FastAPI सर्वर सक्रिय (${hostLabel})` : `FastAPI REST Active (${hostLabel})`;
+    }
+    if (modalBadge) {
+      modalBadge.className = 'badge badge-success';
+      modalBadge.innerText = hi ? 'ऑनलाइन एवं कनेक्टेड' : 'ONLINE & CONNECTED';
+    }
+    if (modalDesc) {
+      modalDesc.innerText = hi
+        ? `${healthData.service || 'मेरिडियन फेयरलेंड'} FastAPI (${state.apiBase}) से ${healthData.database || 'डुअल-सिंक'} डेटाबेस के साथ लाइव जुड़ा है।`
+        : `Connected live to ${healthData.service || 'Meridian FairLend'} FastAPI (${state.apiBase}) with ${healthData.database || 'dual-sync'} persistence.`;
+    }
+  } else {
+    if (pulseDot) pulseDot.style.background = '#F59E0B';
+    if (badgeText) {
+      badgeText.innerText = hi ? 'स्टैंडअलोन मोड (ब्राउज़र गणना)' : 'Standalone Mode (In-Browser Calculation)';
+    }
+    if (modalBadge) {
+      modalBadge.className = 'badge badge-warning';
+      modalBadge.innerText = hi ? 'ब्राउज़र-आधारित ऑफ़लाइन मोड' : 'STANDALONE IN-BROWSER MODE';
+    }
+    if (modalDesc) {
+      modalDesc.innerText = hi
+        ? `${state.apiBase} पर FastAPI बैकएंड से संपर्क नहीं हो सका। स्थानीय गणना मोड में सुचारू रूप से संचालित।`
+        : `Unable to reach FastAPI backend at ${state.apiBase}. Running cleanly via local calculation fallback.`;
+    }
+  }
+}
+
 window.toggleBackendInfoModal = function() {
   const modal = document.getElementById('backend-info-modal');
   if (!modal) return;
   const isHidden = modal.style.display === 'none' || !modal.style.display;
   syncBackendModalUI();
+  updateBackendStatusUI();
   modal.style.display = isHidden ? 'flex' : 'none';
 };
 
 window.saveCustomApiBase = function() {
+  const hi = state.currentLang === 'hi';
   const input = document.getElementById('custom-api-base-input');
   if (!input) return;
   const raw = input.value.trim().replace(/\/+$/, '');
   if (!raw || (!raw.startsWith('http://') && !raw.startsWith('https://'))) {
-    alert('Please enter a valid URL starting with http:// or https://');
+    alert(hi ? 'कृपया http:// या https:// से शुरू होने वाला वैध URL दर्ज करें।' : 'Please enter a valid URL starting with http:// or https://');
     return;
   }
   try {
@@ -991,16 +1763,10 @@ window.resetCustomApiBase = function() {
 };
 
 async function checkBackendConnection(showNotification = false) {
-  const badgeText = document.getElementById('backend-status-text');
-  const pulseDot = document.getElementById('backend-pulse-dot');
-  const modalBadge = document.getElementById('modal-backend-status-badge');
-  const modalDesc = document.getElementById('modal-backend-status-desc');
   syncBackendModalUI();
-
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 3500);
-
     const response = await fetch(`${state.apiBase}/api/health`, {
       method: 'GET',
       signal: controller.signal
@@ -1011,17 +1777,14 @@ async function checkBackendConnection(showNotification = false) {
       let healthData = {};
       try { healthData = await response.json(); } catch (e) {}
       state.backendConnected = true;
-      const hostLabel = (() => {
-        try { return new URL(state.apiBase).host; } catch (e) { return state.apiBase; }
-      })();
-      if (pulseDot) pulseDot.style.background = '#10B981';
-      if (badgeText) badgeText.innerText = `FastAPI REST Active (${hostLabel})`;
-      if (modalBadge) {
-        modalBadge.className = 'badge badge-success';
-        modalBadge.innerText = 'ONLINE & CONNECTED';
-      }
-      if (modalDesc) {
-        modalDesc.innerText = `Connected live to ${healthData.service || 'Meridian FairLend'} FastAPI (${state.apiBase}) with ${healthData.database || 'dual-sync'} persistence.`;
+      state.backendHealthMeta = healthData;
+      updateBackendStatusUI();
+      if (showNotification) {
+        window.showMeridianToast(
+          state.currentLang === 'hi'
+            ? '✅ FastAPI बैकएंड से सफलतापूर्वक जुड़ गया।'
+            : '✅ Connected live to FastAPI backend.'
+        );
       }
       if (currentAuthUser) {
         window.refreshDatabaseTable();
@@ -1030,18 +1793,19 @@ async function checkBackendConnection(showNotification = false) {
       if (state.currentTab === 'fairness-view') renderFairnessCharts();
       return true;
     }
-  } catch (err) {
-
-  }
+  } catch (err) {}
 
   state.backendConnected = false;
-  if (pulseDot) pulseDot.style.background = '#F59E0B';
-  if (badgeText) badgeText.innerText = 'Standalone Mode (In-Browser Calculation)';
-  if (modalBadge) {
-    modalBadge.className = 'badge badge-warning';
-    modalBadge.innerText = 'STANDALONE IN-BROWSER MODE';
+  state.backendHealthMeta = null;
+  updateBackendStatusUI();
+  if (showNotification) {
+    window.showMeridianToast(
+      state.currentLang === 'hi'
+        ? '⚠️ बैकएंड सर्वर उपलब्ध नहीं है। स्थानीय मोड सक्रिय।'
+        : '⚠️ Backend server unreachable. Standalone mode active.',
+      true
+    );
   }
-  if (modalDesc) modalDesc.innerText = `Unable to reach FastAPI backend at ${state.apiBase}. Running cleanly via local calculation fallback.`;
   return false;
 }
 
@@ -1052,33 +1816,83 @@ window.toggleLanguage = function() {
   } catch (e) {}
 
   applyTranslations();
+  syncSiteAvailabilityUI();
+  updateBackendStatusUI();
+  syncFormHelperDisplays();
   updateUI();
+  syncSimulatorSliderLabels();
   updateSimulationUI();
+  renderAuditTable();
+  renderPortfolioTable();
+  if (state.savedDatabaseApps && state.savedDatabaseApps.length > 0) {
+    renderDatabaseTableRows(state.savedDatabaseApps);
+  } else {
+    refreshDatabaseTable();
+  }
+  renderModelPerformanceCharts();
+  renderFairnessCharts();
+
+  const letterModal = document.getElementById('letter-modal');
+  if (letterModal && letterModal.style.display === 'flex') {
+    window.openDecisionLetterModal();
+  }
 };
 
 function applyTranslations() {
   const lang = state.currentLang;
-  const dict = I18N[lang] || I18N.en;
+  const dict = getLangDict();
 
-  const langBtn = document.getElementById('lang-toggle-btn');
-  if (langBtn) langBtn.innerText = dict.lang_btn;
+  document.documentElement.lang = lang === 'hi' ? 'hi' : 'en';
+  if (dict.page_title) document.title = dict.page_title;
 
-  const setText = (selector, text) => {
+  ['lang-toggle-btn', 'lang-toggle-btn-maint', 'lang-toggle-btn-auth', 'lang-toggle-btn-letter'].forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) btn.innerText = dict.lang_btn;
+  });
+
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    if (key && dict[key] !== undefined) {
+      el.innerText = dict[key];
+    }
+  });
+
+  document.querySelectorAll('[data-i18n-html]').forEach(el => {
+    const key = el.getAttribute('data-i18n-html');
+    if (key && dict[key] !== undefined) {
+      el.innerHTML = dict[key];
+    }
+  });
+
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    const key = el.getAttribute('data-i18n-placeholder');
+    if (key && dict[key] !== undefined) {
+      el.setAttribute('placeholder', dict[key]);
+    }
+  });
+
+  document.querySelectorAll('[data-i18n-title]').forEach(el => {
+    const key = el.getAttribute('data-i18n-title');
+    if (key && dict[key] !== undefined) {
+      el.setAttribute('title', dict[key]);
+    }
+  });
+
+  const setHtml = (selector, text) => {
     const el = document.querySelector(selector);
-    if (el) el.innerHTML = text;
+    if (el && text !== undefined) el.innerHTML = text;
   };
-
-  setText('[data-tab="apply-view"]', dict.nav_apply);
-  setText('[data-tab="applicant-view"]', dict.nav_report);
-  setText('[data-tab="officer-view"]', dict.nav_officer);
-  setText('[data-tab="database-view"]', dict.nav_vault);
-  setText('[data-tab="model-view"]', `${dict.nav_accuracy} <span class="tag">80% Accuracy</span>`);
-  setText('[data-tab="fairness-view"]', `${dict.nav_fairness} <span class="tag">80% Rule</span>`);
-  setText('[data-tab="portfolio-view"]', dict.nav_portfolio);
+  setHtml('[data-tab="apply-view"]', dict.nav_apply);
+  setHtml('[data-tab="applicant-view"]', dict.nav_report);
+  setHtml('[data-tab="portfolio-view"]', dict.nav_portfolio);
+  setHtml('[data-tab="officer-view"]', dict.nav_officer);
+  setHtml('[data-tab="model-view"]', dict.nav_accuracy);
+  setHtml('[data-tab="fairness-view"]', dict.nav_fairness);
+  updateAuthRoleUI();
 
   const setElText = (id, text) => {
     const el = document.getElementById(id);
-    if (el) el.innerText = text;
+    if (el && text !== undefined) el.innerText = text;
   };
 
   setElText('form-heading-text', dict.apply_heading);
@@ -1103,8 +1917,10 @@ function applyTranslations() {
   setElText('lbl-fill-tenure', dict.lbl_tenure);
   setElText('lbl-fill-cibil', dict.lbl_cibil);
 
-  const submitBtn = document.getElementById('fill-submit-btn');
-  if (submitBtn) submitBtn.innerHTML = `<span>🚀</span> ${dict.btn_submit_app}`;
+  const submitBtn = document.getElementById('btn-submit-app');
+  if (submitBtn && !submitBtn.disabled) {
+    submitBtn.innerHTML = `<span>🚀</span> ${dict.btn_submit_app}`;
+  }
 
   setElText('sim-main-title', dict.sim_title);
   setElText('sim-main-sub', dict.sim_sub);
@@ -1126,16 +1942,106 @@ function applyTranslations() {
   setElText('lbl-roadmap-title', dict.roadmap_title);
   const openLetterBtn = document.getElementById('btn-open-letter');
   if (openLetterBtn) openLetterBtn.innerHTML = `<span>📄</span> ${dict.btn_open_letter}`;
-  if (dict.prompt_apply_letter) setElText('prompt-apply-text', dict.prompt_apply_letter);
-  if (dict.btn_apply_loan_link) setElText('btn-apply-loan-link', dict.btn_apply_loan_link);
+  setElText('prompt-apply-text', dict.prompt_apply_letter);
+  setElText('btn-apply-loan-link', dict.btn_apply_loan_link);
 
-  if (dict.footer_eyebrow) setElText('footer-eyebrow', dict.footer_eyebrow);
-  if (dict.footer_heading) setElText('footer-heading', dict.footer_heading);
-  if (dict.footer_subtitle) setElText('footer-subtitle', dict.footer_subtitle);
-  if (dict.footer_mission_badge) setElText('footer-mission-badge', dict.footer_mission_badge);
-  if (dict.footer_mission_statement) setElText('footer-mission-statement', dict.footer_mission_statement);
-  if (dict.footer_mission_supporting) setElText('footer-mission-supporting', dict.footer_mission_supporting);
-  if (dict.footer_disclaimer) setElText('footer-disclaimer', dict.footer_disclaimer);
+  setElText('footer-mission-badge', dict.footer_mission_badge);
+  setElText('footer-mission-statement', dict.footer_mission_statement);
+  setElText('footer-mission-supporting', dict.footer_mission_supporting);
+  setElText('footer-disclaimer', dict.footer_disclaimer);
+
+  syncBackendModalUI();
+}
+
+function syncFormHelperDisplays() {
+  const years = parseInt(document.getElementById('fill-loan-years')?.value || 5, 10);
+  window.updateFillTenureDisplay(years);
+  const cibil = parseInt(document.getElementById('fill-cibil-slider')?.value || 760, 10);
+  window.updateCibilDisplay(cibil);
+  const slipVal = document.getElementById('fill-salary-slip')?.value || 'Yes';
+  window.setSalarySlipChoice(slipVal);
+  syncSimSalarySlipVisuals(state.simulated.salary_slip);
+}
+
+function syncSimSalarySlipVisuals(hasSlip) {
+  const btnYes = document.getElementById('sim-btn-slip-yes');
+  const btnNo = document.getElementById('sim-btn-slip-no');
+  const textEl = document.getElementById('sim-slip-status-text');
+
+  if (hasSlip) {
+    if (btnYes) {
+      btnYes.style.border = '1.5px solid #064E3B';
+      btnYes.style.background = '#F8E7C9';
+      btnYes.style.color = '#064E3B';
+      btnYes.style.fontWeight = '700';
+    }
+    if (btnNo) {
+      btnNo.style.border = '1.5px solid #CBD5E1';
+      btnNo.style.background = '#FFFFFF';
+      btnNo.style.color = '#475569';
+      btnNo.style.fontWeight = '600';
+    }
+    if (textEl) {
+      textEl.innerText = state.currentLang === 'hi'
+        ? 'औपचारिक वेतन पर्ची से ऋण स्वीकृति में +5% का अतिरिक्त लाभ मिलता है।'
+        : 'Official pay slip adds +5% underwriting boost.';
+    }
+  } else {
+    if (btnYes) {
+      btnYes.style.border = '1.5px solid #CBD5E1';
+      btnYes.style.background = '#FFFFFF';
+      btnYes.style.color = '#475569';
+      btnYes.style.fontWeight = '600';
+    }
+    if (btnNo) {
+      btnNo.style.border = '1.5px solid #064E3B';
+      btnNo.style.background = '#F8E7C9';
+      btnNo.style.color = '#064E3B';
+      btnNo.style.fontWeight = '700';
+    }
+    if (textEl) {
+      textEl.innerText = state.currentLang === 'hi'
+        ? 'वेतन पर्ची के बिना: 6 माह के बैंक स्टेटमेंट के आधार पर सत्यापन।'
+        : 'Without salary slip: Evaluated via 6-month bank statement cash flows.';
+    }
+  }
+}
+
+function syncSimulatorSliderLabels() {
+  const hi = state.currentLang === 'hi';
+  const sim = state.simulated;
+  const loanEl = document.getElementById('val-sim-loan');
+  const coappEl = document.getElementById('val-sim-coapp');
+  const termEl = document.getElementById('val-sim-term');
+  const cibilEl = document.getElementById('val-sim-cibil');
+
+  if (loanEl) {
+    const amt = sim.loan_amount || 150;
+    loanEl.innerText = hi
+      ? `₹${(amt / 100).toFixed(1)} लाख (₹${(amt * 1000).toLocaleString('en-IN')})`
+      : `₹${(amt / 100).toFixed(1)} Lakh (₹${(amt * 1000).toLocaleString('en-IN')})`;
+  }
+  if (coappEl) {
+    coappEl.innerText = hi
+      ? `₹${Number(sim.coapplicant_income || 0).toLocaleString('en-IN')}/माह`
+      : `₹${Number(sim.coapplicant_income || 0).toLocaleString('en-IN')}/mo`;
+  }
+  if (termEl) {
+    const months = sim.term || 60;
+    const years = Math.max(1, Math.round(months / 12));
+    termEl.innerText = hi
+      ? `${years} वर्ष (${months} माह)`
+      : `${years} Year${years > 1 ? 's' : ''} (${months} Months)`;
+  }
+  if (cibilEl) {
+    const score = sim.cibil_score || 760;
+    const tier = score >= 750
+      ? (hi ? 'उत्कृष्ट' : 'Prime')
+      : score >= 650
+        ? (hi ? 'योग्य' : 'Qualifying')
+        : (hi ? 'निम्न' : 'Subprime');
+    cibilEl.innerText = `${score} (${tier})`;
+  }
 }
 
 window.setSalarySlipChoice = function(val) {
@@ -1189,48 +2095,7 @@ window.setSalarySlipChoice = function(val) {
 
 window.setSimSalarySlip = function(hasSlip) {
   state.simulated.salary_slip = hasSlip;
-  const btnYes = document.getElementById('sim-btn-slip-yes');
-  const btnNo = document.getElementById('sim-btn-slip-no');
-  const textEl = document.getElementById('sim-slip-status-text');
-
-  if (hasSlip) {
-    if (btnYes) {
-      btnYes.style.border = '1.5px solid #064E3B';
-      btnYes.style.background = '#F8E7C9';
-      btnYes.style.color = '#064E3B';
-      btnYes.style.fontWeight = '700';
-    }
-    if (btnNo) {
-      btnNo.style.border = '1.5px solid #CBD5E1';
-      btnNo.style.background = '#FFFFFF';
-      btnNo.style.color = '#475569';
-      btnNo.style.fontWeight = '600';
-    }
-    if (textEl) {
-      textEl.innerText = state.currentLang === 'hi'
-        ? 'औपचारिक वेतन पर्ची से ऋण स्वीकृति में +5% का अतिरिक्त लाभ मिलता है।'
-        : 'Official pay slip adds +5% underwriting boost.';
-    }
-  } else {
-    if (btnYes) {
-      btnYes.style.border = '1.5px solid #CBD5E1';
-      btnYes.style.background = '#FFFFFF';
-      btnYes.style.color = '#475569';
-      btnYes.style.fontWeight = '600';
-    }
-    if (btnNo) {
-      btnNo.style.border = '1.5px solid #064E3B';
-      btnNo.style.background = '#F8E7C9';
-      btnNo.style.color = '#064E3B';
-      btnNo.style.fontWeight = '700';
-    }
-    if (textEl) {
-      textEl.innerText = state.currentLang === 'hi'
-        ? 'वेतन पर्ची के बिना: 6 माह के बैंक स्टेटमेंट के आधार पर सत्यापन।'
-        : 'Without salary slip: Evaluated via 6-month bank statement cash flows.';
-    }
-  }
-
+  syncSimSalarySlipVisuals(hasSlip);
   updateSimulationUI();
 };
 
@@ -1307,7 +2172,6 @@ function computePrediction(appData) {
   if (salarySlip === 'yes' || salarySlip === 'true' || salarySlip === '1') {
     slipImpact = 5.0;
   } else {
-
     if (isFreelance || empType.includes('self') || empType.includes('farm')) {
       slipImpact = 0.0;
     } else {
@@ -1318,9 +2182,7 @@ function computePrediction(appData) {
   contributions['salary_slip'] = { impact: slipImpact, pct_impact: slipImpact };
 
   let empImpact = 1.0;
-  if (isFreelance) {
-    empImpact = 3.0; 
-  } else if (empType.includes('salaried')) {
+  if (isFreelance || empType.includes('salaried')) {
     empImpact = 3.0;
   }
   scorePoints += empImpact;
@@ -1358,7 +2220,7 @@ function computePrediction(appData) {
 }
 
 function generatePlainLanguageExplanations(predResult, appData, lang = 'en') {
-  const dict = I18N[lang] || I18N.en;
+  const hi = lang === 'hi';
   const cibil = predResult.cibil_score || (Number(appData.credit_history) === 1 ? 750 : 540);
   const dti = predResult.ratios ? predResult.ratios.dtiPct : 10;
   const emi = predResult.ratios ? predResult.ratios.emi : 2500;
@@ -1371,108 +2233,106 @@ function generatePlainLanguageExplanations(predResult, appData, lang = 'en') {
 
   if (cibil >= 720) {
     strengths.push({
-      title: lang === 'hi' ? "उच्च सिबिल क्रेडिट प्रतिष्ठा (प्राइम)" : "High Credit Trust (Prime CIBIL)",
-      desc: lang === 'hi' ? `आपका सिबिल स्कोर ${cibil} उत्कृष्ट क्रेडिट प्रतिष्ठा को प्रमाणित करता है।` : `Your CIBIL score of ${cibil} shows a stellar track record of paying past debts on time.`,
-      impact: "+24% Boost"
+      title: hi ? 'उच्च सिबिल क्रेडिट प्रतिष्ठा (प्राइम)' : 'High Credit Trust (Prime CIBIL)',
+      desc: hi ? `आपका सिबिल स्कोर ${cibil} उत्कृष्ट क्रेडिट प्रतिष्ठा को प्रमाणित करता है।` : `Your CIBIL score of ${cibil} shows a stellar track record of paying past debts on time.`,
+      impact: hi ? '+24% बढ़त' : '+24% Boost'
     });
   } else if (cibil >= 650) {
     strengths.push({
-      title: lang === 'hi' ? "मानक सिबिल क्रेडिट रिकॉर्ड" : "Good Qualifying CIBIL Track",
-      desc: lang === 'hi' ? `आपका सिबिल स्कोर ${cibil} बैंक मानकों के पूर्णतः अनुकूल है।` : `Your CIBIL score of ${cibil} comfortably meets retail lending credit criteria.`,
-      impact: "+15% Boost"
+      title: hi ? 'मानक सिबिल क्रेडिट रिकॉर्ड' : 'Good Qualifying CIBIL Track',
+      desc: hi ? `आपका सिबिल स्कोर ${cibil} बैंक मानकों के पूर्णतः अनुकूल है।` : `Your CIBIL score of ${cibil} comfortably meets retail lending credit criteria.`,
+      impact: hi ? '+15% बढ़त' : '+15% Boost'
     });
   } else {
     frictions.push({
-      title: lang === 'hi' ? "कम सिबिल स्कोर (सबप्राइम)" : "Subprime CIBIL Bureau Score",
-      desc: lang === 'hi' ? `सिबिल स्कोर ${cibil} पूर्व विलंबित भुगतानों या सीमित क्रेडिट रिकॉर्ड को दर्शाता है।` : `A CIBIL score of ${cibil} indicates past overdue repayments or insufficient bureau history.`,
-      impact: "-25% Discount"
+      title: hi ? 'कम सिबिल स्कोर (सबप्राइम)' : 'Subprime CIBIL Bureau Score',
+      desc: hi ? `सिबिल स्कोर ${cibil} पूर्व विलंबित भुगतानों या सीमित क्रेडिट रिकॉर्ड को दर्शाता है।` : `A CIBIL score of ${cibil} indicates past overdue repayments or insufficient bureau history.`,
+      impact: hi ? '-25% कटौती' : '-25% Discount'
     });
-    actions.push(lang === 'hi' ? "पुराने बकाये का निपटान करें: क्रेडिट ब्यूरो में पिछले बकाये का भुगतान कर एनओसी प्राप्त करें।" : "Clear outstanding overdue payments on prior credit facilities or obtain a No-Objection Certificate (NOC).");
+    actions.push(hi ? 'पुराने बकाये का निपटान करें: क्रेडिट ब्यूरो में पिछले बकाये का भुगतान कर एनओसी (NOC) प्राप्त करें।' : 'Clear outstanding overdue payments on prior credit facilities or obtain a No-Objection Certificate (NOC).');
   }
 
   if (dti <= 30.0) {
     strengths.push({
-      title: lang === 'hi' ? "संतुलित ऋण-आय अनुपात" : "Comfortable Monthly Debt Burden",
-      desc: lang === 'hi' ? `मासिक ईएमआई (₹${emi.toLocaleString('en-IN')}) कुल आय का केवल ${dti}% है, जो सुरक्षित सीमा में है।` : `Monthly EMI (₹${emi.toLocaleString('en-IN')}) takes only ${dti}% of household income, well within safe limits.`,
-      impact: "+18% Boost"
+      title: hi ? 'संतुलित ऋण-आय अनुपात' : 'Comfortable Monthly Debt Burden',
+      desc: hi ? `मासिक ईएमआई (₹${emi.toLocaleString('en-IN')}) कुल आय का केवल ${dti}% है, जो सुरक्षित सीमा में है।` : `Monthly EMI (₹${emi.toLocaleString('en-IN')}) takes only ${dti}% of household income, well within safe limits.`,
+      impact: hi ? '+18% बढ़त' : '+18% Boost'
     });
   } else if (dti <= 45.0) {
     strengths.push({
-      title: lang === 'hi' ? "प्रबंधनीय ऋण दायित्व" : "Manageable Obligation Ratio",
-      desc: lang === 'hi' ? `मासिक ईएमआई आय का ${dti}% है, जो सामान्य ऋण मानकों के अनुरूप है।` : `Monthly EMI takes ${dti}% of income, which satisfies regular debt service criteria.`,
-      impact: "+6% Boost"
+      title: hi ? 'प्रबंधनीय ऋण दायित्व' : 'Manageable Obligation Ratio',
+      desc: hi ? `मासिक ईएमआई आय का ${dti}% है, जो सामान्य ऋण मानकों के अनुरूप है।` : `Monthly EMI takes ${dti}% of income, which satisfies regular debt service criteria.`,
+      impact: hi ? '+6% बढ़त' : '+6% Boost'
     });
   } else {
     frictions.push({
-      title: lang === 'hi' ? "अत्यधिक पुनर्भुगतान भार (उच्च DTI)" : "Elevated Repayment Burden (High DTI)",
-      desc: lang === 'hi' ? `मासिक ईएमआई ₹${emi.toLocaleString('en-IN')} आपकी आय का ${dti}% है, जो 45% की सुरक्षित सीमा से अधिक है।` : `Monthly EMI of ₹${emi.toLocaleString('en-IN')} consumes ${dti}% of your monthly income, exceeding the recommended 45% ceiling.`,
-      impact: "-20% Risk"
+      title: hi ? 'अत्यधिक पुनर्भुगतान भार (उच्च DTI)' : 'Elevated Repayment Burden (High DTI)',
+      desc: hi ? `मासिक ईएमआई ₹${emi.toLocaleString('en-IN')} आपकी आय का ${dti}% है, जो 45% की सुरक्षित सीमा से अधिक है।` : `Monthly EMI of ₹${emi.toLocaleString('en-IN')} consumes ${dti}% of your monthly income, exceeding the recommended 45% ceiling.`,
+      impact: hi ? '-20% जोखिम' : '-20% Risk'
     });
-    actions.push(lang === 'hi' ? "ऋण अवधि बढ़ाएं: टेन्योर 1 से 30 वर्ष के बीच बढ़ाकर मासिक किस्त कम करें।" : "Extend loan tenure (e.g. increase years from 1 to 30) or reduce loan amount to lower monthly EMI below 40%.");
+    actions.push(hi ? 'ऋण अवधि बढ़ाएं: टेन्योर 1 से 30 वर्ष के बीच बढ़ाकर मासिक किस्त आय के 40% से कम करें।' : 'Extend loan tenure (e.g. increase years from 1 to 30) or reduce loan amount to lower monthly EMI below 40%.');
   }
 
   if (salarySlip === 'Yes') {
     strengths.push({
-      title: lang === 'hi' ? "सत्यापित आय (वेतन पर्ची संलग्न)" : "Verified Income (Salary Slip)",
-      desc: lang === 'hi' ? "आधिकारिक वेतन पर्ची संलग्न है, जिससे नियमित और पुष्ट आय की पुष्टि होती है।" : "Official salary slip submitted, confirming verifiable recurring compensation.",
-      impact: "+5% Boost"
+      title: hi ? 'सत्यापित आय (वेतन पर्ची संलग्न)' : 'Verified Income (Salary Slip)',
+      desc: hi ? 'आधिकारिक वेतन पर्ची संलग्न है, जिससे नियमित और पुष्ट आय की पुष्टि होती है।' : 'Official salary slip submitted, confirming verifiable recurring compensation.',
+      impact: hi ? '+5% बढ़त' : '+5% Boost'
     });
   } else {
     if (isFreelance) {
       strengths.push({
-        title: lang === 'hi' ? "मिशन भारत फ्रीलांसिंग समावेशन" : "Mission Bharat Gig Inclusivity",
-        desc: lang === 'hi' ? "वेतन पर्ची के अभाव में फ्रीलांस/गिग आय का 6-माह के बैंक विवरण व डिजिटल कैश-फ्लो से मूल्यांकन।" : "Freelance income assessed via 6-month digital banking cash flows & client invoices in lieu of pay slip.",
-        impact: "Alternative Assessment"
+        title: hi ? 'मिशन भारत फ्रीलांसिंग समावेशन' : 'Mission Bharat Gig Inclusivity',
+        desc: hi ? 'वेतन पर्ची के अभाव में फ्रीलांस/गिग आय का 6-माह के बैंक विवरण व डिजिटल कैश-फ्लो से मूल्यांकन।' : 'Freelance income assessed via 6-month digital banking cash flows & client invoices in lieu of pay slip.',
+        impact: hi ? 'वैकल्पिक मूल्यांकन' : 'Alternative Assessment'
       });
-      actions.push(lang === 'hi' ? "6 माह का बैंक विवरण या क्लाइंट इनवॉइस प्रस्तुत करें।" : "Submit 6-month digital bank statement or client invoice records in lieu of salary slip.");
+      actions.push(hi ? '6 माह का बैंक विवरण या क्लाइंट इनवॉइस प्रस्तुत करें।' : 'Submit 6-month digital bank statement or client invoice records in lieu of salary slip.');
     } else {
       frictions.push({
-        title: lang === 'hi' ? "वेतन पर्ची अनुपलब्ध" : "Absence of Formal Salary Slip",
-        desc: lang === 'hi' ? "वेतन पर्ची संलग्न नहीं है। अनौपचारिक आय के लिए बैंक विवरण आवश्यक है।" : "No salary slip attached. Verification requires secondary bank statement submission.",
-        impact: "-6% Friction"
+        title: hi ? 'वेतन पर्ची अनुपलब्ध' : 'Absence of Formal Salary Slip',
+        desc: hi ? 'वेतन पर्ची संलग्न नहीं है। अनौपचारिक आय के लिए 6-माह का बैंक विवरण आवश्यक है।' : 'No salary slip attached. Verification requires secondary bank statement submission.',
+        impact: hi ? '-6% अवरोध' : '-6% Friction'
       });
-      actions.push(lang === 'hi' ? "औपचारिक बैंक खाता विवरण या नियोक्ता प्रमाण पत्र संलग्न करें।" : "Provide 6-month formal bank account statement or employer certificate in lieu of pay slip.");
+      actions.push(hi ? 'औपचारिक बैंक खाता विवरण या नियोक्ता प्रमाण पत्र संलग्न करें।' : 'Provide 6-month formal bank account statement or employer certificate in lieu of pay slip.');
     }
   }
 
   if (isFreelance) {
     strengths.push({
-      title: lang === 'hi' ? "डिजिटल अर्थव्यवस्था योगदानकर्ता (फ्रीलांसिंग)" : "Digital Gig Economy Contributor",
-      desc: lang === 'hi' ? "फ्रीलांसिंग / स्वतंत्र पेशेवर आय स्रोतों को मिशन भारत की समावेशी नीतियों का समर्थन।" : "Freelance / Independent contractor livelihood supported under Mission Bharat progressive inclusion guidelines.",
-      impact: "+3% Inclusion"
+      title: hi ? 'डिजिटल अर्थव्यवस्था योगदानकर्ता (फ्रीलांसिंग)' : 'Digital Gig Economy Contributor',
+      desc: hi ? 'फ्रीलांसिंग / स्वतंत्र पेशेवर आय स्रोतों को मिशन भारत की समावेशी नीतियों का समर्थन प्राप्त है।' : 'Freelance / Independent contractor livelihood supported under Mission Bharat progressive inclusion guidelines.',
+      impact: hi ? '+3% समावेशन' : '+3% Inclusion'
     });
   }
 
   const coapp = parseFloat(appData.coapplicant_income || 0);
   if (coapp > 0) {
     strengths.push({
-      title: lang === 'hi' ? "संयुक्त अर्जक सह-आवेदक" : "Joint Earning Co-Applicant",
-      desc: lang === 'hi' ? `कमाऊ सह-आवेदक (₹${Math.round(coapp).toLocaleString('en-IN')}/माह) से परिवार की चुकौती क्षमता मजबूत हुई।` : `Adding an earning co-applicant (₹${Math.round(coapp).toLocaleString('en-IN')}/month) enhances household cash flow security.`,
-      impact: "+8% Boost"
+      title: hi ? 'संयुक्त अर्जक सह-आवेदक' : 'Joint Earning Co-Applicant',
+      desc: hi ? `कमाऊ सह-आवेदक (₹${Math.round(coapp).toLocaleString('en-IN')}/माह) से परिवार की चुकौती क्षमता मजबूत हुई।` : `Adding an earning co-applicant (₹${Math.round(coapp).toLocaleString('en-IN')}/month) enhances household cash flow security.`,
+      impact: hi ? '+8% बढ़त' : '+8% Boost'
     });
   } else if (dti > 35.0) {
     frictions.push({
-      title: lang === 'hi' ? "एकल आय निर्भरता" : "Single Income Dependency",
-      desc: lang === 'hi' ? "अकेले आवेदक होने से आपातकालीन वित्तीय व्यवधान का जोखिम बढ़ता है।" : "Relying on a single income stream increases risk during unexpected financial disruptions.",
-      impact: "-8% Risk"
+      title: hi ? 'एकल आय निर्भरता' : 'Single Income Dependency',
+      desc: hi ? 'केवल एक आय स्रोत पर निर्भरता से आपातकालीन वित्तीय व्यवधान का जोखिम बढ़ता है।' : 'Relying on a single income stream increases risk during unexpected financial disruptions.',
+      impact: hi ? '-8% जोखिम' : '-8% Risk'
     });
-    actions.push(lang === 'hi' ? "कमाऊ सह-आवेदक जोड़ें: परिवार के किसी आय वाले सदस्य को जोड़ने से ऋण स्वीकृति बढ़ेगी।" : "Include an earning spouse or family member as a co-applicant to expand repayment capacity.");
+    actions.push(hi ? 'कमाऊ सह-आवेदक जोड़ें: परिवार के किसी आय वाले सदस्य को जोड़ने से ऋण स्वीकृति संभावना बढ़ेगी।' : 'Include an earning spouse or family member as a co-applicant to expand repayment capacity.');
   }
 
-  return {
-    strengths: strengths,
-    frictions: frictions,
-    actions: actions
-  };
+  return { strengths, frictions, actions };
 }
 
 window.handleLoanApplicationSubmit = async function(event) {
   if (event) event.preventDefault();
+  const hi = state.currentLang === 'hi';
+  const dict = getLangDict();
 
-  const submitBtn = document.getElementById('fill-submit-btn');
+  const submitBtn = document.getElementById('btn-submit-app');
   if (submitBtn) {
     submitBtn.disabled = true;
-    submitBtn.innerHTML = '<span>⏳</span> Recording in Vault...';
+    submitBtn.innerHTML = `<span>⏳</span> ${hi ? 'वॉल्ट में दर्ज हो रहा है...' : 'Recording in Vault...'}`;
   }
 
   const yearsVal = parseInt(document.getElementById('fill-loan-years')?.value || 5, 10);
@@ -1504,23 +2364,18 @@ window.handleLoanApplicationSubmit = async function(event) {
 
   if (state.backendConnected) {
     try {
-      const reqHeaders = { 'Content-Type': 'application/json' };
-      if (currentAuthUser?.id) reqHeaders['X-User-Id'] = String(currentAuthUser.id);
-      if (currentAuthUser?.role) reqHeaders['X-User-Role'] = String(currentAuthUser.role);
-      if (currentAuthToken) reqHeaders['Authorization'] = `Bearer ${currentAuthToken}`;
-
       const response = await fetch(`${state.apiBase}/api/apply`, {
         method: 'POST',
-        headers: reqHeaders,
+        headers: buildAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(formData)
       });
 
       if (response.status === 503) {
         await window.checkSiteAvailability();
-        alert('Portal is temporarily offline for scheduled maintenance.');
+        alert(hi ? 'पोर्टल निर्धारित रखरखाव के लिए अस्थायी रूप से ऑफ़लाइन है।' : 'Portal is temporarily offline for scheduled maintenance.');
         if (submitBtn) {
           submitBtn.disabled = false;
-          submitBtn.innerHTML = `<span>🚀</span> ${I18N[state.currentLang]?.btn_submit_app || 'Submit Application'}`;
+          submitBtn.innerHTML = `<span>🚀</span> ${dict.btn_submit_app}`;
         }
         return;
       }
@@ -1534,7 +2389,7 @@ window.handleLoanApplicationSubmit = async function(event) {
         state.backendExplanation = explanation;
       }
     } catch (err) {
-      console.warn("Backend apply API offline, saving to local vault:", err);
+      console.warn('Backend apply API offline, saving to local vault:', err);
     }
   }
   if (!savedRecord) {
@@ -1631,7 +2486,8 @@ window.handleLoanApplicationSubmit = async function(event) {
   setSliderVal('sim-slider-coapp', state.simulated.coapplicant_income);
   setSliderVal('sim-slider-term', Math.round(state.simulated.term / 12));
   setSliderVal('sim-slider-cibil', state.simulated.cibil_score);
-  setSimSalarySlip(state.simulated.salary_slip);
+  syncSimSalarySlipVisuals(state.simulated.salary_slip);
+  syncSimulatorSliderLabels();
 
   updateUI();
   updateSimulationUI();
@@ -1639,7 +2495,7 @@ window.handleLoanApplicationSubmit = async function(event) {
 
   if (submitBtn) {
     submitBtn.disabled = false;
-    submitBtn.innerHTML = `<span>🚀</span> ${I18N[state.currentLang]?.btn_submit_app || 'Submit Application'}`;
+    submitBtn.innerHTML = `<span>🚀</span> ${dict.btn_submit_app}`;
   }
 
   const reportTab = document.querySelector('[data-tab="applicant-view"]');
@@ -1703,25 +2559,18 @@ window.resetWhatIfToBaseline = function() {
   };
 
   setSliderVal('sim-slider-loan', state.simulated.loan_amount);
-  document.getElementById('val-sim-loan').innerText = `₹${(state.simulated.loan_amount / 100).toFixed(1)} Lakh (₹${(state.simulated.loan_amount * 1000).toLocaleString('en-IN')})`;
-
   setSliderVal('sim-slider-coapp', state.simulated.coapplicant_income);
-  document.getElementById('val-sim-coapp').innerText = `₹${state.simulated.coapplicant_income.toLocaleString('en-IN')}/mo`;
-
-  const years = Math.round(state.simulated.term / 12);
-  setSliderVal('sim-slider-term', years);
-  document.getElementById('val-sim-term').innerText = `${years} Year${years > 1 ? 's' : ''} (${state.simulated.term} Months)`;
-
+  setSliderVal('sim-slider-term', Math.round(state.simulated.term / 12));
   setSliderVal('sim-slider-cibil', state.simulated.cibil_score);
-  document.getElementById('val-sim-cibil').innerText = `${state.simulated.cibil_score} (${state.simulated.cibil_score >= 750 ? 'Prime' : 'Standard'})`;
-
-  setSimSalarySlip(state.simulated.salary_slip);
+  syncSimulatorSliderLabels();
+  syncSimSalarySlipVisuals(state.simulated.salary_slip);
   updateSimulationUI();
 };
 
 let _whatIfTimer = null;
 
 function applySimulationRender(simPred, delta) {
+  const hi = state.currentLang === 'hi';
   const sim = state.simulated;
   const simProbEl = document.getElementById('sim-current-prob');
   const simDeltaEl = document.getElementById('sim-delta-badge');
@@ -1734,19 +2583,19 @@ function applySimulationRender(simPred, delta) {
   if (simProbEl) simProbEl.innerText = `${pct}%`;
   if (simDeltaEl) {
     if (delta > 0) {
-      simDeltaEl.innerText = `+${delta}% Gain`;
+      simDeltaEl.innerText = hi ? `+${delta}% लाभ` : `+${delta}% Gain`;
       simDeltaEl.className = 'badge badge-success';
     } else if (delta < 0) {
-      simDeltaEl.innerText = `${delta}% Drop`;
+      simDeltaEl.innerText = hi ? `${delta}% गिरावट` : `${delta}% Drop`;
       simDeltaEl.className = 'badge badge-danger';
     } else {
-      simDeltaEl.innerText = `Baseline`;
+      simDeltaEl.innerText = hi ? 'आधार रेखा' : 'Baseline';
       simDeltaEl.className = 'badge badge-info';
     }
   }
 
   if (simStatusEl) {
-    simStatusEl.innerText = statusStr.toUpperCase();
+    simStatusEl.innerText = localizeStatus(statusStr, state.currentLang).toUpperCase();
     simStatusEl.className = `badge badge-${statusStr === 'approved' ? 'success' : statusStr === 'conditional' ? 'warning' : 'danger'}`;
   }
 
@@ -1755,19 +2604,27 @@ function applySimulationRender(simPred, delta) {
   const cibilEl = document.getElementById('sim-metric-cibil');
   const docEl = document.getElementById('sim-metric-doc');
 
-  if (emiEl) emiEl.innerText = `₹${Math.round(emi).toLocaleString('en-IN')}/mo`;
+  if (emiEl) emiEl.innerText = `₹${Math.round(emi).toLocaleString('en-IN')}${hi ? '/माह' : '/mo'}`;
   if (dtiEl) {
-    const dtiSafe = dtiPct <= 30 ? (state.currentLang === 'hi' ? 'सुरक्षित' : 'Safe') : dtiPct <= 45 ? (state.currentLang === 'hi' ? 'मध्यम' : 'Moderate') : (state.currentLang === 'hi' ? 'अत्यधिक' : 'High');
+    const dtiSafe = dtiPct <= 30
+      ? (hi ? 'सुरक्षित' : 'Safe')
+      : dtiPct <= 45
+        ? (hi ? 'मध्यम' : 'Moderate')
+        : (hi ? 'अत्यधिक' : 'High');
     dtiEl.innerText = `${dtiPct}% (${dtiSafe})`;
   }
   if (cibilEl) {
-    const tier = sim.cibil_score >= 750 ? 'Prime' : sim.cibil_score >= 650 ? 'Qualifying' : 'Subprime';
+    const tier = sim.cibil_score >= 750
+      ? (hi ? 'उत्कृष्ट' : 'Prime')
+      : sim.cibil_score >= 650
+        ? (hi ? 'योग्य' : 'Qualifying')
+        : (hi ? 'निम्न' : 'Subprime');
     cibilEl.innerText = `${tier} (${sim.cibil_score})`;
   }
   if (docEl) {
     docEl.innerText = sim.salary_slip
-      ? (state.currentLang === 'hi' ? 'वेतन पर्ची संलग्न (+5%)' : 'Salary Slip Attached (+5%)')
-      : (state.currentLang === 'hi' ? 'बैंक स्टेटमेंट सत्यापन' : 'Bank Statement Verified');
+      ? (hi ? 'वेतन पर्ची संलग्न (+5%)' : 'Salary Slip Attached (+5%)')
+      : (hi ? 'बैंक स्टेटमेंट सत्यापन' : 'Bank Statement Verified');
   }
 
   const tipEl = document.getElementById('sim-smart-tip');
@@ -1776,28 +2633,28 @@ function applySimulationRender(simPred, delta) {
       tipEl.style.background = '#F0FDF4';
       tipEl.style.borderLeft = '4px solid #059669';
       tipEl.style.color = '#064E3B';
-      tipEl.innerHTML = state.currentLang === 'hi'
+      tipEl.innerHTML = hi
         ? '✨ <strong>उत्कृष्ट वित्तीय संतुलन:</strong> यह कॉन्फ़िगरेशन कम ईएमआई और मजबूत सिबिल के साथ आपके आवेदन को <strong>स्वीकृत श्रेणी (Approved Tier)</strong> में रखता है।'
         : '✨ <strong>Optimal Underwriting Sweet Spot:</strong> This balanced configuration comfortably qualifies your file in the <strong>Approved Tier</strong> with safe repayment margins.';
     } else if (dtiPct > 45) {
       tipEl.style.background = '#FFFBEB';
       tipEl.style.borderLeft = '4px solid #D97706';
       tipEl.style.color = '#92400E';
-      tipEl.innerHTML = state.currentLang === 'hi'
-        ? '⚠️ <strong>मासिक ऋण भार अधिक है:</strong> ईएमआई आय का 45% से अधिक ले रही है। अवधि (टेन्योर) को 8-12 वर्ष तक बढ़ाकर या ऋण राशि 15% घटाकर स्वीकृति तुरंत प्राप्त करें।'
+      tipEl.innerHTML = hi
+        ? '⚠️ <strong>मासिक ऋण भार अधिक है:</strong> ईएमआई आय का 45% से अधिक ले रही है। अवधि (टेन्योर) को 8-12 वर्ष तक बढ़ाकर या ऋण राशि घटाकर स्वीकृति तुरंत प्राप्त करें।'
         : '⚠️ <strong>Elevated Monthly Obligation:</strong> Monthly EMI takes over 45% of income. Try extending tenure to 8–12 years or reducing loan amount to drop DTI below 40%.';
     } else if (sim.cibil_score < 650) {
       tipEl.style.background = '#FEF2F2';
       tipEl.style.borderLeft = '4px solid #DC2626';
       tipEl.style.color = '#991B1B';
-      tipEl.innerHTML = state.currentLang === 'hi'
+      tipEl.innerHTML = hi
         ? '⚠️ <strong>सिबिल स्कोर चुनौती:</strong> 650 से कम सिबिल स्कोर मुख्य रुकावट है। सिबिल स्कोर को 680+ तक सुधारने से तुरंत स्वीकृति संभव होगी।'
         : '⚠️ <strong>Bureau Score Barrier:</strong> A CIBIL bureau score below 650 is the primary risk driver. Clearing past overdues to reach 680+ will unlock full sanction.';
     } else {
       tipEl.style.background = '#EFF6FF';
       tipEl.style.borderLeft = '4px solid #2563EB';
       tipEl.style.color = '#1E40AF';
-      tipEl.innerHTML = state.currentLang === 'hi'
+      tipEl.innerHTML = hi
         ? '💡 <strong>समीक्षाधीन स्थिति:</strong> आवेदन स्वीकृति सीमा के निकट है। सह-आवेदक आय जोड़ने या वेतन पर्ची संलग्न करने से स्वीकृति सुनिश्चित होगी।'
         : '💡 <strong>Borderline Threshold:</strong> Application is close to standard pass criteria. Adding a family co-applicant will easily elevate your likelihood above 80%.';
     }
@@ -1860,12 +2717,10 @@ function updateSimulationUI() {
 }
 
 window.exportVaultToCSV = function() {
-  const apps = state.savedDatabaseApps.length > 0 ? state.savedDatabaseApps : [
-    state.currentApplicant
-  ];
+  const apps = state.savedDatabaseApps.length > 0 ? state.savedDatabaseApps : [state.currentApplicant];
 
-  let csvContent = "data:text/csv;charset=utf-8,";
-  csvContent += "Application No,Full Name,CIBIL Score,Salary Slip,Applicant Income,Co-Applicant Income,Loan Amount (k),Tenure (Months),Property Area,Status,Approval Likelihood (%),Monthly EMI (INR)\n";
+  let csvContent = 'data:text/csv;charset=utf-8,';
+  csvContent += 'Application No,Full Name,CIBIL Score,Salary Slip,Applicant Income,Co-Applicant Income,Loan Amount (k),Tenure (Months),Property Area,Status,Approval Likelihood (%),Monthly EMI (INR)\n';
 
   apps.forEach(a => {
     const row = [
@@ -1881,14 +2736,14 @@ window.exportVaultToCSV = function() {
       a.status || 'Approved',
       a.approval_likelihood || 95,
       a.monthly_emi || 2500
-    ].join(",");
-    csvContent += row + "\n";
+    ].join(',');
+    csvContent += row + '\n';
   });
 
   const encodedUri = encodeURI(csvContent);
-  const link = document.createElement("a");
-  link.setAttribute("href", encodedUri);
-  link.setAttribute("download", `meridian_loan_applications_${new Date().toISOString().substring(0,10)}.csv`);
+  const link = document.createElement('a');
+  link.setAttribute('href', encodedUri);
+  link.setAttribute('download', `meridian_loan_applications_${new Date().toISOString().substring(0, 10)}.csv`);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -1896,18 +2751,68 @@ window.exportVaultToCSV = function() {
 
 window.exportVaultToJSON = function() {
   const apps = state.savedDatabaseApps.length > 0 ? state.savedDatabaseApps : [state.currentApplicant];
-  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(apps, null, 2));
-  const link = document.createElement("a");
-  link.setAttribute("href", dataStr);
-  link.setAttribute("download", `meridian_loan_vault_backup_${new Date().toISOString().substring(0,10)}.json`);
+  const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(apps, null, 2));
+  const link = document.createElement('a');
+  link.setAttribute('href', dataStr);
+  link.setAttribute('download', `meridian_loan_vault_backup_${new Date().toISOString().substring(0, 10)}.json`);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
 };
 
-window.refreshDatabaseTable = async function() {
+function renderDatabaseTableRows(allApps) {
   const tbody = document.getElementById('db-table-body');
   const countBadge = document.getElementById('db-total-count');
+  if (!tbody) return;
+  const hi = state.currentLang === 'hi';
+
+  if (countBadge) {
+    countBadge.innerText = hi
+      ? `${allApps.length} सुरक्षित आवेदन`
+      : `${allApps.length} Saved Applications`;
+  }
+
+  tbody.innerHTML = allApps.map(app => {
+    const statusRaw = String(app.status || 'Approved');
+    const badge = statusRaw === 'Approved' ? 'badge-success' : statusRaw === 'Conditional' ? 'badge-warning' : 'badge-danger';
+    const cibilVal = app.cibil_score || (app.credit_history === 1 ? 750 : 540);
+    const cibilClass = cibilVal >= 750 ? 'badge-success' : cibilVal >= 650 ? 'badge-info' : 'badge-danger';
+    const totInc = (parseFloat(app.applicant_income) || 0) + (parseFloat(app.coapplicant_income) || 0);
+    const termMonths = app.loan_term_months || app.term || 60;
+    const years = Math.max(1, Math.round(termMonths / 12));
+    const isSlip = app.salary_slip === 'Yes' || app.salary_slip === true;
+    const slipTag = isSlip
+      ? `<span style="color: #059669; font-weight: 700;">${hi ? '✓ पर्ची' : '✓ Slip'}</span>`
+      : `<span style="color: #D97706; font-weight: 700;">${hi ? '✕ अनुपलब्ध' : '✕ No Slip'}</span>`;
+    const loanAmt = parseFloat(app.loan_amount) || 150;
+    const loanDisplay = loanAmt > 1000 ? `₹${loanAmt.toLocaleString('en-IN')}` : `₹${(loanAmt * 1000).toLocaleString('en-IN')}`;
+    const areaDisplay = localizeArea(app.property_area || 'Urban', state.currentLang);
+    const statusDisplay = localizeStatus(statusRaw, state.currentLang);
+
+    return `
+      <tr>
+        <td style="font-weight: 800; color: #064E3B;">${app.application_no}</td>
+        <td style="font-size: 0.8rem; color: #4B6359;">${app.created_at ? app.created_at.substring(0, 16) : (hi ? 'आज' : 'Today')}</td>
+        <td style="font-weight: 700; color: #0B2920;">${app.full_name || (hi ? 'आवेदक' : 'Applicant')}</td>
+        <td><span class="badge ${cibilClass}">${cibilVal}</span></td>
+        <td style="font-size: 0.8rem;">${slipTag}</td>
+        <td>₹${totInc.toLocaleString('en-IN')}${hi ? '/माह' : '/mo'}</td>
+        <td>${loanDisplay} (${years} ${hi ? 'वर्ष' : 'yrs'})</td>
+        <td>${areaDisplay}</td>
+        <td><strong>${app.approval_likelihood || 85}%</strong></td>
+        <td><span class="badge ${badge}">${statusDisplay}</span></td>
+        <td>
+          <button class="btn btn-outline" style="padding: 4px 8px; font-size: 0.75rem;" onclick="loadDbApplicantById('${app.application_no}')">
+            🔍 ${hi ? 'जांचें' : 'Inspect'}
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+window.refreshDatabaseTable = async function() {
+  const tbody = document.getElementById('db-table-body');
   if (!tbody) return;
 
   const appMap = new Map();
@@ -1927,16 +2832,12 @@ window.refreshDatabaseTable = async function() {
     }
   } catch (e) {}
 
-  if (state.backendConnected) {
+  if (state.backendConnected && currentAuthUser) {
     try {
-      const queryParams = (currentAuthUser && currentAuthUser.role === 'applicant') 
-        ? `?user_id=${currentAuthUser.id}&role=applicant&email=${encodeURIComponent(currentAuthUser.email)}`
-        : `?role=officer`;
-      const reqHeaders = {};
-      if (currentAuthUser?.id) reqHeaders['X-User-Id'] = String(currentAuthUser.id);
-      if (currentAuthUser?.role) reqHeaders['X-User-Role'] = String(currentAuthUser.role);
-      if (currentAuthToken) reqHeaders['Authorization'] = `Bearer ${currentAuthToken}`;
-      const response = await fetch(`${state.apiBase}/api/saved-applications${queryParams}`, { headers: reqHeaders });
+      const queryParams = currentAuthUser.role === 'applicant'
+        ? `?user_id=${encodeURIComponent(currentAuthUser.id)}&role=applicant&email=${encodeURIComponent(currentAuthUser.email || '')}`
+        : '?role=officer';
+      const response = await fetch(`${state.apiBase}/api/saved-applications${queryParams}`, { headers: buildAuthHeaders() });
       if (response.status === 503) {
         await window.checkSiteAvailability();
         return;
@@ -1964,8 +2865,6 @@ window.refreshDatabaseTable = async function() {
     return (b.application_no || '').localeCompare(a.application_no || '');
   });
 
-  
-  // Strict Role-Based Filtering
   if (currentAuthUser && currentAuthUser.role === 'applicant') {
     allApps = allApps.filter(app => {
       if (!app) return false;
@@ -1983,44 +2882,7 @@ window.refreshDatabaseTable = async function() {
     localStorage.setItem('meridian_saved_apps', JSON.stringify(allApps));
   } catch (e) {}
 
-  if (countBadge) {
-    countBadge.innerText = `${allApps.length} Saved Applications (Old + New)`;
-  }
-
-  tbody.innerHTML = allApps.map(app => {
-    const badge = app.status === 'Approved' ? 'badge-success' : app.status === 'Conditional' ? 'badge-warning' : 'badge-danger';
-    const cibilVal = app.cibil_score || (app.credit_history === 1 ? 750 : 540);
-    const cibilClass = cibilVal >= 750 ? 'badge-success' : cibilVal >= 650 ? 'badge-info' : 'badge-danger';
-    const totInc = (parseFloat(app.applicant_income) || 0) + (parseFloat(app.coapplicant_income) || 0);
-    const termMonths = app.loan_term_months || app.term || 60;
-    const years = Math.max(1, Math.round(termMonths / 12));
-    const isSlip = app.salary_slip === 'Yes' || app.salary_slip === true;
-    const slipTag = isSlip 
-      ? '<span style="color: #059669; font-weight: 700;">✓ Slip</span>' 
-      : '<span style="color: #D97706; font-weight: 700;">✕ No Slip</span>';
-    const loanAmt = parseFloat(app.loan_amount) || 150;
-    const loanDisplay = loanAmt > 1000 ? `₹${loanAmt.toLocaleString('en-IN')}` : `₹${(loanAmt * 1000).toLocaleString('en-IN')}`;
-
-    return `
-      <tr>
-        <td style="font-weight: 800; color: #064E3B;">${app.application_no}</td>
-        <td style="font-size: 0.8rem; color: #4B6359;">${app.created_at ? app.created_at.substring(0, 16) : 'Today'}</td>
-        <td style="font-weight: 700; color: #0B2920;">${app.full_name || 'Applicant'}</td>
-        <td><span class="badge ${cibilClass}">${cibilVal}</span></td>
-        <td style="font-size: 0.8rem;">${slipTag}</td>
-        <td>₹${totInc.toLocaleString('en-IN')}/mo</td>
-        <td>${loanDisplay} (${years} yrs)</td>
-        <td>${app.property_area || 'Urban'}</td>
-        <td><strong>${app.approval_likelihood || 85}%</strong></td>
-        <td><span class="badge ${badge}">${app.status || 'Approved'}</span></td>
-        <td>
-          <button class="btn btn-outline" style="padding: 4px 8px; font-size: 0.75rem;" onclick="loadDbApplicantById('${app.application_no}')">
-            🔍 Inspect
-          </button>
-        </td>
-      </tr>
-    `;
-  }).join('');
+  renderDatabaseTableRows(allApps);
 };
 
 window.loadDbApplicantById = function(appNo) {
@@ -2057,6 +2919,12 @@ window.loadDbApplicantById = function(appNo) {
       credit_history: (found.cibil_score >= 650 || found.credit_history === 1) ? 1 : 0,
       salary_slip: (found.salary_slip || 'Yes') === 'Yes'
     };
+    setSliderVal('sim-slider-loan', state.simulated.loan_amount);
+    setSliderVal('sim-slider-coapp', state.simulated.coapplicant_income);
+    setSliderVal('sim-slider-term', Math.max(1, Math.round(state.simulated.term / 12)));
+    setSliderVal('sim-slider-cibil', state.simulated.cibil_score);
+    syncSimSalarySlipVisuals(state.simulated.salary_slip);
+    syncSimulatorSliderLabels();
     updateUI();
     updateSimulationUI();
     const targetTab = state.currentRole === 'officer' ? 'officer-view' : 'applicant-view';
@@ -2131,15 +2999,15 @@ function updateUI() {
 
   if (heroTag && heroTitle && heroDesc) {
     if (pred.status === 'approved') {
-      heroTag.innerText = lang === 'hi' ? "अनुमोदित / उच्च संभावना" : "APPROVED / HIGH LIKELIHOOD";
+      heroTag.innerText = lang === 'hi' ? 'अनुमोदित / उच्च संभावना' : 'APPROVED / HIGH LIKELIHOOD';
       heroTitle.innerText = dict.approved_title;
       heroDesc.innerText = dict.approved_desc;
     } else if (pred.status === 'conditional') {
-      heroTag.innerText = lang === 'hi' ? "समीक्षाधीन / संदेहास्पद स्थिति" : "CONDITIONAL / BORDERLINE";
+      heroTag.innerText = lang === 'hi' ? 'समीक्षाधीन / संदेहास्पद स्थिति' : 'CONDITIONAL / BORDERLINE';
       heroTitle.innerText = dict.conditional_title;
       heroDesc.innerText = dict.conditional_desc;
     } else {
-      heroTag.innerText = lang === 'hi' ? "अस्वीकृत / उच्च वित्तीय जोखिम" : "UNLIKELY / ELEVATED RISK";
+      heroTag.innerText = lang === 'hi' ? 'अस्वीकृत / उच्च वित्तीय जोखिम' : 'UNLIKELY / ELEVATED RISK';
       heroTitle.innerText = dict.rejected_title;
       heroDesc.innerText = dict.rejected_desc;
     }
@@ -2166,7 +3034,7 @@ function updateUI() {
     if (explanations.frictions.length === 0) {
       frictionsContainer.innerHTML = `
         <div style="padding: 1rem; color: #064E3B; font-size: 0.88rem; font-weight: 600;">
-          ${lang === 'hi' ? "✓ कोई गंभीर जोखिम कारक नहीं मिला। आपका प्रोफाइल स्वीकृत मानकों के अनुरूप है।" : "✓ No primary risk friction factors identified. Profile comfortably satisfies credit guidelines."}
+          ${lang === 'hi' ? '✓ कोई गंभीर जोखिम कारक नहीं मिला। आपका प्रोफाइल स्वीकृत मानकों के अनुरूप है।' : '✓ No primary risk friction factors identified. Profile comfortably satisfies credit guidelines.'}
         </div>
       `;
     } else {
@@ -2190,7 +3058,7 @@ function updateUI() {
     if (explanations.actions.length === 0) {
       actionsContainer.innerHTML = `
         <div style="padding: 1rem; color: #064E3B; font-size: 0.9rem; font-weight: 600;">
-          ${lang === 'hi' ? "🎉 कोई सुधार कार्रवाई आवश्यक नहीं है! आपका आवेदन डिजिटल वितरण के लिए सीधे योग्य है।" : "🎉 No remediation required! Your file satisfies high-confidence underwriting standards for immediate sanction."}
+          ${lang === 'hi' ? '🎉 कोई सुधार कार्रवाई आवश्यक नहीं है! आपका आवेदन डिजिटल वितरण के लिए सीधे योग्य है।' : '🎉 No remediation required! Your file satisfies high-confidence underwriting standards for immediate sanction.'}
         </div>
       `;
     } else {
@@ -2198,7 +3066,7 @@ function updateUI() {
         <div class="action-card">
           <div class="action-num">→</div>
           <div class="action-content">
-            <div class="action-title">${lang === 'hi' ? "अनुशंसा" : "Recommended Step"}</div>
+            <div class="action-title">${lang === 'hi' ? 'अनुशंसा' : 'Recommended Step'}</div>
             <div class="action-desc">${action}</div>
           </div>
         </div>
@@ -2221,9 +3089,9 @@ function updateUI() {
   const openLetterBtn = document.getElementById('btn-open-letter');
   if (openLetterBtn && state.hasApplied) {
     if (pred.status === 'rejected') {
-      openLetterBtn.innerHTML = `<span>📄</span> ${lang === 'hi' ? 'आधिकारिक प्रतिकूल निर्णय सूचना (Adverse Notice)' : 'View & Download Adverse Action Notice'}`;
+      openLetterBtn.innerHTML = `<span>📄</span> ${lang === 'hi' ? 'आधिकारिक प्रतिकूल निर्णय सूचना देखें एवं डाउनलोड करें' : 'View & Download Adverse Action Notice'}`;
     } else {
-      openLetterBtn.innerHTML = `<span>📄</span> ${lang === 'hi' ? 'आधिकारिक ऋण स्वीकृति पत्र देखें एवं डाउनलोड करें' : 'View & Download Official Sanction Letter'}`;
+      openLetterBtn.innerHTML = `<span>📄</span> ${dict.btn_open_letter}`;
     }
   }
 
@@ -2253,6 +3121,7 @@ function setValue(id, val) {
 }
 
 function renderOfficerMetrics(pred, applicant) {
+  const hi = state.currentLang === 'hi';
   const setHtml = (id, html) => {
     const el = document.getElementById(id);
     if (el) el.innerHTML = html;
@@ -2260,26 +3129,27 @@ function renderOfficerMetrics(pred, applicant) {
 
   setHtml('metric-officer-prob', `${pred.approvalPercent}%`);
   setHtml('metric-officer-dti', `${pred.ratios.dtiPct}%`);
-  setHtml('metric-officer-emi', `₹${pred.ratios.emi.toLocaleString('en-IN')}<span style="font-size: 0.72rem; font-weight: 600; opacity: 0.85;">/mo</span>`);
-  setHtml('metric-officer-lti', `${pred.ratios.ltiRatio}x <span style="font-size: 0.72rem; font-weight: 600; opacity: 0.85;">Annual</span>`);
+  setHtml('metric-officer-emi', `₹${pred.ratios.emi.toLocaleString('en-IN')}<span style="font-size: 0.72rem; font-weight: 600; opacity: 0.85;">${hi ? '/माह' : '/mo'}</span>`);
+  setHtml('metric-officer-lti', `${pred.ratios.ltiRatio}x <span style="font-size: 0.72rem; font-weight: 600; opacity: 0.85;">${hi ? 'वार्षिक' : 'Annual'}</span>`);
 }
 
 function renderWaterfall(pred) {
   const container = document.getElementById('waterfall-container') || document.getElementById('waterfall-bars');
   if (!container) return;
+  const hi = state.currentLang === 'hi';
 
   const basePoints = 50;
   const contribs = pred.contributions || {};
 
   const items = [
-    { label: 'Baseline Underwriting Anchor', val: basePoints, type: 'neutral' },
-    { label: 'CIBIL Bureau Track Record', val: contribs.credit_history?.impact || 0, type: contribs.credit_history?.impact >= 0 ? 'pos' : 'neg' },
-    { label: 'Monthly Debt Burden (DTI / FOIR)', val: contribs.dti_ratio?.impact || 0, type: contribs.dti_ratio?.impact >= 0 ? 'pos' : 'neg' },
-    { label: 'Income Coverage Ratio', val: contribs.income_coverage?.impact || 0, type: contribs.income_coverage?.impact >= 0 ? 'pos' : 'neg' },
-    { label: 'Salary Slip Verification', val: contribs.salary_slip?.impact || 0, type: contribs.salary_slip?.impact >= 0 ? 'pos' : 'neg' },
-    { label: 'Joint Co-Applicant Support', val: contribs.coapplicant?.impact || 0, type: contribs.coapplicant?.impact > 0 ? 'pos' : 'neutral' },
-    { label: 'Mission Bharat Geographic Equity', val: contribs.property_area?.impact || 0, type: 'pos' },
-    { label: 'Final Approval Likelihood', val: pred.approvalPercent, type: 'final' }
+    { label: hi ? 'आधारभूत अंडरराइटिंग मानक (Baseline)' : 'Baseline Underwriting Anchor', val: basePoints, type: 'neutral' },
+    { label: hi ? 'सिबिल ब्यूरो क्रेडिट इतिहास' : 'CIBIL Bureau Track Record', val: contribs.credit_history?.impact || 0, type: (contribs.credit_history?.impact || 0) >= 0 ? 'pos' : 'neg' },
+    { label: hi ? 'मासिक ऋण भार (DTI / FOIR)' : 'Monthly Debt Burden (DTI / FOIR)', val: contribs.dti_ratio?.impact || 0, type: (contribs.dti_ratio?.impact || 0) >= 0 ? 'pos' : 'neg' },
+    { label: hi ? 'आय कवरेज अनुपात' : 'Income Coverage Ratio', val: contribs.income_coverage?.impact || 0, type: (contribs.income_coverage?.impact || 0) >= 0 ? 'pos' : 'neg' },
+    { label: hi ? 'वेतन पर्ची सत्यापन' : 'Salary Slip Verification', val: contribs.salary_slip?.impact || 0, type: (contribs.salary_slip?.impact || 0) >= 0 ? 'pos' : 'neg' },
+    { label: hi ? 'संयुक्त सह-आवेदक सहयोग' : 'Joint Co-Applicant Support', val: contribs.coapplicant?.impact || 0, type: (contribs.coapplicant?.impact || 0) > 0 ? 'pos' : 'neutral' },
+    { label: hi ? 'मिशन भारत क्षेत्रीय समता' : 'Mission Bharat Geographic Equity', val: contribs.property_area?.impact || 0, type: 'pos' },
+    { label: hi ? 'अंतिम स्वीकृति संभावना' : 'Final Approval Likelihood', val: pred.approvalPercent, type: 'final' }
   ];
 
   container.innerHTML = items.map(item => {
@@ -2306,17 +3176,15 @@ function renderWaterfall(pred) {
 }
 
 window.officerSanctionLoan = async function(newStatus, note) {
+  const hi = state.currentLang === 'hi';
   const appNo = state.currentApplicant.id || 'MB-2026-1001';
   const applicantName = state.currentApplicant.name || 'Applicant';
 
   if (state.backendConnected) {
     try {
-      const reqHeaders = { 'Content-Type': 'application/json' };
-      if (currentAuthUser?.role) reqHeaders['X-User-Role'] = String(currentAuthUser.role);
-      if (currentAuthToken) reqHeaders['Authorization'] = `Bearer ${currentAuthToken}`;
       const res = await fetch(`${state.apiBase}/api/officer/sanction`, {
         method: 'POST',
-        headers: reqHeaders,
+        headers: buildAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           application_no: appNo,
           status: newStatus,
@@ -2328,15 +3196,13 @@ window.officerSanctionLoan = async function(newStatus, note) {
       if (!res.ok) {
         const errPayload = await res.json().catch(() => ({}));
         if (res.status === 403) {
-          alert(errPayload.error || 'Forbidden: Officer clearance required.');
+          alert(errPayload.error || (hi ? 'अस्वीकृत: ऋण अधिकारी अनुमति आवश्यक है।' : 'Forbidden: Officer clearance required.'));
           return;
         }
-        console.warn("Backend sanction response:", res.status, errPayload);
-      } else {
-        console.log(`[OK] Server vault updated for ${appNo} -> ${newStatus}`);
+        console.warn('Backend sanction response:', res.status, errPayload);
       }
     } catch (e) {
-      console.warn("Backend sanction sync error:", e);
+      console.warn('Backend sanction sync error:', e);
     }
   }
 
@@ -2362,14 +3228,14 @@ window.officerSanctionLoan = async function(newStatus, note) {
   updateUI();
   refreshDatabaseTable();
 
-  const alertMsg = state.currentLang === 'hi'
-    ? `✅ ऋण निर्णय दर्ज हुआ!\n\nआवेदन: ${appNo}\nआवेदक: ${applicantName}\nस्थिति: ${newStatus}\n\nयह निर्णय मेरिडियन डेटाबेस वॉल्ट में सुरक्षित दर्ज हो गया है!`
+  const statusLocalized = localizeStatus(newStatus, state.currentLang);
+  const alertMsg = hi
+    ? `✅ ऋण निर्णय दर्ज हुआ!\n\nआवेदन: ${appNo}\nआवेदक: ${applicantName}\nस्थिति: ${statusLocalized}\n\nयह निर्णय मेरिडियन डेटाबेस वॉल्ट में सुरक्षित दर्ज हो गया है!`
     : `✅ Loan Decision Recorded!\n\nApplication No: ${appNo}\nApplicant: ${applicantName}\nStatus: ${newStatus}\n\nRecorded persistently in Meridian Server Vault!`;
   alert(alertMsg);
 };
 
 function setupEventListeners() {
-
   document.querySelectorAll('.nav-item').forEach(item => {
     item.addEventListener('click', () => {
       document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -2402,32 +3268,26 @@ function setupEventListeners() {
   });
 
   document.getElementById('sim-slider-loan')?.addEventListener('input', (e) => {
-    const val = Number(e.target.value);
-    state.simulated.loan_amount = val;
-    document.getElementById('val-sim-loan').innerText = `₹${(val / 100).toFixed(1)} Lakh (₹${(val * 1000).toLocaleString('en-IN')})`;
+    state.simulated.loan_amount = Number(e.target.value);
+    syncSimulatorSliderLabels();
     updateSimulationUI();
   });
 
   document.getElementById('sim-slider-coapp')?.addEventListener('input', (e) => {
-    const val = Number(e.target.value);
-    state.simulated.coapplicant_income = val;
-    document.getElementById('val-sim-coapp').innerText = `₹${val.toLocaleString('en-IN')}/mo`;
+    state.simulated.coapplicant_income = Number(e.target.value);
+    syncSimulatorSliderLabels();
     updateSimulationUI();
   });
 
   document.getElementById('sim-slider-term')?.addEventListener('input', (e) => {
-    const years = Number(e.target.value);
-    const months = years * 12;
-    state.simulated.term = months;
-    document.getElementById('val-sim-term').innerText = `${years} Year${years > 1 ? 's' : ''} (${months} Months)`;
+    state.simulated.term = Number(e.target.value) * 12;
+    syncSimulatorSliderLabels();
     updateSimulationUI();
   });
 
   document.getElementById('sim-slider-cibil')?.addEventListener('input', (e) => {
-    const val = Number(e.target.value);
-    state.simulated.cibil_score = val;
-    const tier = val >= 750 ? 'Prime' : val >= 650 ? 'Qualifying' : 'Subprime';
-    document.getElementById('val-sim-cibil').innerText = `${val} (${tier})`;
+    state.simulated.cibil_score = Number(e.target.value);
+    syncSimulatorSliderLabels();
     updateSimulationUI();
   });
 
@@ -2579,14 +3439,19 @@ window.scrollToSimulator = function() {
 };
 
 window.updateFillTenureDisplay = function(years) {
-  const months = years * 12;
+  const hi = state.currentLang === 'hi';
+  const y = parseInt(years, 10) || 5;
+  const months = y * 12;
   const tag = document.getElementById('fill-tenure-tag');
-  if (tag) tag.innerText = `${years} Year${years > 1 ? 's' : ''} (${months} Months)`;
+  if (tag) {
+    tag.innerText = hi ? `${y} वर्ष (${months} माह)` : `${y} Year${y > 1 ? 's' : ''} (${months} Months)`;
+  }
   const numInput = document.getElementById('fill-exact-years');
-  if (numInput) numInput.value = years;
+  if (numInput) numInput.value = y;
 };
 
 window.updateFillTenureFromNumber = function(years) {
+  const hi = state.currentLang === 'hi';
   let y = parseInt(years, 10);
   if (isNaN(y) || y < 1) y = 1;
   if (y > 30) y = 30;
@@ -2594,38 +3459,50 @@ window.updateFillTenureFromNumber = function(years) {
   if (slider) slider.value = y;
   const months = y * 12;
   const tag = document.getElementById('fill-tenure-tag');
-  if (tag) tag.innerText = `${y} Year${y > 1 ? 's' : ''} (${months} Months)`;
+  if (tag) {
+    tag.innerText = hi ? `${y} वर्ष (${months} माह)` : `${y} Year${y > 1 ? 's' : ''} (${months} Months)`;
+  }
 };
 
 window.updateCibilDisplay = function(val) {
+  const hi = state.currentLang === 'hi';
   const tag = document.getElementById('cibil-display-tag');
   const guide = document.getElementById('cibil-guide-text');
-  let rating = 'Poor';
+  let rating = hi ? 'कमज़ोर' : 'Poor';
   let badgeClass = 'badge-danger';
-  let guideText = '⚠️ CIBIL score is below 650. Settle past overdues to secure pre-approval.';
+  let guideText = hi
+    ? '⚠️ सिबिल स्कोर 650 से कम है। पूर्व-स्वीकृति के लिए पिछले बकाये का निपटान करें।'
+    : '⚠️ CIBIL score is below 650. Settle past overdues to secure pre-approval.';
 
   if (val >= 750) {
-    rating = 'Prime (Excellent)';
+    rating = hi ? 'उत्कृष्ट (प्राइम)' : 'Prime (Excellent)';
     badgeClass = 'badge-success';
-    guideText = '✓ CIBIL score ≥ 750 qualifies for lowest interest rates and fast-track processing.';
+    guideText = hi
+      ? '✓ सिबिल स्कोर ≥ 750 न्यूनतम ब्याज दर और त्वरित प्रोसेसिंग के लिए पात्र है।'
+      : '✓ CIBIL score ≥ 750 qualifies for lowest interest rates and fast-track processing.';
   } else if (val >= 650) {
-    rating = 'Good (Standard)';
+    rating = hi ? 'अच्छा (मानक)' : 'Good (Standard)';
     badgeClass = 'badge-info';
-    guideText = '✓ CIBIL score ≥ 650 meets standard banking credit guidelines.';
+    guideText = hi
+      ? '✓ सिबिल स्कोर ≥ 650 मानक भारतीय बैंकिंग ऋण दिशानिर्देशों के अनुरूप है।'
+      : '✓ CIBIL score ≥ 650 meets standard banking credit guidelines.';
   }
 
   if (tag) {
-    tag.innerText = `CIBIL: ${val} (${rating})`;
+    tag.innerText = hi ? `सिबिल: ${val} (${rating})` : `CIBIL: ${val} (${rating})`;
     tag.className = `badge ${badgeClass}`;
   }
   if (guide) guide.innerText = guideText;
 };
 
 window.openDecisionLetterModal = function() {
+  const hi = state.currentLang === 'hi';
   if (!state.hasApplied) {
-    alert(state.currentLang === 'hi' 
-      ? "कृपया आधिकारिक स्वीकृति पत्र डाउनलोड करने के लिए पहले ऋण आवेदन जमा करें।" 
-      : "Please submit your loan application first to generate and download your official Sanction Letter.");
+    alert(
+      hi
+        ? 'कृपया आधिकारिक स्वीकृति पत्र डाउनलोड करने के लिए पहले ऋण आवेदन जमा करें।'
+        : 'Please submit your loan application first to generate and download your official Sanction Letter.'
+    );
     const applyTab = document.querySelector('[data-tab="apply-view"]');
     if (applyTab) applyTab.click();
     return;
@@ -2657,40 +3534,47 @@ window.openDecisionLetterModal = function() {
   const totalRepay = emiVal * termMonths;
   const totalInterest = Math.max(0, totalRepay - loanAmtInr);
 
-  setEl('let-applicant-name', app.name || 'Applicant');
+  setEl('let-applicant-name', app.name || (hi ? 'आवेदक' : 'Applicant'));
   setEl('let-ref', `MERIDIAN-${app.id || 'MB-2026-1001'}`);
-  setEl('let-date', new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }));
+  setEl('let-date', new Date().toLocaleDateString(hi ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'long', year: 'numeric' }));
   setEl('let-loan-amount', `₹${loanAmtInr.toLocaleString('en-IN')}`);
-  setEl('let-tenure', `${termMonths} Months (${years} Years)`);
-  setEl('let-area', `${app.property_area || 'Urban'} Territory`);
+  setEl('let-tenure', hi ? `${termMonths} माह (${years} वर्ष)` : `${termMonths} Months (${years} Years)`);
+  setEl('let-area', hi ? `${localizeArea(app.property_area || 'Urban', 'hi')} क्षेत्र` : `${localizeArea(app.property_area || 'Urban', 'en')} Territory`);
 
   setEl('kfs-loan-amt', `₹${loanAmtInr.toLocaleString('en-IN')}`);
-  setEl('kfs-apr', '9.25% p.a. (Fixed Reducing per RBI Guidelines)');
-  setEl('kfs-tenure', `${termMonths} Months (${years} Years)`);
-  setEl('kfs-emi', `₹${emiVal.toLocaleString('en-IN')} / month`);
+  setEl('kfs-apr', hi ? '9.25% वार्षिक (RBI मानकों के अनुसार स्थिर घटती दर)' : '9.25% p.a. (Fixed Reducing per RBI Guidelines)');
+  setEl('kfs-tenure', hi ? `${termMonths} माह (${years} वर्ष)` : `${termMonths} Months (${years} Years)`);
+  setEl('kfs-emi', hi ? `₹${emiVal.toLocaleString('en-IN')} / माह` : `₹${emiVal.toLocaleString('en-IN')} / month`);
   setEl('kfs-total-interest', `₹${totalInterest.toLocaleString('en-IN')}`);
   setEl('kfs-total-repayment', `₹${totalRepay.toLocaleString('en-IN')}`);
 
+  const appRef = app.id || 'MB-2026-1001';
   const statusBadge = document.getElementById('let-status-badge');
   const verdictText = document.getElementById('let-verdict-text');
   if (statusBadge) {
     if (pred.status === 'approved') {
-      statusBadge.innerText = 'OFFICIAL IN-PRINCIPLE APPROVAL';
+      statusBadge.innerText = hi ? 'आधिकारिक सैद्धांतिक ऋण स्वीकृति' : 'OFFICIAL IN-PRINCIPLE APPROVAL';
       statusBadge.className = 'badge badge-success';
       if (verdictText) {
-        verdictText.innerHTML = `We are pleased to inform you that your application <strong>${app.id || 'MB-2026-1001'}</strong> has satisfied all underwriting benchmarks under the <strong>RBI Fair Practices Code</strong>. Below is your official <strong>Key Fact Statement (KFS)</strong> and explainable eligibility breakdown.`;
+        verdictText.innerHTML = hi
+          ? `हमें यह सूचित करते हुए प्रसन्नता हो रही है कि आपका ऋण आवेदन <strong>${appRef}</strong> <strong>RBI फेयर प्रैक्टिसेज कोड</strong> के अंतर्गत सभी अंडरराइटिंग मानदंडों को सफलतापूर्वक पूरा करता है। नीचे आपका आधिकारिक <strong>मुख्य तथ्य विवरण (KFS)</strong> और पारदर्शी कारक विश्लेषण प्रस्तुत है।`
+          : `We are pleased to inform you that your application <strong>${appRef}</strong> has satisfied all underwriting benchmarks under the <strong>RBI Fair Practices Code</strong>. Below is your official <strong>Key Fact Statement (KFS)</strong> and explainable eligibility breakdown.`;
       }
     } else if (pred.status === 'conditional') {
-      statusBadge.innerText = 'CONDITIONAL IN-PRINCIPLE SANCTION';
+      statusBadge.innerText = hi ? 'सशर्त सैद्धांतिक ऋण स्वीकृति' : 'CONDITIONAL IN-PRINCIPLE SANCTION';
       statusBadge.className = 'badge badge-warning';
       if (verdictText) {
-        verdictText.innerHTML = `Your application <strong>${app.id || 'MB-2026-1001'}</strong> qualifies for in-principle sanction subject to primary KYC verification or co-guarantor endorsement under the <strong>RBI Digital Lending Guidelines</strong>.`;
+        verdictText.innerHTML = hi
+          ? `आपका आवेदन <strong>${appRef}</strong> <strong>RBI डिजिटल लेंडिंग दिशानिर्देशों</strong> के अंतर्गत प्राथमिक KYC सत्यापन अथवा सह-गारंटर समर्थन के अधीन सैद्धांतिक स्वीकृति के लिए पात्र है।`
+          : `Your application <strong>${appRef}</strong> qualifies for in-principle sanction subject to primary KYC verification or co-guarantor endorsement under the <strong>RBI Digital Lending Guidelines</strong>.`;
       }
     } else {
-      statusBadge.innerText = 'ADVERSE ACTION NOTICE (DECLINED)';
+      statusBadge.innerText = hi ? 'प्रतिकूल निर्णय सूचना (अस्वीकृत)' : 'ADVERSE ACTION NOTICE (DECLINED)';
       statusBadge.className = 'badge badge-danger';
       if (verdictText) {
-        verdictText.innerHTML = `In compliance with the <strong>Reserve Bank of India Fair Practices Code</strong> on automated lending decisions, we provide below the transparent factor determination detailing the specific credit parameters that led to this adverse decision.`;
+        verdictText.innerHTML = hi
+          ? `स्वचालित ऋण निर्णयों पर <strong>भारतीय रिज़र्व बैंक फेयर प्रैक्टिसेज कोड</strong> के अनुपालन में, इस प्रतिकूल निर्णय के कारण बने विशिष्ट क्रेडिट मापदंडों का पारदर्शी विवरण नीचे दिया गया है।`
+          : `In compliance with the <strong>Reserve Bank of India Fair Practices Code</strong> on automated lending decisions, we provide below the transparent factor determination detailing the specific credit parameters that led to this adverse decision.`;
       }
     }
   }
@@ -2699,36 +3583,64 @@ window.openDecisionLetterModal = function() {
   if (factorsList) {
     const cibilVal = app.cibil_score || (app.credit_history === 1 ? 750 : 540);
     const dtiVal = pred.ratios.dtiPct;
-    let items = [];
+    const items = [];
 
     if (cibilVal >= 650) {
-      items.push(`<li><strong>Credit Bureau Reliability (CIBIL ${cibilVal}):</strong> Clean bureau repayment record substantially elevated underwriting score (+28.4%).</li>`);
+      items.push(
+        hi
+          ? `<li><strong>क्रेडिट ब्यूरो विश्वसनीयता (सिबिल ${cibilVal}):</strong> स्वच्छ पुनर्भुगतान इतिहास ने अंडरराइटिंग स्कोर को उल्लेखनीय रूप से बढ़ाया (+28.4%)।</li>`
+          : `<li><strong>Credit Bureau Reliability (CIBIL ${cibilVal}):</strong> Clean bureau repayment record substantially elevated underwriting score (+28.4%).</li>`
+      );
     } else {
-      items.push(`<li><strong>Credit Bureau Alert (CIBIL ${cibilVal}):</strong> Historical default or subprime score below qualifying threshold (-32.1%).</li>`);
+      items.push(
+        hi
+          ? `<li><strong>क्रेडिट ब्यूरो चेतावनी (सिबिल ${cibilVal}):</strong> पूर्व बकाया या सबप्राइम स्कोर न्यूनतम पात्रता मानक से नीचे है (-32.1%)।</li>`
+          : `<li><strong>Credit Bureau Alert (CIBIL ${cibilVal}):</strong> Historical default or subprime score below qualifying threshold (-32.1%).</li>`
+      );
     }
 
     if (dtiVal <= 35) {
-      items.push(`<li><strong>Debt-to-Income (DTI ${dtiVal}%):</strong> Requested installment is well within RBI prudential comfort ceiling of 45%.</li>`);
+      items.push(
+        hi
+          ? `<li><strong>ऋण-से-आय अनुपात (DTI ${dtiVal}%):</strong> प्रस्तावित मासिक किस्त RBI की 45% विवेकपूर्ण सुरक्षित सीमा के पूर्णतः भीतर है।</li>`
+          : `<li><strong>Debt-to-Income (DTI ${dtiVal}%):</strong> Requested installment is well within RBI prudential comfort ceiling of 45%.</li>`
+      );
     } else {
-      items.push(`<li><strong>Debt Burden (DTI ${dtiVal}%):</strong> Monthly installment consumes elevated percentage of household cashflow, presenting leverage risk.</li>`);
+      items.push(
+        hi
+          ? `<li><strong>मासिक ऋण भार (DTI ${dtiVal}%):</strong> मासिक किस्त पारिवारिक नकदी प्रवाह का बड़ा हिस्सा ले रही है, जिससे चुकौती जोखिम बढ़ता है।</li>`
+          : `<li><strong>Debt Burden (DTI ${dtiVal}%):</strong> Monthly installment consumes elevated percentage of household cashflow, presenting leverage risk.</li>`
+      );
     }
 
     if (app.salary_slip === 'Yes' || app.salary_slip === true) {
-      items.push(`<li><strong>Income Verifiability:</strong> Formal institutional salary slips validated stable disposable cashflow.</li>`);
+      items.push(
+        hi
+          ? '<li><strong>आय सत्यापन योग्यता:</strong> औपचारिक वेतन पर्ची ने स्थिर एवं नियमित नकदी प्रवाह की पुष्टि की है।</li>'
+          : '<li><strong>Income Verifiability:</strong> Formal institutional salary slips validated stable disposable cashflow.</li>'
+      );
     } else {
-      items.push(`<li><strong>Informal / Freelance Earnings:</strong> Assessed via surrogate cashflow & bank metrics under Mission Bharat Financial Inclusion.</li>`);
+      items.push(
+        hi
+          ? '<li><strong>अनौपचारिक / फ्रीलांस आय:</strong> मिशन भारत वित्तीय समावेशन के अंतर्गत वैकल्पिक बैंक विवरण और डिजिटल कैश-फ्लो से मूल्यांकित।</li>'
+          : '<li><strong>Informal / Freelance Earnings:</strong> Assessed via surrogate cashflow & bank metrics under Mission Bharat Financial Inclusion.</li>'
+      );
     }
 
     const explanations = generatePlainLanguageExplanations(pred, app, state.currentLang);
     if (explanations && explanations.actions && explanations.actions.length > 0) {
-      items.push(`<li><strong>Remediation / Guidance:</strong> ${explanations.actions[0]}</li>`);
+      items.push(
+        hi
+          ? `<li><strong>सुधार / मार्गदर्शन:</strong> ${explanations.actions[0]}</li>`
+          : `<li><strong>Remediation / Guidance:</strong> ${explanations.actions[0]}</li>`
+      );
     }
 
     factorsList.innerHTML = items.join('');
   }
 
   modal.style.display = 'flex';
-}
+};
 
 function addAuditLog(action, note) {
   const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
@@ -2738,10 +3650,25 @@ function addAuditLog(action, note) {
     id: state.currentApplicant.id,
     action: action,
     note: note,
-          remarks: document.getElementById('officer-remarks-input')?.value.trim() || note,
-          officer_role: currentAuthUser ? currentAuthUser.role : 'officer'
+    remarks: document.getElementById('officer-remarks-input')?.value.trim() || note,
+    officer_role: currentAuthUser ? currentAuthUser.role : 'officer'
   });
   renderAuditTable();
+}
+
+function localizeAuditAction(action) {
+  if (state.currentLang !== 'hi') return action;
+  const map = {
+    'Approved': 'स्वीकृत',
+    'Officer Approved': 'अधिकारी द्वारा स्वीकृत',
+    'Officer Conditional': 'अधिकारी द्वारा सशर्त स्वीकृत',
+    'Officer Rejected': 'अधिकारी द्वारा अस्वीकृत',
+    'System Rejected': 'प्रणाली द्वारा अस्वीकृत',
+    'Mission Bharat Pass': 'मिशन भारत पास',
+    'VAULT_INSPECT': 'वॉल्ट निरीक्षण',
+    'PORTFOLIO_INSPECT': 'पोर्टफोलियो निरीक्षण'
+  };
+  return map[action] || action;
 }
 
 function renderAuditTable() {
@@ -2753,14 +3680,40 @@ function renderAuditTable() {
       <td style="font-size: 0.78rem; color: #64748B;">${log.time}</td>
       <td style="font-weight: 600;">${log.officer}</td>
       <td style="font-weight: 700; color: #064E3B;">${log.id}</td>
-      <td><span class="badge badge-info">${log.action}</span></td>
+      <td><span class="badge badge-info">${localizeAuditAction(log.action)}</span></td>
       <td style="font-size: 0.82rem;">${log.note}</td>
     </tr>
   `).join('');
 }
 
+function localizeFeatureLabel(rawFeature) {
+  const clean = String(rawFeature || '').trim();
+  if (state.currentLang !== 'hi') return clean.replace(/_/g, ' ');
+  const key = clean.toLowerCase();
+  const hiMap = {
+    'credit_history': 'क्रेडिट ब्यूरो इतिहास (सिबिल)',
+    'applicant_income_log': 'आवेदक आय (लॉग)',
+    'coapplicant_income_log': 'सह-आवेदक आय (लॉग)',
+    'total_income_log': 'कुल पारिवारिक आय (लॉग)',
+    'loan_amount_log': 'ऋण राशि (लॉग)',
+    'emi_to_income_ratio': 'EMI से आय अनुपात (DTI)',
+    'loan_amount_term': 'ऋण अवधि (माह)',
+    'property_area_semiurban': 'क्षेत्र: अर्ध-शहरी',
+    'property_area_rural': 'क्षेत्र: ग्रामीण भारत',
+    'property_area_urban': 'क्षेत्र: शहरी / महानगर',
+    'married_yes': 'वैवाहिक स्थिति: विवाहित',
+    'education_not_graduate': 'शिक्षा: गैर-स्नातक',
+    'education_graduate': 'शिक्षा: स्नातक',
+    'self_employed_yes': 'स्वरोजगार / व्यवसाय',
+    'gender_male': 'लिंग: पुरुष',
+    'dependents': 'आश्रितों की संख्या'
+  };
+  return hiMap[key] || clean.replace(/_/g, ' ');
+}
+
 async function renderModelPerformanceCharts() {
   const chartContainer = document.getElementById('feature-importance-chart');
+  const hi = state.currentLang === 'hi';
   let weights = [];
 
   if (state.backendConnected) {
@@ -2802,12 +3755,12 @@ async function renderModelPerformanceCharts() {
     const isPos = item.weight >= 0;
     const widthPct = Math.max(8, Math.round((Math.abs(item.weight) / maxAbs) * 100));
     const color = isPos ? '#059669' : '#DC2626';
-    const label = String(item.feature).replace(/_/g, ' ');
+    const label = localizeFeatureLabel(item.feature);
     return `
       <div style="margin-bottom: 0.85rem;">
         <div style="display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 3px;">
           <span style="font-weight: 600; color: #1E293B;">${label}</span>
-          <span style="font-weight: 800; color: ${color};">${isPos ? '+' : ''}${Number(item.weight).toFixed(3)} log-odds</span>
+          <span style="font-weight: 800; color: ${color};">${isPos ? '+' : ''}${Number(item.weight).toFixed(3)} ${hi ? 'लॉग-ऑड्स' : 'log-odds'}</span>
         </div>
         <div style="background: #E2E8F0; height: 9px; border-radius: 5px; overflow: hidden;">
           <div style="background: ${color}; height: 100%; width: ${widthPct}%; border-radius: 5px;"></div>
@@ -2820,6 +3773,7 @@ async function renderModelPerformanceCharts() {
 async function renderFairnessCharts() {
   const tbody = document.getElementById('fairness-table-body');
   if (!tbody) return;
+  const hi = state.currentLang === 'hi';
 
   const affirmative = !!(document.getElementById('affirmative-toggle')?.checked);
   let report = null;
@@ -2870,10 +3824,10 @@ async function renderFairnessCharts() {
   const rows = [];
   const addRow = (cat, grp, stats, dirVal, isBenchmark, passes) => {
     const badge = isBenchmark
-      ? '<span class="badge badge-info">Reference Group (1.00)</span>'
+      ? `<span class="badge badge-info">${hi ? 'संदर्भ समूह (1.00)' : 'Reference Group (1.00)'}</span>`
       : passes
-        ? '<span class="badge badge-success">PASS (&ge; 0.80 Rule)</span>'
-        : '<span class="badge badge-warning">UNDER REVIEW (&lt; 0.80)</span>';
+        ? `<span class="badge badge-success">${hi ? 'उत्तीर्ण (&ge; 0.80 नियम)' : 'PASS (&ge; 0.80 Rule)'}</span>`
+        : `<span class="badge badge-warning">${hi ? 'समीक्षाधीन (&lt; 0.80)' : 'UNDER REVIEW (&lt; 0.80)'}</span>`;
     rows.push(`
       <tr>
         <td style="font-weight: 700; color: #064E3B;">${cat}</td>
@@ -2889,19 +3843,19 @@ async function renderFairnessCharts() {
 
   if (report.gender_fairness) {
     const gf = report.gender_fairness;
-    addRow('Gender', 'Male (Benchmark)', gf.male_benchmark, 1.0, true, true);
-    addRow('Gender', 'Female (Protected)', gf.female_protected, gf.disparate_impact_ratio, false, gf.passes_80_rule);
+    addRow(hi ? 'लिंग' : 'Gender', hi ? 'पुरुष (बेंचमार्क)' : 'Male (Benchmark)', gf.male_benchmark, 1.0, true, true);
+    addRow(hi ? 'लिंग' : 'Gender', hi ? 'महिला (संरक्षित)' : 'Female (Protected)', gf.female_protected, gf.disparate_impact_ratio, false, gf.passes_80_rule);
   }
   if (report.territory_fairness) {
     const tf = report.territory_fairness;
-    addRow('Territory', 'Semi-Urban (Benchmark)', tf.semiurban_benchmark, 1.0, true, true);
-    addRow('Territory', 'Rural Bharat (Priority)', tf.rural_protected, tf.disparate_impact_ratio, false, tf.passes_80_rule);
-    addRow('Territory', 'Urban Metro', tf.urban, '-', true, true);
+    addRow(hi ? 'क्षेत्र' : 'Territory', hi ? 'अर्ध-शहरी (बेंचमार्क)' : 'Semi-Urban (Benchmark)', tf.semiurban_benchmark, 1.0, true, true);
+    addRow(hi ? 'क्षेत्र' : 'Territory', hi ? 'ग्रामीण भारत (प्राथमिकता)' : 'Rural Bharat (Priority)', tf.rural_protected, tf.disparate_impact_ratio, false, tf.passes_80_rule);
+    addRow(hi ? 'क्षेत्र' : 'Territory', hi ? 'शहरी / महानगर' : 'Urban Metro', tf.urban, '-', true, true);
   }
   if (report.education_fairness) {
     const ef = report.education_fairness;
-    addRow('Education', 'Graduate (Benchmark)', ef.graduate_benchmark, 1.0, true, true);
-    addRow('Education', 'Non-Graduate', ef.non_graduate_protected, ef.disparate_impact_ratio, false, ef.passes_80_rule);
+    addRow(hi ? 'शिक्षा' : 'Education', hi ? 'स्नातक (बेंचमार्क)' : 'Graduate (Benchmark)', ef.graduate_benchmark, 1.0, true, true);
+    addRow(hi ? 'शिक्षा' : 'Education', hi ? 'गैर-स्नातक' : 'Non-Graduate', ef.non_graduate_protected, ef.disparate_impact_ratio, false, ef.passes_80_rule);
   }
 
   tbody.innerHTML = rows.join('');
@@ -2912,9 +3866,10 @@ function renderPortfolioTable() {
   const countLabel = document.getElementById('portfolio-total-count');
   const pageIndicator = document.getElementById('portfolio-page-indicator');
   if (!tbody) return;
+  const hi = state.currentLang === 'hi';
 
   if (typeof MERIDIAN_DATASET === 'undefined' || !MERIDIAN_DATASET.records) {
-    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding: 2rem; color: #DC2626;">Historical dataset not loaded from dataset_data.js</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding: 2rem; color: #DC2626;">${hi ? 'dataset_data.js से ऐतिहासिक डेटासेट लोड नहीं हुआ।' : 'Historical dataset not loaded from dataset_data.js'}</td></tr>`;
     return;
   }
 
@@ -2952,31 +3907,36 @@ function renderPortfolioTable() {
   const startIdx = (state.portfolioPage - 1) * pageSize;
   const pageRecords = records.slice(startIdx, startIdx + pageSize);
 
+  const filterNamesHi = { all: 'सभी', approved: 'स्वीकृत', rejected: 'अस्वीकृत', rural: 'ग्रामीण', female: 'महिला' };
   if (countLabel) {
-    countLabel.innerText = `Historical Portfolio Applications${f !== 'all' ? ` (Filtered: ${f.toUpperCase()})` : ''}`;
+    countLabel.innerText = hi
+      ? `ऐतिहासिक पोर्टफोलियो रिकॉर्ड${f !== 'all' ? ` (फ़िल्टर: ${filterNamesHi[f] || f})` : ''}`
+      : `Historical Portfolio Applications${f !== 'all' ? ` (Filtered: ${f.toUpperCase()})` : ''}`;
   }
   if (pageIndicator) {
-    pageIndicator.innerText = `Page ${state.portfolioPage} / ${totalPages}`;
+    pageIndicator.innerText = hi
+      ? `पृष्ठ ${state.portfolioPage} / ${totalPages}`
+      : `Page ${state.portfolioPage} / ${totalPages}`;
   }
 
   if (pageRecords.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding: 2rem; color: #64748B;">No matching records found in historical portfolio.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding: 2rem; color: #64748B;">${hi ? 'ऐतिहासिक पोर्टफोलियो में कोई मेल खाता रिकॉर्ड नहीं मिला।' : 'No matching records found in historical portfolio.'}</td></tr>`;
     return;
   }
 
   tbody.innerHTML = pageRecords.map(r => {
     const isApproved = r.pred_status === 'Y' || r.actual_status === 'Y';
-    const statusBadge = isApproved 
-      ? '<span class="badge badge-success">APPROVED</span>' 
-      : '<span class="badge badge-danger">REJECTED</span>';
+    const statusBadge = isApproved
+      ? `<span class="badge badge-success">${hi ? 'स्वीकृत' : 'APPROVED'}</span>`
+      : `<span class="badge badge-danger">${hi ? 'अस्वीकृत' : 'REJECTED'}</span>`;
 
     const probVal = r.pred_prob !== undefined ? (r.pred_prob * 100).toFixed(1) : (isApproved ? '85.0' : '22.0');
     const probColor = probVal >= 70 ? '#059669' : probVal >= 40 ? '#D97706' : '#DC2626';
 
     const isClean = r.credit_history === 1 || r.credit_history === undefined || r.credit_history === null;
-    const cHistory = isClean 
-      ? '<span class="badge badge-success">Clean (1.0)</span>' 
-      : '<span class="badge badge-danger">Default (0.0)</span>';
+    const cHistory = isClean
+      ? `<span class="badge badge-success">${hi ? 'स्वच्छ (1.0)' : 'Clean (1.0)'}</span>`
+      : `<span class="badge badge-danger">${hi ? 'बकाया (0.0)' : 'Default (0.0)'}</span>`;
 
     const totalIncome = ((r.applicant_income || 0) + (r.coapplicant_income || 0));
     const formattedIncome = totalIncome > 0 ? `₹${totalIncome.toLocaleString('en-IN')}` : '₹35,000';
@@ -2985,8 +3945,8 @@ function renderPortfolioTable() {
     return `
       <tr>
         <td style="font-weight: 800; color: #064E3B;">${r.id}</td>
-        <td>${r.gender || 'Not Disclosed'}</td>
-        <td><span class="badge ${r.property_area === 'Rural' ? 'badge-warning' : 'badge-info'}">${r.property_area || 'Urban'}</span></td>
+        <td>${localizeGender(r.gender, state.currentLang)}</td>
+        <td><span class="badge ${r.property_area === 'Rural' ? 'badge-warning' : 'badge-info'}">${localizeArea(r.property_area || 'Urban', state.currentLang)}</span></td>
         <td>${formattedIncome}</td>
         <td>₹${loanAmt}k <span style="font-size:0.75rem; color:#64748B;">(₹${(loanAmt * 1000).toLocaleString('en-IN')})</span></td>
         <td>${cHistory}</td>
@@ -2994,7 +3954,7 @@ function renderPortfolioTable() {
         <td>${statusBadge}</td>
         <td>
           <button class="btn btn-outline" style="padding: 4px 10px; font-size: 0.75rem;" onclick="loadHistoricalCase('${r.id}')">
-            🔍 Inspect &amp; Simulate
+            🔍 ${hi ? 'जांचें व सिमुलेट करें' : 'Inspect &amp; Simulate'}
           </button>
         </td>
       </tr>
@@ -3074,6 +4034,9 @@ window.loadHistoricalCase = function(caseId) {
 
 document.addEventListener('DOMContentLoaded', async () => {
   setupEventListeners();
+  applyTranslations();
+  syncFormHelperDisplays();
+  syncSimulatorSliderLabels();
   await window.checkSiteAvailability();
   await window.checkExistingSession();
   checkBackendConnection();

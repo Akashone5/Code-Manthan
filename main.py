@@ -1,8 +1,3 @@
-"""
-Meridian FairLend - Production FastAPI Application
-Mission Bharat • Explainable Credit Decision & Algorithmic Equity Platform
-"""
-
 import os
 from contextlib import asynccontextmanager
 from typing import Dict, Any
@@ -21,16 +16,10 @@ from src.api.routes import (
     system_router
 )
 
-# Base directory for resolving static frontend assets
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    Application lifecycle manager. Initializes portfolio data caches
-    and ensures SQLite / Supabase tables are ready on startup.
-    """
     print("[INFO] Initializing portfolio dataset cache...")
     try:
         load_sample_dataset()
@@ -48,8 +37,6 @@ async def lifespan(app: FastAPI):
 
     print("[INFO] Meridian FairLend API shutdown complete.")
 
-
-# FastAPI Application Definition with OpenAPI Metadata
 app = FastAPI(
     title="Meridian FairLend - Credit Decision & Underwriting API",
     description=(
@@ -70,7 +57,6 @@ app = FastAPI(
     ]
 )
 
-# Cross-Origin Resource Sharing (CORS) Configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -80,7 +66,6 @@ app.add_middleware(
     expose_headers=["*"],
 )
 
-# Global Exception Handlers for Standardized JSON Responses
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     return JSONResponse(
@@ -92,7 +77,6 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         }
     )
 
-
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
@@ -103,15 +87,11 @@ async def generic_exception_handler(request: Request, exc: Exception):
         }
     )
 
-
-# Include Domain Routers
 app.include_router(auth_router)
 app.include_router(underwriting_router)
 app.include_router(analytics_router)
 app.include_router(system_router)
 
-
-# Static File Routes for the Frontend Web Application
 @app.get("/", include_in_schema=False)
 @app.get("/index.html", include_in_schema=False)
 async def serve_index():
@@ -123,7 +103,6 @@ async def serve_index():
         content={"error": "index.html not found"}
     )
 
-
 @app.get("/styles.css", include_in_schema=False)
 async def serve_css():
     css_file = os.path.join(BASE_DIR, "styles.css")
@@ -133,7 +112,6 @@ async def serve_css():
         status_code=status.HTTP_404_NOT_FOUND,
         content={"error": "styles.css not found"}
     )
-
 
 @app.get("/app.js", include_in_schema=False)
 async def serve_app_js():
@@ -145,7 +123,6 @@ async def serve_app_js():
         content={"error": "app.js not found"}
     )
 
-
 @app.get("/dataset_data.js", include_in_schema=False)
 async def serve_dataset_js():
     data_file = os.path.join(BASE_DIR, "dataset_data.js")
@@ -155,7 +132,6 @@ async def serve_dataset_js():
         status_code=status.HTTP_404_NOT_FOUND,
         content={"error": "dataset_data.js not found"}
     )
-
 
 @app.get("/favicon.svg", include_in_schema=False)
 @app.get("/favicon.ico", include_in_schema=False)
@@ -172,7 +148,6 @@ async def serve_favicon():
     )
     return Response(content=svg_icon, media_type="image/svg+xml", status_code=status.HTTP_200_OK)
 
-
 @app.get("/robots.txt", include_in_schema=False)
 async def serve_robots():
     return Response(
@@ -180,7 +155,6 @@ async def serve_robots():
         media_type="text/plain",
         status_code=status.HTTP_200_OK
     )
-
 
 if __name__ == "__main__":
     import uvicorn

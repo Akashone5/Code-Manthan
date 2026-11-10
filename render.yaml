@@ -13,7 +13,7 @@ services:
       - key: DB_PROVIDER
         value: sqlite
       - key: OFFICER_REGISTRATION_KEY
-        value: OFFICER-2026
+        sync: false
       - key: ENVIRONMENT
         value: production
       - key: SUPABASE_URL

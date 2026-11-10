@@ -1,9 +1,4 @@
-"""
-Comprehensive FastAPI Test Suite
-Validates all REST endpoints, OpenAPI docs, multi-tenant role authorization,
-credit scoring, factor explainability, and database persistence.
-"""
-
+import os
 import sys
 from fastapi.testclient import TestClient
 from main import app
@@ -15,7 +10,6 @@ def run_tests():
     print("  MERIDIAN FAIRLEND FASTAPI ENDPOINT VALIDATION SUITE")
     print("=" * 70)
 
-    # 1. Health & Hub Endpoints
     res = client.get("/api/health")
     assert res.status_code == 200, f"Health check failed: {res.text}"
     assert res.json()["status"] == "healthy"
@@ -30,7 +24,6 @@ def run_tests():
     assert res.status_code == 200, "Swagger docs failed"
     print("[PASS] 3. GET /docs -> 200 OpenAPI Interactive Swagger UI")
 
-    # 2. Static Asset Delivery
     res = client.get("/")
     assert res.status_code == 200 and "Meridian" in res.text
     print("[PASS] 4. GET / -> 200 index.html served")
@@ -63,8 +56,6 @@ def run_tests():
     assert res.headers.get("access-control-allow-origin") == "*"
     print("[PASS] 7c. OPTIONS /api/predict -> CORS wildcard enabled")
 
-    # 3. Authentication Validation
-    # Mismatched password
     res = client.post("/api/auth/signup", json={
         "full_name": "Test User",
         "email": "test@example.com",
@@ -75,7 +66,6 @@ def run_tests():
     assert res.status_code == 400
     print("[PASS] 8. POST /api/auth/signup -> 400 Password mismatch blocked")
 
-    # Officer registration without key
     res = client.post("/api/auth/signup", json={
         "full_name": "Test Officer",
         "email": "officer.test.unauth@example.com",
@@ -87,7 +77,6 @@ def run_tests():
     assert res.status_code == 400
     print("[PASS] 9. POST /api/auth/signup -> 400 Unauthorized officer blocked")
 
-    # Sign In: Applicant
     res = client.post("/api/auth/signin", json={
         "email": "applicant@meridianbank.in",
         "password": "Applicant@123",
@@ -100,7 +89,6 @@ def run_tests():
     applicant_id = app_data["user"]["id"]
     print(f"[PASS] 10. POST /api/auth/signin -> 200 Applicant authenticated ({app_data['user']['email']})")
 
-    # Role gateway enforcement: Applicant attempting officer login -> 403
     res = client.post("/api/auth/signin", json={
         "email": "applicant@meridianbank.in",
         "password": "Applicant@123",
@@ -109,10 +97,10 @@ def run_tests():
     assert res.status_code == 403
     print("[PASS] 11. POST /api/auth/signin -> 403 Applicant rejected at Officer gateway")
 
-    # Sign In: Officer
+    officer_pwd = os.environ.get("OFFICER_ADMIN_PASSWORD", "Officer@2026")
     res = client.post("/api/auth/signin", json={
         "email": "officer@meridianbank.in",
-        "password": "Officer@2026",
+        "password": officer_pwd,
         "expected_role": "officer"
     })
     assert res.status_code == 200, f"Officer signin failed: {res.text}"
@@ -121,7 +109,6 @@ def run_tests():
     officer_id = off_data["user"]["id"]
     print(f"[PASS] 12. POST /api/auth/signin -> 200 Officer authenticated ({off_data['user']['email']})")
 
-    # Invalid credentials -> 401
     res = client.post("/api/auth/signin", json={
         "email": "officer@meridianbank.in",
         "password": "IncorrectPassword"
@@ -129,22 +116,18 @@ def run_tests():
     assert res.status_code == 401
     print("[PASS] 13. POST /api/auth/signin -> 401 Invalid password rejected")
 
-    # Forgot password
     res = client.post("/api/auth/forgot-password", json={"email": "applicant@meridianbank.in"})
     assert res.status_code == 200 and res.json()["success"] is True
     print("[PASS] 14. POST /api/auth/forgot-password -> 200 Reset instructions dispatched")
 
-    # Logout
     res = client.post("/api/auth/logout")
     assert res.status_code == 200 and res.json()["success"] is True
     print("[PASS] 15. POST /api/auth/logout -> 200 Logout acknowledged")
 
-    # Session verification
     res = client.get(f"/api/auth/session?user_id={applicant_id}")
     assert res.status_code == 200 and res.json()["user"]["role"] == "applicant"
     print("[PASS] 15b. GET /api/auth/session -> 200 Session verified")
 
-    # 4. Underwriting & Scoring
     sample_app = {
         "full_name": "Pooja Verma",
         "applicant_income": 48000,
@@ -158,14 +141,12 @@ def run_tests():
         "user_id": applicant_id
     }
 
-    # Instant scoring & XAI
     res = client.post("/api/predict", json=sample_app)
     assert res.status_code == 200
     pred_data = res.json()
     assert "prediction" in pred_data and "explanation" in pred_data
     print(f"[PASS] 16. POST /api/predict -> 200 Decision: {pred_data['prediction']['status']} ({pred_data['prediction']['approval_likelihood']}%)")
 
-    # Counterfactual simulation
     res = client.post("/api/what-if", json={
         "base": sample_app,
         "adjustments": {"loan_amount": 120, "loan_term_months": 240}
@@ -175,7 +156,6 @@ def run_tests():
     assert "simulation" in sim_data and "deltas" in sim_data["simulation"]
     print(f"[PASS] 17. POST /api/what-if -> 200 Simulation Score Delta: {sim_data['simulation']['deltas']['score_change']:+d}")
 
-    # Full Application Intake & Persistence
     res = client.post("/api/apply", json=sample_app)
     assert res.status_code == 201, f"Apply failed: {res.text}"
     apply_res = res.json()
@@ -183,47 +163,53 @@ def run_tests():
     created_app_no = apply_res["application"]["application_no"]
     print(f"[PASS] 18. POST /api/apply -> 201 Application Vaulted ({created_app_no})")
 
-    # Lookup single application
     res = client.get(f"/api/application/{created_app_no}")
     assert res.status_code == 200
     assert res.json()["application"]["application_no"] == created_app_no
     print(f"[PASS] 19. GET /api/application/{created_app_no} -> 200 Record fetched")
 
-    # Saved applications: Applicant isolation
     res = client.get(f"/api/saved-applications?user_id={applicant_id}&role=applicant")
     assert res.status_code == 200
     app_vault = res.json()["applications"]
     assert any(a["application_no"] == created_app_no for a in app_vault)
     print(f"[PASS] 20. GET /api/saved-applications -> 200 Applicant isolated list ({len(app_vault)} records)")
 
-    # Saved applications: Officer full portfolio
-    res = client.get("/api/saved-applications?role=officer")
+    res = client.get("/api/saved-applications")
+    assert res.status_code in (401, 403)
+    res = client.get("/api/saved-applications?role=officer", headers={"X-User-Id": applicant_id, "X-User-Role": "applicant"})
+    assert res.status_code == 403
+
+    res = client.get("/api/saved-applications?role=officer", headers={"X-User-Id": officer_id, "X-User-Role": "officer"})
     assert res.status_code == 200
     off_vault = res.json()["applications"]
     assert len(off_vault) >= len(app_vault)
     print(f"[PASS] 21. GET /api/saved-applications -> 200 Officer full portfolio ({len(off_vault)} records)")
 
-    # Officer Sanction Security: Applicant cannot sanction -> 403
     res = client.post("/api/officer/sanction", json={
         "application_no": created_app_no,
         "status": "Approved",
         "officer_role": "applicant"
+    }, headers={"X-User-Id": applicant_id, "X-User-Role": "applicant"})
+    assert res.status_code == 403
+
+    res = client.post("/api/officer/sanction", json={
+        "application_no": created_app_no,
+        "status": "Approved",
+        "officer_role": "officer"
     })
     assert res.status_code == 403
-    print("[PASS] 22. POST /api/officer/sanction -> 403 Unauthorized applicant blocked")
+    print("[PASS] 22. POST /api/officer/sanction -> 403 Unauthorized & spoofed requests blocked")
 
-    # Officer Sanction Authorized
     res = client.post("/api/officer/sanction", json={
         "application_no": created_app_no,
         "status": "Approved",
         "remarks": "Credit verified with positive CIBIL and compliant DTI ratio.",
         "officer_role": "officer"
-    })
+    }, headers={"X-User-Id": officer_id, "X-User-Role": "officer"})
     assert res.status_code == 200
     assert res.json()["success"] is True
     print(f"[PASS] 23. POST /api/officer/sanction -> 200 Decision recorded with audit remarks")
 
-    # 5. Algorithmic Equity & Performance
     res = client.get("/api/fairness")
     assert res.status_code == 200
     fairness = res.json()
@@ -250,17 +236,14 @@ def run_tests():
     assert applicants["total_in_db"] > 0
     print(f"[PASS] 26. GET /api/applicants -> 200 Total cached: {applicants['total_in_db']}")
 
-    # 6. Website Online / Offline Maintenance Mode Controls
     res = client.get("/api/system/availability")
     assert res.status_code == 200 and res.json()["online"] is True
     print("[PASS] 27. GET /api/system/availability -> 200 Website initially Online")
 
-    # Applicant cannot toggle website availability
     res = client.post("/api/system/availability", json={"online": False}, headers={"X-User-Id": applicant_id, "X-User-Role": "applicant"})
     assert res.status_code == 403
     print("[PASS] 28. POST /api/system/availability -> 403 Applicant blocked from toggling site mode")
 
-    # Officer takes website Offline
     res = client.post(
         "/api/system/availability",
         json={"online": False, "maintenance_message": "Routine security upgrade in progress."},
@@ -269,7 +252,6 @@ def run_tests():
     assert res.status_code == 200 and res.json()["online"] is False
     print("[PASS] 29. POST /api/system/availability -> 200 Officer switched website Offline")
 
-    # Applicant sign-in, prediction & analytics blocked with 503 while Offline, Health remains 200, Officer sign-in & Officer analytics stay 200
     res = client.post("/api/auth/signin", json={"email": "applicant@meridianbank.in", "password": "Applicant@123", "expected_role": "applicant"})
     assert res.status_code == 503 and res.json().get("offline") is True
     res_acc_blocked = client.get("/api/accuracy", headers={"X-User-Id": applicant_id, "X-User-Role": "applicant"})
@@ -282,17 +264,53 @@ def run_tests():
     assert res_fair_off.status_code == 200
     res_health = client.get("/api/health")
     assert res_health.status_code == 200 and res_health.json().get("site_online") is False
-    res_off_login = client.post("/api/auth/signin", json={"email": "officer@meridianbank.in", "password": "Officer@2026", "expected_role": "officer"})
+    res_off_login = client.post("/api/auth/signin", json={"email": "officer@meridianbank.in", "password": officer_pwd, "expected_role": "officer"})
     assert res_off_login.status_code == 200
     print("[PASS] 30. Offline Maintenance Gate -> 503 for public/applicant, 200 for /api/health & Officer Override + Analytics")
 
-    # Restore website back Online using Officer Passkey
+    configured_key = os.environ.get("OFFICER_REGISTRATION_KEY", "OFFICER-2026")
     res = client.post(
         "/api/system/availability",
-        json={"online": True, "officer_key": "OFFICER-2026"}
+        json={
+            "online": True,
+            "officer_key": configured_key,
+            "title": "Portal Temporarily Offline",
+            "maintenance_message": "Meridian FairLend AI is currently offline for scheduled maintenance. Online underwriting will resume shortly."
+        }
     )
     assert res.status_code == 200 and res.json()["online"] is True
     print("[PASS] 31. POST /api/system/availability -> 200 Website restored Online cleanly")
+
+    rate_ip = "203.0.113.77"
+    for _ in range(8):
+        r_fail = client.post(
+            "/api/auth/signin",
+            json={"email": "officer@meridianbank.in", "password": "BadPassword123"},
+            headers={"X-Forwarded-For": rate_ip}
+        )
+        assert r_fail.status_code == 401
+    r_blocked = client.post(
+        "/api/auth/signin",
+        json={"email": "officer@meridianbank.in", "password": "BadPassword123"},
+        headers={"X-Forwarded-For": rate_ip}
+    )
+    assert r_blocked.status_code == 429
+
+    key_ip = "203.0.113.88"
+    for _ in range(8):
+        k_fail = client.post(
+            "/api/system/availability",
+            json={"online": True, "officer_key": "WRONG-KEY-TEST"},
+            headers={"X-Forwarded-For": key_ip}
+        )
+        assert k_fail.status_code == 403
+    k_blocked = client.post(
+        "/api/system/availability",
+        json={"online": True, "officer_key": "WRONG-KEY-TEST"},
+        headers={"X-Forwarded-For": key_ip}
+    )
+    assert k_blocked.status_code == 429
+    print("[PASS] 32. Rate Limiting -> 429 Too Many Requests enforced on repeated auth & passkey failures")
 
     print("=" * 70)
     print("ALL FASTAPI ENDPOINTS & POLICIES VALIDATED SUCCESSFULLY (100% PASS)")

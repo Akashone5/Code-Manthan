@@ -1,13 +1,9 @@
-"""
-Authentication and Identity Router
-Handles registration, role-gated sign-in, password reset, and session management.
-"""
-
 from typing import Optional
-from fastapi import APIRouter, Query, Header, status
+from fastapi import APIRouter, Query, Header, Request, status
 from fastapi.responses import JSONResponse
 import database
 from src.database.supabase_client import get_supabase_client
+from src.api.rate_limit import auth_rate_limiter, get_client_ip
 from src.api.schemas import (
     SignUpRequest,
     SignInRequest,
@@ -18,7 +14,6 @@ from src.api.schemas import (
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication & Identity"])
 
-
 @router.post(
     "/signup",
     summary="Register a new Applicant or Loan Officer",
@@ -27,14 +22,24 @@ router = APIRouter(prefix="/api/auth", tags=["Authentication & Identity"])
     responses={
         201: {"description": "Account registered successfully"},
         400: {"description": "Validation error or invalid officer key"},
+        429: {"description": "Too many failed attempts"},
         500: {"description": "Registration server error"}
     }
 )
-async def signup(payload: SignUpRequest):
-    """
-    Registers a new user account with Supabase Auth / PostgreSQL and local SQLite backup.
-    Officers must present the authorized officer clearance key.
-    """
+async def signup(payload: SignUpRequest, request: Request):
+    client_ip = get_client_ip(request)
+    if payload.role == "officer":
+        blocked, retry_after = auth_rate_limiter.is_blocked(client_ip, "signup_officer")
+        if blocked:
+            return JSONResponse(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                headers={"Retry-After": str(retry_after)},
+                content={
+                    "success": False,
+                    "error": f"Too many invalid clearance attempts. Please wait {retry_after} seconds."
+                }
+            )
+
     avail = database.get_site_availability()
     if not avail["online"] and payload.role != "officer":
         return JSONResponse(
@@ -62,6 +67,8 @@ async def signup(payload: SignUpRequest):
             role=payload.role,
             officer_key=payload.officer_key
         )
+        if payload.role == "officer":
+            auth_rate_limiter.reset(client_ip, "signup_officer")
         return JSONResponse(
             status_code=status.HTTP_201_CREATED,
             content={
@@ -71,6 +78,8 @@ async def signup(payload: SignUpRequest):
             }
         )
     except ValueError as val_err:
+        if payload.role == "officer" and "Passkey" in str(val_err):
+            auth_rate_limiter.record_failure(client_ip, "signup_officer")
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={"success": False, "error": str(val_err)}
@@ -81,22 +90,29 @@ async def signup(payload: SignUpRequest):
             content={"success": False, "error": f"Registration failed: {str(e)}"}
         )
 
-
 @router.post(
     "/signin",
     summary="Authenticate credentials with role gateway enforcement",
     responses={
         200: {"description": "Authentication successful"},
         401: {"description": "Invalid email or password"},
-        403: {"description": "Role mismatch with target portal"}
+        403: {"description": "Role mismatch with target portal"},
+        429: {"description": "Too many failed login attempts"}
     }
 )
-async def signin(payload: SignInRequest):
-    """
-    Authenticates email and password against Supabase Auth and local hash storage.
-    Enforces strict role gateways so Applicants cannot access Officer portals and vice-versa.
-    Allows Officer sign-in even during Maintenance Mode so admins can restore site availability.
-    """
+async def signin(payload: SignInRequest, request: Request):
+    client_ip = get_client_ip(request)
+    blocked, retry_after = auth_rate_limiter.is_blocked(client_ip, "signin")
+    if blocked:
+        return JSONResponse(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            headers={"Retry-After": str(retry_after)},
+            content={
+                "success": False,
+                "error": f"Too many failed login attempts. Please wait {retry_after} seconds and try again."
+            }
+        )
+
     expected_role = payload.expected_role or payload.role
     avail = database.get_site_availability()
     if not avail["online"] and expected_role == "applicant":
@@ -125,6 +141,7 @@ async def signin(payload: SignInRequest):
                 }
             )
         if expected_role and user_role != expected_role:
+            auth_rate_limiter.record_failure(client_ip, "signin")
             if expected_role == "officer":
                 return JSONResponse(
                     status_code=status.HTTP_403_FORBIDDEN,
@@ -141,10 +158,11 @@ async def signin(payload: SignInRequest):
                         "error": "Notice: This account has Loan Officer clearance. Please use the Officer Sign In tab."
                     }
                 )
+        auth_rate_limiter.reset(client_ip, "signin")
         return JSONResponse(status_code=status.HTTP_200_OK, content=auth_res)
     else:
+        auth_rate_limiter.record_failure(client_ip, "signin")
         return JSONResponse(status_code=status.HTTP_401_UNAUTHORIZED, content=auth_res)
-
 
 @router.post(
     "/forgot-password",
@@ -152,9 +170,6 @@ async def signin(payload: SignInRequest):
     response_model=BaseMessageResponse
 )
 async def forgot_password(payload: ForgotPasswordRequest):
-    """
-    Initiates password recovery instructions to the specified email.
-    """
     email = payload.email.strip().lower()
     if not email:
         return JSONResponse(
@@ -177,7 +192,6 @@ async def forgot_password(payload: ForgotPasswordRequest):
         }
     )
 
-
 @router.get(
     "/session",
     summary="Verify stored user profile and role state"
@@ -186,9 +200,6 @@ async def verify_session(
     user_id: Optional[str] = Query(default=None),
     x_user_id: Optional[str] = Header(default=None, alias="X-User-Id")
 ):
-    """
-    Validates a persisted user session identifier against stored profile records.
-    """
     uid = user_id or x_user_id
     if not uid:
         return JSONResponse(
@@ -208,16 +219,12 @@ async def verify_session(
         content={"success": True, "user": profile}
     )
 
-
 @router.post(
     "/logout",
     summary="Terminate active session",
     response_model=BaseMessageResponse
 )
 async def logout():
-    """
-    Terminates the active user session.
-    """
     return JSONResponse(
         status_code=status.HTTP_200_OK,
         content={"success": True, "message": "Logged out successfully."}

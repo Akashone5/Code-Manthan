@@ -1,13 +1,9 @@
-"""
-System Health and Hub Router
-Provides service diagnostic checks and interactive engine status view.
-"""
-
 from typing import Optional
-from fastapi import APIRouter, Header, status
+from fastapi import APIRouter, Header, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse
 import database
 from src.database.supabase_client import get_supabase_client
+from src.api.rate_limit import auth_rate_limiter, get_client_ip
 from src.api.schemas import (
     HealthResponse,
     SiteAvailabilityUpdateRequest,
@@ -16,17 +12,12 @@ from src.api.schemas import (
 
 router = APIRouter(prefix="/api", tags=["System & Diagnostics"])
 
-
 @router.get(
     "/health",
     summary="Service health and database synchronization check",
     response_model=HealthResponse
 )
 async def health_check():
-    """
-    Returns API runtime health, service identifier, and database persistence status.
-    Used by load balancers, container orchestrators, and frontend connectivity checks.
-    """
     sb = get_supabase_client()
     db_mode = "dual-sync (Supabase + SQLite)" if sb.is_configured() else "sqlite-local"
     avail = database.get_site_availability()
@@ -41,23 +32,17 @@ async def health_check():
         }
     )
 
-
 @router.get(
     "/system/availability",
     summary="Check whether the portal is publicly online or in maintenance mode",
     response_model=SiteAvailabilityResponse
 )
 async def get_system_availability():
-    """
-    Returns the persisted website availability state (online vs offline maintenance mode)
-    so clients can render either the live portal or the branded offline notice.
-    """
     avail = database.get_site_availability()
     return JSONResponse(
         status_code=status.HTTP_200_OK,
         content={"success": True, **avail}
     )
-
 
 @router.post(
     "/system/availability",
@@ -65,19 +50,29 @@ async def get_system_availability():
     response_model=SiteAvailabilityResponse,
     responses={
         200: {"description": "Website availability state updated"},
-        403: {"description": "Forbidden: Verified Loan Officer clearance required"}
+        403: {"description": "Forbidden: Verified Loan Officer clearance required"},
+        429: {"description": "Too many failed authorization attempts"}
     }
 )
 async def update_system_availability(
     payload: SiteAvailabilityUpdateRequest,
+    request: Request,
     x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
     x_user_role: Optional[str] = Header(default=None, alias="X-User-Role"),
     x_officer_key: Optional[str] = Header(default=None, alias="X-Officer-Key")
 ):
-    """
-    Allows authorized Loan Officers (verified in DB) or institutional passkey holders
-    to take the website publicly Offline (Maintenance Mode) or bring it back Online.
-    """
+    client_ip = get_client_ip(request)
+    blocked, retry_after = auth_rate_limiter.is_blocked(client_ip, "availability_key")
+    if blocked:
+        return JSONResponse(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            headers={"Retry-After": str(retry_after)},
+            content={
+                "success": False,
+                "error": f"Too many unauthorized attempts. Please wait {retry_after} seconds."
+            }
+        )
+
     key_candidate = payload.officer_key or x_officer_key
     allowed, actor_name = database.is_verified_officer(
         user_id=x_user_id,
@@ -85,6 +80,7 @@ async def update_system_availability(
         officer_key=key_candidate
     )
     if not allowed:
+        auth_rate_limiter.record_failure(client_ip, "availability_key")
         return JSONResponse(
             status_code=status.HTTP_403_FORBIDDEN,
             content={
@@ -93,6 +89,7 @@ async def update_system_availability(
             }
         )
 
+    auth_rate_limiter.reset(client_ip, "availability_key")
     updated = database.set_site_availability(
         online=payload.online,
         message=payload.maintenance_message,
@@ -104,16 +101,12 @@ async def update_system_availability(
         content={"success": True, **updated}
     )
 
-
 @router.get(
     "",
     summary="Interactive Credit Underwriting Hub and Service Overview",
     response_class=HTMLResponse
 )
 async def api_hub():
-    """
-    Renders the live system status card and REST API directory.
-    """
     saved_apps = database.get_all_saved_applications(role="officer")
     sb = get_supabase_client()
     avail = database.get_site_availability()

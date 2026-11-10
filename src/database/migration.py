@@ -9,8 +9,7 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from src.database.supabase_client import get_supabase_client
-
-DB_FILE = os.path.join(project_root, 'meridian_loans.db')
+from src.database.database_operations import DB_FILE
 
 def run_migration():
     print("=" * 80)

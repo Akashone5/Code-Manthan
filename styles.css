@@ -1138,12 +1138,6 @@ body {
   }
 }
 
-
-/* ==========================================================================
-   AUTHENTICATION & ACCESS CONTROL PORTAL (MATCHING INNER FINTECH THEME)
-   Emerald Forest (#064E3B), Warm Cream (#F8E7C9), Linen (#F7F3EB), Gold (#C2822B)
-   ========================================================================== */
-
 .auth-overlay {
   position: relative;
   min-height: 100vh;
@@ -1571,7 +1565,6 @@ body {
   align-items: center;
 }
 
-/* User Widget in Header */
 .user-auth-widget {
   display: flex;
   align-items: center;
@@ -1631,11 +1624,6 @@ body {
   color: #FFFFFF;
   border-color: #DC2626;
 }
-
-
-/* ==========================================================================
-   WEBSITE AVAILABILITY, MAINTENANCE OVERLAY & OFFICER STATUS CONTROLS
-   ========================================================================== */
 
 .site-status-pill {
   display: inline-flex;

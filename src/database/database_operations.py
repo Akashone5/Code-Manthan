@@ -1,14 +1,9 @@
-"""
-Unified Data Access Layer & Repository
-Manages dual-persistence across Supabase PostgreSQL (Cloud) and SQLite3 (Local Offline Fallback).
-Implements secure user authentication, role-based access control (Applicant & Officer),
-and Row Level Security tenant data isolation.
-"""
-
 import os
 import re
+import hmac
 import json
 import uuid
+import shutil
 import random
 import hashlib
 import datetime
@@ -18,13 +13,45 @@ from typing import List, Dict, Any, Optional, Tuple
 
 from .supabase_client import get_supabase_client
 
-DB_FILE = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'meridian_loans.db'))
-EXPORT_CSV = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'meridian_loan_applications_export.csv'))
+_ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+_SEED_DB_FILE = os.path.join(_ROOT_DIR, 'meridian_loans.db')
 
-OFFICER_PASSKEY = os.environ.get('OFFICER_REGISTRATION_KEY', 'OFFICER-2026')
+def _resolve_db_and_export_paths() -> Tuple[str, str]:
+    explicit_db = os.environ.get('SQLITE_DB_PATH', '').strip()
+    volume_mount = os.environ.get('RAILWAY_VOLUME_MOUNT_PATH', '').strip()
+    if explicit_db:
+        db_path = os.path.abspath(explicit_db)
+    elif volume_mount:
+        db_path = os.path.abspath(os.path.join(volume_mount, 'meridian_loans.db'))
+    else:
+        db_path = _SEED_DB_FILE
+
+    explicit_csv = os.environ.get('EXPORT_CSV_PATH', '').strip()
+    if explicit_csv:
+        csv_path = os.path.abspath(explicit_csv)
+    else:
+        csv_dir = os.path.dirname(db_path) or _ROOT_DIR
+        csv_path = os.path.join(csv_dir, 'meridian_loan_applications_export.csv')
+    return db_path, csv_path
+
+DB_FILE, EXPORT_CSV = _resolve_db_and_export_paths()
+
+def _ensure_db_storage_ready():
+    parent_dir = os.path.dirname(DB_FILE)
+    if parent_dir:
+        os.makedirs(parent_dir, exist_ok=True)
+    if (
+        os.path.abspath(DB_FILE) != os.path.abspath(_SEED_DB_FILE)
+        and not os.path.exists(DB_FILE)
+        and os.path.exists(_SEED_DB_FILE)
+    ):
+        try:
+            shutil.copy2(_SEED_DB_FILE, DB_FILE)
+        except Exception:
+            pass
 
 def get_sqlite_conn() -> sqlite3.Connection:
-    """Creates a configured SQLite connection with WAL mode and row mapping."""
+    _ensure_db_storage_ready()
     conn = sqlite3.connect(DB_FILE, timeout=20.0)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode = WAL;")
@@ -33,7 +60,6 @@ def get_sqlite_conn() -> sqlite3.Connection:
     return conn
 
 def _hash_password(password: str, salt: Optional[str] = None) -> Tuple[str, str]:
-    """Generates a PBKDF2-HMAC-SHA256 password hash with cryptographic salt."""
     if not salt:
         salt = uuid.uuid4().hex
     pwd_bytes = password.encode('utf-8')
@@ -42,16 +68,16 @@ def _hash_password(password: str, salt: Optional[str] = None) -> Tuple[str, str]
     return key.hex(), salt
 
 def _verify_password(password: str, stored_hash: str, salt: str) -> bool:
-    """Verifies a plain password against the stored PBKDF2 hash."""
     computed_hash, _ = _hash_password(password, salt)
-    return hashlib.sha256(computed_hash.encode()).hexdigest() == hashlib.sha256(stored_hash.encode()).hexdigest()
+    return hmac.compare_digest(computed_hash, stored_hash)
+
+def _get_configured_officer_key() -> str:
+    return os.environ.get('OFFICER_REGISTRATION_KEY', 'OFFICER-2026').strip()
 
 def init_db():
-    """Initializes SQLite schema for both profiles and loan_applications tables."""
     with get_sqlite_conn() as conn:
         cursor = conn.cursor()
 
-        # 1. User Profiles Table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS profiles (
                 id TEXT PRIMARY KEY,
@@ -67,7 +93,6 @@ def init_db():
             )
         ''')
 
-        # 2. Loan Applications Table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS loan_applications (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -105,7 +130,6 @@ def init_db():
             )
         ''')
 
-        # Add missing columns safely if upgrading from earlier version
         cursor.execute("PRAGMA table_info(loan_applications)")
         existing_cols = {col['name'] for col in cursor.fetchall()}
 
@@ -123,7 +147,6 @@ def init_db():
                 except Exception:
                     pass
 
-        # 3. System Settings & Availability Table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS system_settings (
                 setting_key TEXT PRIMARY KEY,
@@ -134,9 +157,49 @@ def init_db():
         ''')
 
         now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        default_online = "false" if os.environ.get("SITE_ONLINE", "true").strip().lower() in ("0", "false", "no", "off", "offline") else "true"
+        cursor.execute("SELECT setting_key, setting_value FROM system_settings")
+        existing_settings = {row['setting_key']: row['setting_value'] for row in cursor.fetchall()}
+
+        force_site_env = os.environ.get("FORCE_SITE_ONLINE", "").strip()
+        raw_site_env = os.environ.get("SITE_ONLINE")
+
+        if force_site_env:
+            forced_val = "false" if force_site_env.lower() in ("0", "false", "no", "off", "offline") else "true"
+            cursor.execute('''
+                INSERT INTO system_settings (setting_key, setting_value, updated_by, updated_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(setting_key) DO UPDATE SET
+                    setting_value = excluded.setting_value,
+                    updated_by = excluded.updated_by,
+                    updated_at = excluded.updated_at
+            ''', ("site_online", forced_val, "Environment Variable (FORCE_SITE_ONLINE)", now_str))
+        elif raw_site_env is not None and raw_site_env.strip():
+            env_online = "false" if raw_site_env.strip().lower() in ("0", "false", "no", "off", "offline") else "true"
+            last_env = existing_settings.get("site_online_env_last")
+            if "site_online" not in existing_settings or last_env != env_online:
+                cursor.execute('''
+                    INSERT INTO system_settings (setting_key, setting_value, updated_by, updated_at)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(setting_key) DO UPDATE SET
+                        setting_value = excluded.setting_value,
+                        updated_by = excluded.updated_by,
+                        updated_at = excluded.updated_at
+                ''', ("site_online", env_online, "Environment Variable (SITE_ONLINE)", now_str))
+                cursor.execute('''
+                    INSERT INTO system_settings (setting_key, setting_value, updated_by, updated_at)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(setting_key) DO UPDATE SET
+                        setting_value = excluded.setting_value,
+                        updated_by = excluded.updated_by,
+                        updated_at = excluded.updated_at
+                ''', ("site_online_env_last", env_online, "System Startup", now_str))
+        else:
+            cursor.execute('''
+                INSERT OR IGNORE INTO system_settings (setting_key, setting_value, updated_by, updated_at)
+                VALUES (?, ?, ?, ?)
+            ''', ("site_online", "true", "System Startup", now_str))
+
         for k, v, actor in [
-            ("site_online", default_online, "System Startup"),
             ("maintenance_title", "Portal Temporarily Offline", "System Startup"),
             ("maintenance_message", "Meridian FairLend AI is currently offline for scheduled maintenance. Online underwriting will resume shortly.", "System Startup"),
         ]:
@@ -145,34 +208,56 @@ def init_db():
                 VALUES (?, ?, ?, ?)
             ''', (k, v, actor, now_str))
 
-        # Pre-provision default baseline accounts if table is empty
         cursor.execute("SELECT COUNT(*) FROM profiles")
         count = cursor.fetchone()[0]
         if count == 0:
-
-            # Default Applicant
             app_hash, app_salt = _hash_password("Applicant@123")
             cursor.execute('''
                 INSERT INTO profiles (id, full_name, email, phone, password_hash, salt, role, is_verified_officer, created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (str(uuid.uuid4()), "Ananya Rao", "applicant@meridianbank.in", "9876543210", app_hash, app_salt, "applicant", 0, now_str, now_str))
 
-            # Default Officer
-            off_hash, off_salt = _hash_password("Officer@2026")
+            seed_officer_pwd = os.environ.get("OFFICER_ADMIN_PASSWORD", "").strip() or "Officer@2026"
+            off_hash, off_salt = _hash_password(seed_officer_pwd)
             cursor.execute('''
                 INSERT INTO profiles (id, full_name, email, phone, password_hash, salt, role, is_verified_officer, created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (str(uuid.uuid4()), "Vikram Sharma (Lead Credit Officer)", "officer@meridianbank.in", "9811223344", off_hash, off_salt, "officer", 1, now_str, now_str))
-
-# --- AUTHENTICATION & USER MANAGEMENT ---
+            if os.environ.get("OFFICER_ADMIN_PASSWORD", "").strip():
+                pwd_fp = hashlib.sha256(seed_officer_pwd.encode()).hexdigest()
+                cursor.execute('''
+                    INSERT INTO system_settings (setting_key, setting_value, updated_by, updated_at)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(setting_key) DO UPDATE SET
+                        setting_value = excluded.setting_value,
+                        updated_by = excluded.updated_by,
+                        updated_at = excluded.updated_at
+                ''', ("officer_pwd_env_last", pwd_fp, "System Startup", now_str))
+        else:
+            admin_pwd_env = os.environ.get("OFFICER_ADMIN_PASSWORD", "").strip()
+            if admin_pwd_env:
+                pwd_fp = hashlib.sha256(admin_pwd_env.encode()).hexdigest()
+                if existing_settings.get("officer_pwd_env_last") != pwd_fp:
+                    off_hash, off_salt = _hash_password(admin_pwd_env)
+                    cursor.execute('''
+                        UPDATE profiles
+                        SET password_hash = ?, salt = ?, is_verified_officer = 1, updated_at = ?
+                        WHERE email = ? AND role = 'officer'
+                    ''', (off_hash, off_salt, now_str, "officer@meridianbank.in"))
+                    cursor.execute('''
+                        INSERT INTO system_settings (setting_key, setting_value, updated_by, updated_at)
+                        VALUES (?, ?, ?, ?)
+                        ON CONFLICT(setting_key) DO UPDATE SET
+                            setting_value = excluded.setting_value,
+                            updated_by = excluded.updated_by,
+                            updated_at = excluded.updated_at
+                    ''', ("officer_pwd_env_last", pwd_fp, "Environment Variable (OFFICER_ADMIN_PASSWORD)", now_str))
 
 def validate_email_format(email: str) -> bool:
-    """Validates standard email format."""
     pattern = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
     return bool(re.match(pattern, email.strip()))
 
 def validate_password_strength(password: str) -> Tuple[bool, str]:
-    """Validates password security requirements (min 8 characters, letter and digit)."""
     if len(password) < 8:
         return False, "Password must be at least 8 characters long."
     if not any(c.isalpha() for c in password):
@@ -183,10 +268,6 @@ def validate_password_strength(password: str) -> Tuple[bool, str]:
 
 def create_user_profile(full_name: str, email: str, phone: str, password: str,
                         role: str = 'applicant', officer_key: Optional[str] = None) -> Dict[str, Any]:
-    """
-    Registers a new user account.
-    Enforces email validation, password complexity, role verification, and dual-persistence.
-    """
     full_name = full_name.strip()
     email = email.strip().lower()
     phone = phone.strip()
@@ -205,15 +286,14 @@ def create_user_profile(full_name: str, email: str, phone: str, password: str,
     if role not in ['applicant', 'officer']:
         role = 'applicant'
 
-    # Security Check: Officer clearance
     is_verified_officer = False
     if role == 'officer':
-        configured_key = os.environ.get('OFFICER_REGISTRATION_KEY', 'OFFICER-2026').strip()
-        if not officer_key or officer_key.strip() != configured_key:
+        configured_key = _get_configured_officer_key()
+        candidate = (officer_key or "").strip()
+        if not candidate or not hmac.compare_digest(candidate, configured_key):
             raise ValueError("Unauthorized: Invalid Officer Authorization Passkey. Officer registration requires institutional clearance.")
         is_verified_officer = True
 
-    # Check for existing email in local database
     with get_sqlite_conn() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT id FROM profiles WHERE email = ?", (email,))
@@ -223,7 +303,6 @@ def create_user_profile(full_name: str, email: str, phone: str, password: str,
     user_id = str(uuid.uuid4())
     now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    # 1. Attempt Supabase Auth & Profile Registration
     sb_client = get_supabase_client()
     if sb_client.is_configured():
         try:
@@ -240,7 +319,6 @@ def create_user_profile(full_name: str, email: str, phone: str, password: str,
                 if sb_user.get('id'):
                     user_id = sb_user['id']
 
-            # Also attempt to insert into Supabase profiles table
             sb_client.insert('profiles', {
                 'id': user_id,
                 'full_name': full_name,
@@ -252,7 +330,6 @@ def create_user_profile(full_name: str, email: str, phone: str, password: str,
         except Exception:
             pass
 
-    # 2. Persist to Local SQLite Database (Always active as reliable fallback)
     pwd_hash, salt = _hash_password(password)
     with get_sqlite_conn() as conn:
         cursor = conn.cursor()
@@ -272,17 +349,12 @@ def create_user_profile(full_name: str, email: str, phone: str, password: str,
     }
 
 def authenticate_user(email: str, password: str) -> Dict[str, Any]:
-    """
-    Authenticates user credentials against Supabase Auth with seamless SQLite fallback.
-    Returns session token and verified user profile.
-    """
     email = email.strip().lower()
     password = password.strip()
 
     if not email or not password:
         return {'success': False, 'error': 'Email and password are required.'}
 
-    # 1. Attempt Supabase Auth
     sb_client = get_supabase_client()
     if sb_client.is_configured():
         try:
@@ -294,12 +366,10 @@ def authenticate_user(email: str, password: str) -> Dict[str, Any]:
                 user_meta = sb_user.get('user_metadata', {})
                 user_id = sb_user.get('id')
 
-                # Query profile from Supabase or fallback to SQLite
                 role = user_meta.get('role', 'applicant')
                 full_name = user_meta.get('full_name', sb_user.get('email', 'User'))
                 phone = user_meta.get('phone', '')
 
-                # Check if local profile exists, else cache it
                 local_profile = get_user_by_email(email)
                 if not local_profile:
                     now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -327,7 +397,6 @@ def authenticate_user(email: str, password: str) -> Dict[str, Any]:
         except Exception:
             pass
 
-    # 2. Local SQLite Authentication Fallback
     with get_sqlite_conn() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM profiles WHERE email = ?", (email,))
@@ -340,7 +409,6 @@ def authenticate_user(email: str, password: str) -> Dict[str, Any]:
         if not _verify_password(password, record['password_hash'], record['salt']):
             return {'success': False, 'error': 'Invalid password. Please try again.'}
 
-        # Generate local session token
         session_token = f"local-session-{uuid.uuid4().hex}"
         return {
             'success': True,
@@ -356,7 +424,6 @@ def authenticate_user(email: str, password: str) -> Dict[str, Any]:
         }
 
 def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
-    """Retrieves user profile by email."""
     with get_sqlite_conn() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT id, full_name, email, phone, role, is_verified_officer, created_at FROM profiles WHERE email = ?", (email.strip().lower(),))
@@ -364,17 +431,13 @@ def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
         return dict(row) if row else None
 
 def get_user_profile(user_id: str) -> Optional[Dict[str, Any]]:
-    """Retrieves user profile by ID."""
     with get_sqlite_conn() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT id, full_name, email, phone, role, is_verified_officer, created_at FROM profiles WHERE id = ?", (user_id,))
         row = cursor.fetchone()
         return dict(row) if row else None
 
-# --- LOAN APPLICATION OPERATIONS ---
-
 def sync_csv_export():
-    """Syncs the latest loan applications state to the central CSV export mirror."""
     try:
         apps = get_all_applications()
         with open(EXPORT_CSV, 'w', newline='', encoding='utf-8') as f:
@@ -402,11 +465,6 @@ def sync_csv_export():
 
 def save_application(applicant_data: Dict[str, Any], prediction_result: Dict[str, Any],
                      explanation_result: Dict[str, Any], user_id: Optional[str] = None) -> Dict[str, Any]:
-    """
-    Persists a new loan application.
-    Associates the application with user_id/applicant_id for Row Level Security tenancy.
-    Dual-writes to Supabase PostgreSQL and local SQLite.
-    """
     random_digits = random.randint(1000, 9999)
     current_year = datetime.datetime.now().year
     app_no = f"MB-{current_year}-{random_digits}"
@@ -460,7 +518,6 @@ def save_application(applicant_data: Dict[str, Any], prediction_result: Dict[str
         'officer_notes': 'Submitted via Mission Bharat Digital Portal'
     }
 
-    # 1. Attempt Supabase Insertion
     sb_client = get_supabase_client()
     new_record: Optional[Dict[str, Any]] = None
 
@@ -476,7 +533,6 @@ def save_application(applicant_data: Dict[str, Any], prediction_result: Dict[str
         except Exception:
             pass
 
-    # 2. Persist to Local SQLite Database
     with get_sqlite_conn() as conn:
         cursor = conn.cursor()
         cursor.execute('''
@@ -509,14 +565,8 @@ def save_application(applicant_data: Dict[str, Any], prediction_result: Dict[str
     return new_record or record_dict
 
 def get_all_applications(user_id: Optional[str] = None, role: str = 'officer', user_email: Optional[str] = None) -> List[Dict[str, Any]]:
-    """
-    Retrieves loan applications with strict Role-Based Access Control.
-    Applicants can ONLY view their own records (filtered by user_id or email).
-    Loan Officers can view all applications institution-wide.
-    """
     is_applicant = (role == 'applicant')
 
-    # 1. Query Supabase if configured
     sb_client = get_supabase_client()
     if sb_client.is_configured():
         try:
@@ -534,7 +584,6 @@ def get_all_applications(user_id: Optional[str] = None, role: str = 'officer', u
         except Exception:
             pass
 
-    # 2. SQLite Query
     with get_sqlite_conn() as conn:
         cursor = conn.cursor()
         if is_applicant and user_id:
@@ -544,21 +593,18 @@ def get_all_applications(user_id: Optional[str] = None, role: str = 'officer', u
                 ORDER BY id DESC
             ''', (str(user_id), str(user_id)))
         elif is_applicant and user_email:
-            # Fallback filter by phone or name if user_id was not explicitly set on legacy records
             cursor.execute('''
                 SELECT * FROM loan_applications 
                 WHERE user_id = ? OR applicant_id = ?
                 ORDER BY id DESC
             ''', (str(user_id or ''), str(user_id or '')))
         else:
-            # Officer: views all applications
             cursor.execute('SELECT * FROM loan_applications ORDER BY id DESC')
 
         rows = cursor.fetchall()
         return [dict(r) for r in rows]
 
 def get_application_by_number(application_no: str) -> Optional[Dict[str, Any]]:
-    """Retrieves a single loan application by reference number."""
     sb_client = get_supabase_client()
     if sb_client.is_configured():
         try:
@@ -575,11 +621,6 @@ def get_application_by_number(application_no: str) -> Optional[Dict[str, Any]]:
         return dict(row) if row else None
 
 def update_application_status(application_no: str, new_status: str, officer_remarks: str = '') -> Optional[Dict[str, Any]]:
-    """
-    Updates the underwriting decision status and records official officer remarks.
-    Only accessible by authenticated Loan Officers.
-    """
-    # 1. Update in Supabase
     sb_client = get_supabase_client()
     if sb_client.is_configured():
         try:
@@ -593,7 +634,6 @@ def update_application_status(application_no: str, new_status: str, officer_rema
         except Exception:
             pass
 
-    # 2. Update in SQLite
     with get_sqlite_conn() as conn:
         cursor = conn.cursor()
         cursor.execute('''
@@ -605,27 +645,20 @@ def update_application_status(application_no: str, new_status: str, officer_rema
     sync_csv_export()
     return get_application_by_number(application_no)
 
-
-# --- WEBSITE AVAILABILITY / MAINTENANCE CONTROLS ---
-
 DEFAULT_MAINTENANCE_TITLE = "Portal Temporarily Offline"
 DEFAULT_MAINTENANCE_MESSAGE = (
     "Meridian FairLend AI is currently offline for scheduled maintenance. "
     "Online underwriting will resume shortly."
 )
 
-
 def is_verified_officer(
     user_id: Optional[str] = None,
     user_role: Optional[str] = None,
     officer_key: Optional[str] = None
 ) -> Tuple[bool, str]:
-    """
-    Verifies whether a caller holds verified Loan Officer / Admin privileges
-    via persisted database profile or valid institutional Officer Clearance Key.
-    """
-    configured_key = os.environ.get('OFFICER_REGISTRATION_KEY', 'OFFICER-2026').strip()
-    if officer_key and officer_key.strip() == configured_key:
+    configured_key = _get_configured_officer_key()
+    candidate = (officer_key or "").strip()
+    if candidate and hmac.compare_digest(candidate, configured_key):
         return True, "Officer Clearance Passkey"
 
     if user_id and (not user_role or str(user_role).strip().lower() == 'officer'):
@@ -636,9 +669,7 @@ def is_verified_officer(
 
     return False, ""
 
-
 def get_site_availability() -> Dict[str, Any]:
-    """Retrieves persistent website online/offline status and maintenance notice."""
     now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     default_online = os.environ.get("SITE_ONLINE", "true").strip().lower() not in ("0", "false", "no", "off", "offline")
     settings: Dict[str, Dict[str, str]] = {}
@@ -669,14 +700,12 @@ def get_site_availability() -> Dict[str, Any]:
         'updated_at': updated_at
     }
 
-
 def set_site_availability(
     online: bool,
     message: Optional[str] = None,
     title: Optional[str] = None,
     updated_by: str = "Loan Officer"
 ) -> Dict[str, Any]:
-    """Persists website availability (Online/Offline Maintenance Mode) in SQLite."""
     now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     actor = (updated_by or "Loan Officer").strip()
     online_str = "true" if online else "false"
@@ -713,6 +742,5 @@ def set_site_availability(
             ''', ("maintenance_message", message.strip(), actor, now_str))
 
     return get_site_availability()
-
 
 init_db()

@@ -1,9 +1,3 @@
-# ==============================================================================
-# Meridian FairLend - Production Multi-Stage Container Image
-# Runtime: Python 3.11-slim
-# Target: Cloud Deployments (Docker, AWS ECS, GCP Cloud Run, Azure, Render, Railway)
-# ==============================================================================
-
 FROM python:3.11-slim AS base
 
 ENV PYTHONUNBUFFERED=1 \

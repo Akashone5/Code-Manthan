@@ -1,13 +1,6 @@
-"""
-Meridian FairLend - Legacy Entrypoint Wrapper
-Delegates HTTP serving cleanly to the FastAPI ASGI application (main:app).
-Supports both `python server.py` and `uvicorn server:app`.
-"""
-
 import os
 import uvicorn
 from main import app
-
 
 def run_server():
     port = int(os.environ.get("PORT", 5000))
@@ -24,7 +17,6 @@ def run_server():
         proxy_headers=True,
         forwarded_allow_ips="*",
     )
-
 
 if __name__ == "__main__":
     run_server()

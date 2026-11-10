@@ -1,9 +1,3 @@
-"""
-Central Database Access Facade
-Provides backward-compatible database operations delegating to the unified src.database repository.
-Includes authentication, user profiles, loan application management, and site availability controls.
-"""
-
 from src.database.database_operations import (
     create_user_profile,
     authenticate_user,

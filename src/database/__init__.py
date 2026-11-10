@@ -1,8 +1,3 @@
-"""
-Meridian Database & Persistence Layer
-Unified Supabase PostgreSQL & SQLite Data Management
-"""
-
 from .database_operations import (
     save_application,
     get_all_applications,

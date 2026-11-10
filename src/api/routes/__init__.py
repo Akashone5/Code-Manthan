@@ -1,6 +1,3 @@
-"""
-API Router Aggregation
-"""
 from src.api.routes.auth import router as auth_router
 from src.api.routes.underwriting import router as underwriting_router
 from src.api.routes.analytics import router as analytics_router

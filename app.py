@@ -1,9 +1,3 @@
-"""
-Meridian FairLend - Streamlit Web Application
-Mission Bharat • Retail Credit Underwriting & Algorithmic Equity Platform
-Features Supabase Authentication, Row Level Security, Explainability (XAI), and Fairness Auditing.
-"""
-
 import os
 import json
 try:
@@ -29,7 +23,6 @@ from src.database.database_operations import (
     authenticate_user
 )
 
-# Page configuration
 if st is None:
     import sys
     sys.exit(0)
@@ -41,7 +34,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Initialize Session State
 if 'user' not in st.session_state:
     st.session_state.user = None
 if 'user_token' not in st.session_state:
@@ -55,9 +47,6 @@ if 'last_explanation' not in st.session_state:
 
 sb_client = get_supabase_client()
 
-# ============================================================================
-# 1. AUTHENTICATION LANDING SCREEN (If User Not Authenticated)
-# ============================================================================
 if not st.session_state.user:
     st.markdown("""
     <style>
@@ -117,7 +106,6 @@ if not st.session_state.user:
                 horizontal=True
             )
 
-            # 1. APPLICANT SIGN IN
             if auth_mode == "👤 Applicant Sign In":
                 st.subheader("Applicant Access Portal")
                 st.caption("Access your personal credit applications, status tracking & explainability results.")
@@ -149,7 +137,6 @@ if not st.session_state.user:
                         st.session_state.user_token = res.get('token')
                         st.rerun()
 
-            # 2. LOAN OFFICER SIGN IN
             elif auth_mode == "🛡️ Loan Officer Sign In":
                 st.subheader("Loan Officer Terminal")
                 st.caption("Institutional access for credit underwriting, portfolio audit & algorithmic equity.")
@@ -173,15 +160,8 @@ if not st.session_state.user:
                         st.warning("Please enter your officer email and password.")
 
                 st.markdown("---")
-                st.caption("Loan Officer Demo Account:")
-                if st.button("🛡️ Quick Demo: Vikram Sharma (Lead Officer)", use_container_width=True):
-                    res = authenticate_user("officer@meridianbank.in", "Officer@2026")
-                    if res.get('success'):
-                        st.session_state.user = res['user']
-                        st.session_state.user_token = res.get('token')
-                        st.rerun()
+                st.caption("Institutional Loan Officer login requires authorized branch credentials.")
 
-            # SIGN UP
             elif auth_mode == "✨ Create Account":
                 st.subheader("Create a New Account")
                 su_name = st.text_input("Full Name", placeholder="e.g. Ananya Rao")
@@ -191,7 +171,7 @@ if not st.session_state.user:
 
                 su_officer_key = ""
                 if su_role == "Loan Officer":
-                    su_officer_key = st.text_input("Officer Clearance Passkey", type="password", help="Requires institutional clearance. Default: OFFICER-2026")
+                    su_officer_key = st.text_input("Officer Clearance Passkey", type="password", help="Requires institutional clearance from your branch administrator.")
 
                 su_pwd = st.text_input("Create Password", type="password", help="Minimum 8 characters with letter and number")
                 su_confirm_pwd = st.text_input("Confirm Password", type="password")
@@ -216,7 +196,6 @@ if not st.session_state.user:
                         except Exception as e:
                             st.error(f"Registration error: {e}")
 
-            # FORGOT PASSWORD
             elif auth_mode == "❓ Forgot Password":
                 st.subheader("Password Recovery")
                 fp_email = st.text_input("Registered Email Address")
@@ -228,15 +207,10 @@ if not st.session_state.user:
 
     st.stop()
 
-# ============================================================================
-# 2. AUTHENTICATED USER DASHBOARD
-# ============================================================================
-
 current_user = st.session_state.user
 user_role = current_user.get('role', 'applicant')
 user_name = current_user.get('full_name', current_user.get('email', 'User'))
 
-# Sidebar User Information & Logout
 with st.sidebar:
     st.markdown("### 🏛️ Meridian FairLend")
     st.caption("Explainable Loan Decision System")
@@ -276,9 +250,6 @@ with st.sidebar:
             "6. Apply on Behalf of Citizen"
         ])
 
-# ----------------------------------------------------------------------------
-# APPLICANT / INTAKE FORM
-# ----------------------------------------------------------------------------
 if menu in ["1. Apply for a Loan", "6. Apply on Behalf of Citizen"]:
     st.header("📝 Retail Credit Intake Application")
     st.caption("Compliant with Reserve Bank of India (RBI) Digital Lending Directives")
@@ -353,9 +324,6 @@ if menu in ["1. Apply for a Loan", "6. Apply on Behalf of Citizen"]:
                 st.success(f"🎉 Application Recorded! Reference No: **{saved_rec['application_no']}**")
                 st.balloons()
 
-# ----------------------------------------------------------------------------
-# DECISION & XAI REPORT
-# ----------------------------------------------------------------------------
 elif menu in ["2. My Decision Report", "2. Underwriting Cockpit & XAI"]:
     st.header("📊 Credit Decision & Factor Explainability Report")
     st.caption("Regulatory-Compliant Attribution Decomposition")
@@ -402,9 +370,6 @@ elif menu in ["2. My Decision Report", "2. Underwriting Cockpit & XAI"]:
             for idx, rec in enumerate(exp['recommendations'], 1):
                 st.warning(f"**Step {idx}:** {rec}")
 
-# ----------------------------------------------------------------------------
-# LIVE WHAT-IF SIMULATOR
-# ----------------------------------------------------------------------------
 elif menu == "3. Live 'What-If' Simulator":
     st.header("🎛️ Counterfactual Scenario Simulator")
     st.caption("Discover what parameters you can adjust to maximize your credit approval likelihood")
@@ -456,9 +421,6 @@ elif menu == "3. Live 'What-If' Simulator":
         else:
             st.info("Parameters match the current baseline.")
 
-# ----------------------------------------------------------------------------
-# APPLICATIONS VAULT (ROLE ISOLATED)
-# ----------------------------------------------------------------------------
 elif menu in ["4. My Applications Vault", "1. Central Application Vault (All Applicants)"]:
     vault_title = "Central Loan Application Vault (Institution-Wide)" if user_role == 'officer' else "My Submitted Loan Applications (Vault)"
     st.header(f"🗄️ {vault_title}")
@@ -468,7 +430,6 @@ elif menu in ["4. My Applications Vault", "1. Central Application Vault (All App
     else:
         st.caption("Credit Officer Cockpit — Review, sanction, and record regulatory compliance remarks.")
 
-    # Role-based query filtering
     if user_role == 'applicant':
         apps = get_all_applications(user_id=current_user['id'], role='applicant')
     else:
@@ -493,7 +454,6 @@ elif menu in ["4. My Applications Vault", "1. Central Application Vault (All App
             with st.expander(f"Full Record Details: {selected_app_no}", expanded=True):
                 st.json(selected_record)
 
-            # Officer Action Controls (Restricted to Loan Officers)
             if user_role == 'officer':
                 st.markdown("#### 🛡️ Officer Underwriting Actions")
                 c_rem, c_act = st.columns([2, 1])
@@ -508,9 +468,6 @@ elif menu in ["4. My Applications Vault", "1. Central Application Vault (All App
     else:
         st.info("No applications found in this vault.")
 
-# ----------------------------------------------------------------------------
-# FAIRNESS AUDITOR (OFFICER ONLY)
-# ----------------------------------------------------------------------------
 elif menu == "4. Algorithmic Demographic Fairness":
     st.header("⚖️ Algorithmic Demographic Equity Auditor")
     st.caption("Evaluated across Historical Cases using the Statutory 80% Disparate Impact Rule")
@@ -535,9 +492,6 @@ elif menu == "4. Algorithmic Demographic Fairness":
         st.write(f"Non-Graduate Approval: **{e['non_graduate_protected']['approval_rate_percent']}%**")
         st.write(f"Graduate Approval: **{e['graduate_benchmark']['approval_rate_percent']}%**")
 
-# ----------------------------------------------------------------------------
-# BATCH SCORING (OFFICER ONLY)
-# ----------------------------------------------------------------------------
 elif menu == "5. Batch Scoring & Portfolio":
     st.header("📂 Batch Scoring & Portfolio Explorer")
     st.caption("Evaluate institution-wide underwriting metrics")

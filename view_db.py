@@ -1,8 +1,3 @@
-"""
-Meridian Database Viewer & Audit Exporter
-Interactive terminal utility to inspect loan records and synchronize the Excel/CSV audit mirror.
-"""
-
 import os
 from src.database.database_operations import get_all_applications, sync_csv_export, EXPORT_CSV
 

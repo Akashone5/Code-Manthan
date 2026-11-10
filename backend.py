@@ -1,9 +1,3 @@
-"""
-Underwriting & Risk Analysis Domain Service
-Unified interface exposing credit prediction, explainable attribution, fairness auditing,
-and scenario simulation. Powered by the modular src/ domain pipeline.
-"""
-
 import os
 import csv
 import json
@@ -16,9 +10,7 @@ from src.fairness import check_fairness
 
 _DATASET_CACHE: List[Dict[str, Any]] = []
 
-
 def _load_from_dataset_js(js_path: str) -> List[Dict[str, Any]]:
-    """Extracts structured historical borrower records from bundled dataset_data.js."""
     if not os.path.exists(js_path):
         return []
     try:
@@ -53,12 +45,7 @@ def _load_from_dataset_js(js_path: str) -> List[Dict[str, Any]]:
     except Exception:
         return []
 
-
 def load_sample_dataset(csv_path: Optional[str] = None) -> List[Dict[str, Any]]:
-    """
-    Loads and parses historical portfolio loan records with in-memory caching.
-    Supports CSV datasets and bundled cloud-portable repository datasets.
-    """
     global _DATASET_CACHE
     if _DATASET_CACHE and not csv_path:
         return _DATASET_CACHE
@@ -74,7 +61,6 @@ def load_sample_dataset(csv_path: Optional[str] = None) -> List[Dict[str, Any]]:
         os.path.join(base_dir, 'cleaned_loan_data.csv')
     ]
 
-    # Prefer bundled full dataset_data.js on cloud deployments where raw train.csv is not mounted
     if not csv_path and not any(p and os.path.exists(p) for p in target_paths[:4]):
         js_applicants = _load_from_dataset_js(os.path.join(base_dir, 'dataset_data.js'))
         if js_applicants:
@@ -125,12 +111,7 @@ def load_sample_dataset(csv_path: Optional[str] = None) -> List[Dict[str, Any]]:
         _DATASET_CACHE = applicants
     return applicants
 
-
 def simulate_what_if(base_applicant: Dict[str, Any], adjustments: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Simulates counterfactual underwriting scenarios to evaluate the impact of adjustments
-    (e.g., adding co-applicant, extending tenure, or adjusting loan quantum).
-    """
     simulated = dict(base_applicant)
     simulated.update(adjustments)
 
@@ -152,7 +133,6 @@ def simulate_what_if(base_applicant: Dict[str, Any], adjustments: Dict[str, Any]
         },
         'explanation': simulated_exp
     }
-
 
 __all__ = [
     'predict_loan',

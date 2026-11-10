@@ -1,8 +1,3 @@
-"""
-Algorithmic Equity and Analytics Router
-Exposes fairness auditing (four-fifths rule), model accuracy evaluation, and portfolio datasets.
-"""
-
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, Header, Query, status
 from fastapi.responses import JSONResponse
@@ -13,7 +8,6 @@ from src.train import _load_model_parameters
 from src.api.schemas import AccuracyMetricsResponse
 
 router = APIRouter(prefix="/api", tags=["Algorithmic Equity & Analytics"])
-
 
 def _offline_guard(x_user_id: Optional[str] = None, x_user_role: Optional[str] = None):
     avail = database.get_site_availability()
@@ -33,9 +27,7 @@ def _offline_guard(x_user_id: Optional[str] = None, x_user_role: Optional[str] =
         }
     )
 
-# Load portfolio records cache
 APPLICANTS_DB = load_sample_dataset()
-
 
 @router.get(
     "/fairness",
@@ -47,10 +39,6 @@ async def get_fairness_audit(
     x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
     x_user_role: Optional[str] = Header(default=None, alias="X-User-Role")
 ):
-    """
-    Evaluates disparate impact ratio (DIR) across protected demographic attributes:
-    Gender parity, Territory parity, and Educational parity.
-    """
     guard_resp = _offline_guard(x_user_id=x_user_id, x_user_role=x_user_role)
     if guard_resp is not None:
         return guard_resp
@@ -64,7 +52,6 @@ async def get_fairness_audit(
         for rec in APPLICANTS_DB:
             item = dict(rec)
             if str(item.get("property_area", "")).lower() == "rural":
-                # Affirmative inclusion calibration offsets legacy rural thin-file scoring gaps
                 item["salary_slip"] = "Yes"
                 if item.get("cibil_score", 750) < 670 and float(item.get("credit_history", 1)) >= 1:
                     item["cibil_score"] = 720
@@ -76,7 +63,6 @@ async def get_fairness_audit(
     fairness_report["total_audited_records"] = len(dataset)
     return JSONResponse(status_code=status.HTTP_200_OK, content=fairness_report)
 
-
 @router.get(
     "/accuracy",
     summary="Retrieve underwriting model validation performance metrics",
@@ -86,10 +72,6 @@ async def get_accuracy_metrics(
     x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
     x_user_role: Optional[str] = Header(default=None, alias="X-User-Role")
 ):
-    """
-    Returns validation performance benchmarks including Accuracy, Precision,
-    Recall (Sensitivity), F1-Score, ROC-AUC, test confusion matrix, and calibrated feature weights.
-    """
     guard_resp = _offline_guard(x_user_id=x_user_id, x_user_role=x_user_role)
     if guard_resp is not None:
         return guard_resp
@@ -121,18 +103,19 @@ async def get_accuracy_metrics(
     }
     return JSONResponse(status_code=status.HTTP_200_OK, content=accuracy_report)
 
-
 @router.get(
     "/applicants",
     summary="Retrieve portfolio sample records for testing",
     responses={200: {"description": "Portfolio sample records list"}}
 )
 async def get_sample_applicants(
-    limit: int = Query(default=50, ge=1, le=200, description="Maximum records to return")
+    limit: int = Query(default=50, ge=1, le=200, description="Maximum records to return"),
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+    x_user_role: Optional[str] = Header(default=None, alias="X-User-Role")
 ):
-    """
-    Returns sample records from the historical underwriting portfolio.
-    """
+    guard_resp = _offline_guard(x_user_id=x_user_id, x_user_role=x_user_role)
+    if guard_resp is not None:
+        return guard_resp
     global APPLICANTS_DB
     if not APPLICANTS_DB:
         APPLICANTS_DB = load_sample_dataset()

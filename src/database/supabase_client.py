@@ -1,9 +1,3 @@
-"""
-Supabase PostgreSQL & Authentication REST Client
-High-performance HTTP client utilizing requests session connection pooling with curl fallback.
-Manages Row Level Security (RLS) tenant authentication tokens and PostgreSQL CRUD operations.
-"""
-
 import os
 import json
 import time
@@ -45,11 +39,6 @@ SUPABASE_KEY = os.environ.get('SUPABASE_ANON_KEY', '') or os.environ.get('SUPABA
 SUPABASE_SERVICE_ROLE = os.environ.get('SUPABASE_SERVICE_ROLE_KEY', '')
 
 class SupabaseRestClient:
-    """
-    HTTP REST client for Supabase PostgREST API and GoTrue Auth Service.
-    Uses connection pooling via requests.Session(), circuit-breaker failover,
-    and cross-platform curl fallback if requests is unavailable.
-    """
 
     def __init__(self, url: Optional[str] = None, key: Optional[str] = None):
         self.url = (url if url is not None else os.environ.get('SUPABASE_URL', SUPABASE_URL)).rstrip('/')
@@ -64,7 +53,6 @@ class SupabaseRestClient:
             self.session = None
 
     def set_auth_token(self, token: str):
-        """Sets the active JWT token for RLS tenant isolation."""
         self.active_token = token or self.key
 
     def _get_headers(self, custom_headers: Optional[Dict[str, str]] = None, auth_token: Optional[str] = None) -> Dict[str, str]:
@@ -94,7 +82,6 @@ class SupabaseRestClient:
         full_url = f"{self.url}{endpoint}" if not endpoint.startswith('http') else endpoint
         req_headers = self._get_headers(headers, auth_token=auth_token)
 
-        # 1. Primary path: requests.Session with fast timeouts
         if self.session is not None:
             try:
                 response = self.session.request(
@@ -118,7 +105,6 @@ class SupabaseRestClient:
                 self._unreachable_until = time.time() + 120.0
                 return {'success': False, 'error': str(req_err)}
 
-        # 2. Fallback to system curl only when requests is not installed
         curl_bin = shutil.which('curl.exe' if os.name == 'nt' else 'curl')
         if not curl_bin:
             return {'success': False, 'error': 'No HTTP transport available'}
@@ -191,7 +177,6 @@ class SupabaseRestClient:
     def delete(self, table: str, match_col: str, match_val: Any, auth_token: Optional[str] = None) -> Dict[str, Any]:
         return self._execute_request(f"/rest/v1/{table}?{match_col}=eq.{match_val}", method='DELETE', auth_token=auth_token)
 
-    # Authentication Services (GoTrue)
     def auth_sign_up(self, email: str, password: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         payload = {'email': email, 'password': password}
         if metadata:
