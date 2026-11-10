@@ -72,7 +72,13 @@ def _verify_password(password: str, stored_hash: str, salt: str) -> bool:
     return hmac.compare_digest(computed_hash, stored_hash)
 
 def _get_configured_officer_key() -> str:
-    return os.environ.get('OFFICER_REGISTRATION_KEY', 'OFFICER-2026').strip()
+    configured = os.environ.get('OFFICER_REGISTRATION_KEY', '').strip()
+    if configured:
+        return configured
+    env_name = os.environ.get('ENVIRONMENT', '').strip().lower()
+    if env_name == 'production' or os.environ.get('RAILWAY_ENVIRONMENT'):
+        return ''
+    return 'OFFICER-2026'
 
 def init_db():
     with get_sqlite_conn() as conn:
@@ -290,7 +296,7 @@ def create_user_profile(full_name: str, email: str, phone: str, password: str,
     if role == 'officer':
         configured_key = _get_configured_officer_key()
         candidate = (officer_key or "").strip()
-        if not candidate or not hmac.compare_digest(candidate, configured_key):
+        if not configured_key or not candidate or not hmac.compare_digest(candidate, configured_key):
             raise ValueError("Unauthorized: Invalid Officer Authorization Passkey. Officer registration requires institutional clearance.")
         is_verified_officer = True
 
@@ -658,7 +664,7 @@ def is_verified_officer(
 ) -> Tuple[bool, str]:
     configured_key = _get_configured_officer_key()
     candidate = (officer_key or "").strip()
-    if candidate and hmac.compare_digest(candidate, configured_key):
+    if configured_key and candidate and hmac.compare_digest(candidate, configured_key):
         return True, "Officer Clearance Passkey"
 
     if user_id and (not user_role or str(user_role).strip().lower() == 'officer'):
