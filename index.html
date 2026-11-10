@@ -228,7 +228,7 @@
             </div>
           </form>
 
-          <form id="form-signup-applicant" onsubmit="handleApplicantSignUp(event)" style="display: none;">
+          <form id="form-signup-applicant" onsubmit="handleApplicantSignUp(event)" autocomplete="off" style="display: none;">
             <div class="auth-portal-tag applicant-tag">
               <span>✨</span> <span data-i18n="auth_tag_app_signup">APPLICANT PORTAL &bull; NEW BORROWER REGISTRATION</span>
             </div>
@@ -237,7 +237,7 @@
               <label class="auth-label" for="signup-app-fullname" data-i18n="lbl_su_name">Full Name</label>
               <div class="auth-input-wrapper">
                 <span class="auth-input-icon">👤</span>
-                <input type="text" id="signup-app-fullname" class="auth-input" placeholder="e.g. Ananya Rao" data-i18n-placeholder="ph_su_name" required autocomplete="name">
+                <input type="text" id="signup-app-fullname" class="auth-input" placeholder="e.g. Ananya Rao" data-i18n-placeholder="ph_su_name" required autocomplete="off">
               </div>
             </div>
 
@@ -245,7 +245,7 @@
               <label class="auth-label" for="signup-app-email" data-i18n="lbl_su_email">Email Address</label>
               <div class="auth-input-wrapper">
                 <span class="auth-input-icon">✉️</span>
-                <input type="email" id="signup-app-email" class="auth-input" placeholder="applicant@domain.com" data-i18n-placeholder="ph_app_email" required autocomplete="email">
+                <input type="email" id="signup-app-email" class="auth-input" placeholder="applicant@domain.com" data-i18n-placeholder="ph_app_email" required autocomplete="off">
               </div>
             </div>
 
@@ -253,7 +253,7 @@
               <label class="auth-label" for="signup-app-phone" data-i18n="lbl_su_phone">Mobile Number</label>
               <div class="auth-input-wrapper">
                 <span class="auth-input-icon">📱</span>
-                <input type="tel" id="signup-app-phone" class="auth-input" placeholder="10-digit mobile number" data-i18n-placeholder="ph_su_phone" required autocomplete="tel">
+                <input type="tel" id="signup-app-phone" class="auth-input" placeholder="10-digit mobile number" data-i18n-placeholder="ph_su_phone" required autocomplete="off">
               </div>
             </div>
 
@@ -317,7 +317,7 @@
             </div>
           </form>
 
-          <form id="form-signup-officer" onsubmit="handleOfficerSignUp(event)" style="display: none;">
+          <form id="form-signup-officer" onsubmit="handleOfficerSignUp(event)" autocomplete="off" style="display: none;">
             <div class="auth-portal-tag officer-tag">
               <span>🔑</span> <span data-i18n="auth_tag_off_signup">OFFICER PORTAL &bull; AUTHORIZED CLEARANCE REGISTRATION</span>
             </div>
@@ -326,7 +326,7 @@
               <label class="auth-label" for="signup-off-fullname" data-i18n="lbl_off_su_name">Officer Full Name</label>
               <div class="auth-input-wrapper">
                 <span class="auth-input-icon">🛡️</span>
-                <input type="text" id="signup-off-fullname" class="auth-input" placeholder="e.g. Vikram Sharma" data-i18n-placeholder="ph_off_name" required autocomplete="name">
+                <input type="text" id="signup-off-fullname" class="auth-input" placeholder="e.g. Vikram Sharma" data-i18n-placeholder="ph_off_name" required autocomplete="off">
               </div>
             </div>
 
@@ -334,7 +334,7 @@
               <label class="auth-label" for="signup-off-email" data-i18n="lbl_officer_email">Institutional Officer Email</label>
               <div class="auth-input-wrapper">
                 <span class="auth-input-icon">✉️</span>
-                <input type="email" id="signup-off-email" class="auth-input" placeholder="officer@meridianbank.in" data-i18n-placeholder="ph_off_email" required autocomplete="email">
+                <input type="email" id="signup-off-email" class="auth-input" placeholder="officer@meridianbank.in" data-i18n-placeholder="ph_off_email" required autocomplete="off">
               </div>
             </div>
 
@@ -342,7 +342,7 @@
               <label class="auth-label" for="signup-off-phone" data-i18n="lbl_su_phone">Mobile Number</label>
               <div class="auth-input-wrapper">
                 <span class="auth-input-icon">📱</span>
-                <input type="tel" id="signup-off-phone" class="auth-input" placeholder="10-digit mobile number" data-i18n-placeholder="ph_su_phone" required autocomplete="tel">
+                <input type="tel" id="signup-off-phone" class="auth-input" placeholder="10-digit mobile number" data-i18n-placeholder="ph_su_phone" required autocomplete="off">
               </div>
             </div>
 
@@ -1263,7 +1263,7 @@
       </div>
 
       <div class="card">
-        <form id="loan-fillup-form" onsubmit="handleLoanApplicationSubmit(event)">
+        <form id="loan-fillup-form" onsubmit="handleLoanApplicationSubmit(event)" autocomplete="off">
           <div class="grid-2">
 
             <div>
@@ -1273,13 +1273,13 @@
 
               <div class="form-group">
                 <label class="form-label" id="lbl-fill-name">Full Name of Applicant *</label>
-                <input type="text" id="fill-full-name" class="form-control" required placeholder="e.g. Ananya Rao, Devansh Kulkarni" data-i18n-placeholder="ph_fill_name">
+                <input type="text" id="fill-full-name" class="form-control" required autocomplete="off" placeholder="e.g. Ananya Rao, Devansh Kulkarni" data-i18n-placeholder="ph_fill_name">
               </div>
 
               <div class="form-row">
                 <div class="form-group">
                   <label class="form-label" id="lbl-fill-phone">Contact Mobile Number *</label>
-                  <input type="tel" id="fill-phone" class="form-control" required placeholder="10-digit mobile (e.g. 9876543210)" data-i18n-placeholder="ph_fill_phone">
+                  <input type="tel" id="fill-phone" class="form-control" required autocomplete="off" placeholder="10-digit mobile (e.g. 9876543210)" data-i18n-placeholder="ph_fill_phone">
                 </div>
                 <div class="form-group">
                   <label class="form-label" id="lbl-fill-gender">Gender *</label>

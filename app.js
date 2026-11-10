@@ -497,6 +497,22 @@ async function syncPendingOfflineApplications() {
   writeOfflineQueue(remaining);
 }
 
+function clearPersonalFormInputs() {
+  [
+    'fill-full-name',
+    'fill-phone',
+    'signup-app-fullname',
+    'signup-app-email',
+    'signup-app-phone',
+    'signup-off-fullname',
+    'signup-off-email',
+    'signup-off-phone'
+  ].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+}
+
 function resetWorkspaceState() {
   state.hasApplied = false;
   state.backendPrediction = null;
@@ -536,10 +552,7 @@ function resetWorkspaceState() {
     window.updateFillLoanHint(document.getElementById('fill-loan-amount')?.value || 150000);
   }
   syncSimLoanInputs(150000);
-  const nameInput = document.getElementById('fill-full-name');
-  const phoneInput = document.getElementById('fill-phone');
-  if (nameInput) nameInput.value = '';
-  if (phoneInput) phoneInput.value = '';
+  clearPersonalFormInputs();
   const remarksInput = document.getElementById('officer-remarks-input');
   if (remarksInput) remarksInput.value = '';
   const activeBadge = document.getElementById('officer-active-app-badge');
@@ -739,8 +752,8 @@ window.applyAuthenticatedSession = async function(user, token) {
     }
     const nameInput = document.getElementById('fill-full-name') || document.getElementById('fill-name');
     const phoneInput = document.getElementById('fill-phone');
-    if (nameInput) nameInput.value = user.full_name || '';
-    if (phoneInput) phoneInput.value = user.phone || '';
+    if (nameInput) nameInput.value = '';
+    if (phoneInput) phoneInput.value = '';
 
     document.querySelectorAll('.nav-officer-item').forEach(el => { el.style.display = 'none'; });
     document.querySelectorAll('.nav-applicant-item').forEach(el => { el.style.display = 'flex'; });
@@ -2712,8 +2725,8 @@ window.handleLoanApplicationSubmit = async function(event) {
   const termMonths = yearsVal * 12;
 
   const formData = {
-    full_name: (document.getElementById('fill-full-name')?.value || currentAuthUser?.full_name || 'Applicant').trim(),
-    phone: (document.getElementById('fill-phone')?.value || currentAuthUser?.phone || '').trim(),
+    full_name: (document.getElementById('fill-full-name')?.value || '').trim(),
+    phone: (document.getElementById('fill-phone')?.value || '').trim(),
     gender: document.getElementById('fill-gender')?.value || 'Female',
     marital_status: document.getElementById('fill-married')?.value || 'No',
     dependents: document.getElementById('fill-dependents')?.value || '0',
@@ -4756,6 +4769,7 @@ window.loadHistoricalCase = async function(caseId) {
 
 document.addEventListener('DOMContentLoaded', async () => {
   initPortalGatewayFromUrl();
+  clearPersonalFormInputs();
   setupEventListeners();
   applyTranslations();
   syncFormHelperDisplays();
