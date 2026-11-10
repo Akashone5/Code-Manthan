@@ -3,5 +3,7 @@
 *.pyc
 __pycache__/
 *.db-journal
+*.db-wal
+*.db-shm
 .DS_Store
 *.log
