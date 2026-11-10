@@ -85,6 +85,13 @@ const state = {
   savedDatabaseApps: [],
   lastSubmittedApp: null,
   auditLog: [],
+  otpStatus: {
+    email_otp_configured: false,
+    provider: null,
+    require_otp_on_signup: false,
+    require_otp_on_application: false,
+    require_otp_on_forgot_password: true
+  },
   portfolioPage: 1,
   portfolioPageSize: 10,
   portfolioFilter: 'all',
@@ -93,6 +100,362 @@ const state = {
 
 let currentAuthUser = null;
 let currentAuthToken = null;
+let forgotPasswordTargetRole = 'applicant';
+
+const OTP_SCOPE_CONFIG = {
+  signup_app: {
+    purpose: 'signup',
+    emailId: 'signup-app-email',
+    otpId: 'signup-app-otp',
+    sendBtnId: 'btn-send-otp-signup-app',
+    verifyBtnId: 'btn-verify-otp-signup-app',
+    badgeId: 'otp-badge-signup-app',
+    statusId: 'otp-status-signup-app',
+    boxId: 'otp-box-signup-app',
+    defaultHintKey: 'otp_hint_signup'
+  },
+  signup_off: {
+    purpose: 'signup',
+    emailId: 'signup-off-email',
+    otpId: 'signup-off-otp',
+    sendBtnId: 'btn-send-otp-signup-off',
+    verifyBtnId: 'btn-verify-otp-signup-off',
+    badgeId: 'otp-badge-signup-off',
+    statusId: 'otp-status-signup-off',
+    boxId: 'otp-box-signup-off',
+    defaultHintKey: 'otp_hint_signup'
+  },
+  application: {
+    purpose: 'application',
+    emailId: 'fill-email',
+    otpId: 'fill-app-otp',
+    sendBtnId: 'btn-send-otp-apply',
+    verifyBtnId: 'btn-verify-otp-apply',
+    badgeId: 'otp-badge-apply',
+    statusId: 'otp-status-apply',
+    boxId: 'otp-box-apply',
+    defaultHintKey: 'otp_hint_apply'
+  },
+  forgot_password: {
+    purpose: 'forgot_password',
+    emailId: 'fp-email',
+    otpId: 'fp-otp',
+    sendBtnId: 'btn-send-otp-forgot',
+    verifyBtnId: 'btn-verify-otp-forgot',
+    badgeId: 'otp-badge-forgot',
+    statusId: 'otp-status-forgot',
+    boxId: null,
+    defaultHintKey: 'otp_hint_forgot'
+  }
+};
+
+const otpState = {
+  signup_app: { email: '', verified: false, verificationToken: '', cooldown: 0, timerId: null, sentOnce: false, statusKind: 'default', rawError: '' },
+  signup_off: { email: '', verified: false, verificationToken: '', cooldown: 0, timerId: null, sentOnce: false, statusKind: 'default', rawError: '' },
+  application: { email: '', verified: false, verificationToken: '', cooldown: 0, timerId: null, sentOnce: false, statusKind: 'default', rawError: '' },
+  forgot_password: { email: '', verified: false, verificationToken: '', cooldown: 0, timerId: null, sentOnce: false, statusKind: 'default', rawError: '' }
+};
+
+function syncOtpUIStates() {
+  const hi = state.currentLang === 'hi';
+  const dict = getLangDict();
+  Object.entries(OTP_SCOPE_CONFIG).forEach(([scope, cfg]) => {
+    const s = otpState[scope];
+    if (!s) return;
+    const boxEl = cfg.boxId ? document.getElementById(cfg.boxId) : null;
+    const badgeEl = document.getElementById(cfg.badgeId);
+    const sendBtn = document.getElementById(cfg.sendBtnId);
+    const verifyBtn = document.getElementById(cfg.verifyBtnId);
+    const statusEl = document.getElementById(cfg.statusId);
+
+    if (boxEl) {
+      boxEl.classList.toggle('is-verified', Boolean(s.verified));
+    }
+    if (badgeEl) {
+      if (s.verified) {
+        badgeEl.className = 'otp-status-badge otp-badge-verified';
+        badgeEl.innerText = dict.otp_badge_verified;
+      } else {
+        badgeEl.className = 'otp-status-badge otp-badge-pending';
+        badgeEl.innerText = dict.otp_badge_pending;
+      }
+    }
+    if (sendBtn) {
+      if (s.cooldown > 0) {
+        sendBtn.disabled = true;
+        sendBtn.innerText = `${dict.btn_resend_otp} (${s.cooldown}s)`;
+      } else {
+        sendBtn.disabled = false;
+        sendBtn.innerText = s.sentOnce ? dict.btn_resend_otp : dict.btn_send_otp;
+      }
+    }
+    if (verifyBtn) {
+      verifyBtn.disabled = Boolean(s.verified);
+    }
+    if (statusEl) {
+      statusEl.classList.remove('is-success', 'is-error');
+      if (s.statusKind === 'verified') {
+        statusEl.classList.add('is-success');
+        statusEl.innerText = hi
+          ? `✅ ईमेल OTP सत्यापित: ${s.email}`
+          : `✅ Email OTP verified: ${s.email}`;
+      } else if (s.statusKind === 'sent') {
+        statusEl.classList.add('is-success');
+        statusEl.innerText = hi
+          ? `✅ 6-अंकीय OTP ${s.email} पर भेजा गया (इनबॉक्स / स्पैम जांचें)।`
+          : `✅ 6-digit OTP sent to ${s.email} (check Inbox / Spam).`;
+      } else if (s.statusKind === 'unconfigured') {
+        statusEl.classList.add('is-error');
+        statusEl.innerText = dict.otp_hint_unconfigured;
+      } else if (s.statusKind === 'error' && s.rawError) {
+        statusEl.classList.add('is-error');
+        statusEl.innerText = `⚠️ ${s.rawError}`;
+      } else {
+        statusEl.innerText = dict[cfg.defaultHintKey] || '';
+      }
+    }
+  });
+}
+
+function invalidateOtpScope(scope, clearCodeInput = false) {
+  const s = otpState[scope];
+  const cfg = OTP_SCOPE_CONFIG[scope];
+  if (!s || !cfg) return;
+  if (s.timerId) {
+    clearInterval(s.timerId);
+    s.timerId = null;
+  }
+  s.email = '';
+  s.verified = false;
+  s.verificationToken = '';
+  s.cooldown = 0;
+  s.sentOnce = false;
+  s.statusKind = 'default';
+  s.rawError = '';
+  if (clearCodeInput) {
+    const otpEl = document.getElementById(cfg.otpId);
+    if (otpEl) otpEl.value = '';
+  }
+  syncOtpUIStates();
+}
+
+function startOtpCooldown(scope, seconds) {
+  const s = otpState[scope];
+  if (!s) return;
+  if (s.timerId) {
+    clearInterval(s.timerId);
+    s.timerId = null;
+  }
+  s.cooldown = Math.max(0, parseInt(seconds, 10) || 60);
+  syncOtpUIStates();
+  if (s.cooldown > 0) {
+    s.timerId = setInterval(() => {
+      s.cooldown = Math.max(0, s.cooldown - 1);
+      if (s.cooldown <= 0) {
+        clearInterval(s.timerId);
+        s.timerId = null;
+      }
+      syncOtpUIStates();
+    }, 1000);
+  }
+}
+
+window.fetchOtpStatus = async function() {
+  try {
+    const res = await fetch(`${state.apiBase}/api/auth/otp-status`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.success) {
+        state.otpStatus = {
+          email_otp_configured: Boolean(data.email_otp_configured),
+          provider: data.provider || null,
+          require_otp_on_signup: Boolean(data.require_otp_on_signup),
+          require_otp_on_application: Boolean(data.require_otp_on_application),
+          require_otp_on_forgot_password: data.require_otp_on_forgot_password !== false
+        };
+        syncOtpUIStates();
+        return state.otpStatus;
+      }
+    }
+  } catch (e) {}
+  return state.otpStatus;
+};
+
+window.sendEmailOtp = async function(scope) {
+  const hi = state.currentLang === 'hi';
+  const cfg = OTP_SCOPE_CONFIG[scope];
+  const s = otpState[scope];
+  if (!cfg || !s) return false;
+
+  const emailEl = document.getElementById(cfg.emailId);
+  const otpEl = document.getElementById(cfg.otpId);
+  const sendBtn = document.getElementById(cfg.sendBtnId);
+  const email = (emailEl?.value || '').trim().toLowerCase();
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    const errMsg = hi ? 'कृपया पहले एक वैध ईमेल पता दर्ज करें।' : 'Please enter a valid email address first.';
+    s.statusKind = 'error';
+    s.rawError = errMsg;
+    syncOtpUIStates();
+    if (scope === 'forgot_password') window.showForgotPasswordAlert(errMsg, true);
+    emailEl?.focus();
+    return false;
+  }
+
+  if (sendBtn) {
+    sendBtn.disabled = true;
+    sendBtn.innerText = hi ? '⏳ भेज रहे...' : '⏳ Sending...';
+  }
+
+  try {
+    const res = await fetch(`${state.apiBase}/api/auth/send-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email,
+        purpose: cfg.purpose,
+        lang: state.currentLang
+      })
+    });
+    const data = await res.json().catch(() => ({}));
+
+    if (res.status === 503 && data.code === 'EMAIL_PROVIDER_NOT_CONFIGURED') {
+      s.statusKind = 'unconfigured';
+      s.rawError = '';
+      syncOtpUIStates();
+      if (scope === 'forgot_password') window.showForgotPasswordAlert(getLangDict().otp_hint_unconfigured, true);
+      window.showMeridianToast(getLangDict().otp_hint_unconfigured, true);
+      return false;
+    }
+
+    if (res.status === 429 && data.cooldown_seconds) {
+      s.statusKind = 'error';
+      s.rawError = data.error || '';
+      startOtpCooldown(scope, data.cooldown_seconds);
+      if (scope === 'forgot_password') window.showForgotPasswordAlert(s.rawError, true);
+      return false;
+    }
+
+    if (!res.ok || !data.success) {
+      const errMsg = data.error || (hi ? 'OTP भेजने में समस्या आई।' : 'Unable to send email OTP.');
+      s.statusKind = 'error';
+      s.rawError = errMsg;
+      syncOtpUIStates();
+      if (scope === 'forgot_password') window.showForgotPasswordAlert(errMsg, true);
+      else window.showMeridianToast(errMsg, true);
+      return false;
+    }
+
+    s.email = email;
+    s.verified = false;
+    s.verificationToken = '';
+    s.sentOnce = true;
+    s.statusKind = 'sent';
+    s.rawError = '';
+    if (data.dev_preview_otp && otpEl) {
+      otpEl.value = data.dev_preview_otp;
+    }
+    startOtpCooldown(scope, data.cooldown_seconds || 60);
+    if (scope === 'forgot_password') {
+      window.showForgotPasswordAlert(data.message || (hi ? 'OTP भेज दिया गया है।' : 'Verification OTP sent.'), false);
+    }
+    otpEl?.focus();
+    return true;
+  } catch (err) {
+    const netMsg = hi ? 'OTP सर्वर से संपर्क नहीं हो सका।' : 'Network error reaching OTP service.';
+    s.statusKind = 'error';
+    s.rawError = netMsg;
+    syncOtpUIStates();
+    if (scope === 'forgot_password') window.showForgotPasswordAlert(netMsg, true);
+    else window.showMeridianToast(netMsg, true);
+    return false;
+  }
+};
+
+window.verifyEmailOtp = async function(scope) {
+  const hi = state.currentLang === 'hi';
+  const cfg = OTP_SCOPE_CONFIG[scope];
+  const s = otpState[scope];
+  if (!cfg || !s) return false;
+
+  const emailEl = document.getElementById(cfg.emailId);
+  const otpEl = document.getElementById(cfg.otpId);
+  const verifyBtn = document.getElementById(cfg.verifyBtnId);
+  const email = (emailEl?.value || '').trim().toLowerCase();
+  const otpCode = (otpEl?.value || '').replace(/\s+/g, '');
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    const msg = hi ? 'कृपया वैध ईमेल पता दर्ज करें।' : 'Please enter a valid email address.';
+    s.statusKind = 'error';
+    s.rawError = msg;
+    syncOtpUIStates();
+    emailEl?.focus();
+    return false;
+  }
+  if (!/^\d{6}$/.test(otpCode)) {
+    const msg = hi ? 'कृपया ईमेल में प्राप्त 6-अंकीय OTP दर्ज करें।' : 'Please enter the 6-digit numeric OTP from your email.';
+    s.statusKind = 'error';
+    s.rawError = msg;
+    syncOtpUIStates();
+    if (scope === 'forgot_password') window.showForgotPasswordAlert(msg, true);
+    otpEl?.focus();
+    return false;
+  }
+
+  if (verifyBtn) {
+    verifyBtn.disabled = true;
+    verifyBtn.innerText = hi ? '⏳ जांच...' : '⏳ Checking...';
+  }
+
+  try {
+    const res = await fetch(`${state.apiBase}/api/auth/verify-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email,
+        purpose: cfg.purpose,
+        otp: otpCode
+      })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.success || !data.verification_token) {
+      const msg = data.error || (hi ? 'अमान्य या समाप्त OTP। पुनः प्रयास करें।' : 'Invalid or expired OTP code.');
+      s.verified = false;
+      s.verificationToken = '';
+      s.statusKind = 'error';
+      s.rawError = msg;
+      syncOtpUIStates();
+      if (scope === 'forgot_password') window.showForgotPasswordAlert(msg, true);
+      else window.showMeridianToast(msg, true);
+      return false;
+    }
+
+    s.email = email;
+    s.verified = true;
+    s.verificationToken = data.verification_token;
+    s.statusKind = 'verified';
+    s.rawError = '';
+    syncOtpUIStates();
+    if (scope === 'forgot_password') {
+      window.showForgotPasswordAlert(hi ? 'OTP सत्यापित हो गया! अब अपना नया पासवर्ड सेट करें।' : 'Email OTP verified! Set your new password below.', false);
+    } else {
+      window.showMeridianToast(hi ? '✅ ईमेल OTP सफलतापूर्वक सत्यापित हो गया!' : '✅ Email OTP verified successfully!');
+    }
+    return true;
+  } catch (err) {
+    const msg = hi ? 'OTP सत्यापन में नेटवर्क त्रुटि हुई।' : 'Network error verifying OTP.';
+    s.statusKind = 'error';
+    s.rawError = msg;
+    syncOtpUIStates();
+    if (scope === 'forgot_password') window.showForgotPasswordAlert(msg, true);
+    return false;
+  } finally {
+    if (verifyBtn) {
+      verifyBtn.innerText = getLangDict().btn_verify_otp;
+      verifyBtn.disabled = Boolean(s.verified);
+    }
+  }
+};
 
 function buildAuthHeaders(extra = {}) {
   const headers = { ...extra };
@@ -366,6 +729,26 @@ async function submitPortalRegistration(payload, btn, defaultBtnHtml) {
     return;
   }
 
+  const scope = payload.role === 'officer' ? 'signup_off' : 'signup_app';
+  const cfg = OTP_SCOPE_CONFIG[scope];
+  const s = otpState[scope];
+  const cleanEmail = (payload.email || '').trim().toLowerCase();
+  const otpRaw = (document.getElementById(cfg.otpId)?.value || '').replace(/\s+/g, '');
+  const sameEmailVerified = s && s.verified && s.email === cleanEmail && s.verificationToken;
+
+  payload.otp_verification_token = sameEmailVerified ? s.verificationToken : null;
+  payload.otp_code = (!payload.otp_verification_token && /^\d{6}$/.test(otpRaw)) ? otpRaw : null;
+
+  if (state.otpStatus.require_otp_on_signup && !payload.otp_verification_token && !payload.otp_code) {
+    window.showAuthAlert(
+      hi
+        ? 'कृपया खाता बनाने से पहले "OTP भेजें" पर क्लिक करके अपना ईमेल 6-अंकीय कोड से सत्यापित करें।'
+        : 'Please click "Send OTP" and verify your email with the 6-digit code before creating your account.'
+    );
+    document.getElementById(cfg.otpId)?.focus();
+    return;
+  }
+
   if (btn) {
     btn.disabled = true;
     btn.innerHTML = `<span>⏳</span> ${hi ? 'खाता पंजीकृत हो रहा है...' : 'Registering Account...'}`;
@@ -380,6 +763,7 @@ async function submitPortalRegistration(payload, btn, defaultBtnHtml) {
 
     const data = await res.json();
     if (res.ok && data.success) {
+      invalidateOtpScope(scope, true);
       window.showAuthAlert(hi ? 'खाता सफलतापूर्वक बन गया! साइन-इन पर ले जाया जा रहा है...' : 'Account created successfully! Redirecting to Sign In...', false);
       setTimeout(() => {
         const targetRole = payload.role === 'officer' ? 'officer' : 'applicant';
@@ -389,6 +773,12 @@ async function submitPortalRegistration(payload, btn, defaultBtnHtml) {
       await window.checkSiteAvailability();
       window.showAuthAlert(data.error || (hi ? 'पोर्टल रखरखाव मोड में होने के कारण पंजीकरण अस्थायी रूप से रुका है।' : 'Registration paused while website is in maintenance mode.'));
     } else {
+      if (data.code === 'EMAIL_OTP_REQUIRED' || data.code === 'EMAIL_OTP_INVALID') {
+        window.fetchOtpStatus();
+        s.statusKind = 'error';
+        s.rawError = data.error || '';
+        syncOtpUIStates();
+      }
       window.showAuthAlert(data.error || (hi ? 'खाता पंजीकरण विफल रहा।' : 'Account registration failed.'));
     }
   } catch (err) {
@@ -501,16 +891,25 @@ function clearPersonalFormInputs() {
   [
     'fill-full-name',
     'fill-phone',
+    'fill-email',
+    'fill-app-otp',
     'signup-app-fullname',
     'signup-app-email',
+    'signup-app-otp',
     'signup-app-phone',
     'signup-off-fullname',
     'signup-off-email',
-    'signup-off-phone'
+    'signup-off-otp',
+    'signup-off-phone',
+    'fp-email',
+    'fp-otp',
+    'fp-new-password',
+    'fp-confirm-password'
   ].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
+  Object.keys(OTP_SCOPE_CONFIG).forEach(sc => invalidateOtpScope(sc, true));
 }
 
 function resetWorkspaceState() {
@@ -534,7 +933,7 @@ function resetWorkspaceState() {
     localStorage.removeItem('meridian_saved_apps');
   } catch (e) {}
 
-  ['letter-modal', 'backend-info-modal', 'site-availability-modal'].forEach(mid => {
+  ['letter-modal', 'backend-info-modal', 'site-availability-modal', 'forgot-password-modal'].forEach(mid => {
     const modal = document.getElementById(mid);
     if (modal) modal.style.display = 'none';
   });
@@ -591,22 +990,113 @@ window.handleLogout = function() {
   window.switchPortalGateway(prevRole === 'officer' ? 'officer' : 'applicant');
 };
 
-window.openForgotPassword = function() {
+window.showForgotPasswordAlert = function(msg, isError = true) {
+  const alertEl = document.getElementById('fp-alert');
+  if (!alertEl) return;
+  alertEl.className = isError ? 'auth-alert auth-alert-error' : 'auth-alert auth-alert-success';
+  alertEl.innerHTML = (isError ? '⚠️ ' : '✅ ') + escapeHtml(msg);
+  alertEl.style.display = 'block';
+};
+
+window.openForgotPassword = function(role = 'applicant') {
+  forgotPasswordTargetRole = role === 'officer' ? 'officer' : 'applicant';
+  const modal = document.getElementById('forgot-password-modal');
+  const alertEl = document.getElementById('fp-alert');
+  if (alertEl) alertEl.style.display = 'none';
+  ['fp-email', 'fp-otp', 'fp-new-password', 'fp-confirm-password'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  invalidateOtpScope('forgot_password', true);
+  if (modal) modal.style.display = 'flex';
+  window.fetchOtpStatus();
+  document.getElementById('fp-email')?.focus();
+};
+
+window.closeForgotPasswordModal = function() {
+  const modal = document.getElementById('forgot-password-modal');
+  if (modal) modal.style.display = 'none';
+};
+
+window.handleForgotPasswordSubmit = async function(e) {
+  e.preventDefault();
   const hi = state.currentLang === 'hi';
-  const promptText = hi
-    ? 'पासवर्ड रिकवरी निर्देश प्राप्त करने के लिए अपना पंजीकृत ईमेल पता दर्ज करें:'
-    : 'Enter your registered email address to receive password recovery instructions:';
-  const email = prompt(promptText);
-  if (email && email.trim()) {
-    fetch(`${state.apiBase}/api/auth/forgot-password`, {
+  const dict = getLangDict();
+  const email = (document.getElementById('fp-email')?.value || '').trim().toLowerCase();
+  const otp = (document.getElementById('fp-otp')?.value || '').replace(/\s+/g, '');
+  const password = document.getElementById('fp-new-password')?.value || '';
+  const confirmPassword = document.getElementById('fp-confirm-password')?.value || '';
+  const btn = document.getElementById('btn-fp-submit');
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    window.showForgotPasswordAlert(hi ? 'कृपया वैध ईमेल पता दर्ज करें।' : 'Please enter a valid email address.', true);
+    return;
+  }
+
+  const s = otpState.forgot_password;
+  const tok = (s && s.verified && s.email === email && s.verificationToken) ? s.verificationToken : null;
+  if (!tok && !/^\d{6}$/.test(otp)) {
+    window.showForgotPasswordAlert(hi ? 'कृपया ईमेल पर प्राप्त 6-अंकीय OTP दर्ज करें।' : 'Please enter the 6-digit email OTP.', true);
+    document.getElementById('fp-otp')?.focus();
+    return;
+  }
+
+  if (password.length < 8 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
+    window.showForgotPasswordAlert(
+      hi ? 'नया पासवर्ड कम से कम 8 अक्षरों का होना चाहिए जिसमें अक्षर और अंक दोनों हों।' : 'New password must be at least 8 characters and contain both a letter and a digit.',
+      true
+    );
+    return;
+  }
+
+  if (password !== confirmPassword) {
+    window.showForgotPasswordAlert(hi ? 'दोनों पासवर्ड मेल नहीं खाते।' : 'Passwords do not match.', true);
+    return;
+  }
+
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = hi ? '⏳ रीसेट हो रहा है...' : '⏳ Resetting...';
+  }
+
+  try {
+    const res = await fetch(`${state.apiBase}/api/auth/reset-password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: email.trim() })
-    }).then(r => r.json()).then(data => {
-      alert(data.message || (hi ? `पासवर्ड रिकवरी लिंक ${email} पर भेजा गया है।` : `Password recovery link dispatched to ${email}.`));
-    }).catch(() => {
-      alert(hi ? `पासवर्ड रिकवरी निर्देश ${email} पर भेजे गए हैं। कृपया अपना इनबॉक्स जांचें।` : `Password recovery instructions sent to ${email}. Please check your inbox.`);
+      body: JSON.stringify({
+        email,
+        otp: tok ? null : otp,
+        verification_token: tok,
+        password,
+        confirm_password: confirmPassword
+      })
     });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.success) {
+      invalidateOtpScope('forgot_password', true);
+      window.closeForgotPasswordModal();
+      const targetPortal = (data.role === 'officer' || forgotPasswordTargetRole === 'officer') ? 'officer' : 'applicant';
+      window.switchPortalGateway(targetPortal);
+      window.switchAuthTab(targetPortal);
+      window.showAuthAlert(
+        hi
+          ? 'पासवर्ड सफलतापूर्वक बदल दिया गया! कृपया अपने नए पासवर्ड से साइन इन करें।'
+          : 'Password reset successfully! Please sign in with your new password.',
+        false
+      );
+      window.showMeridianToast(
+        hi ? '✅ पासवर्ड सफलतापूर्वक रीसेट हो गया।' : '✅ Password reset successfully.'
+      );
+    } else {
+      window.showForgotPasswordAlert(data.error || (hi ? 'पासवर्ड रीसेट विफल रहा।' : 'Failed to reset password.'), true);
+    }
+  } catch (err) {
+    window.showForgotPasswordAlert(hi ? 'सर्वर से संपर्क करने में नेटवर्क त्रुटि।' : 'Network error contacting server.', true);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = dict.fp_btn_submit;
+    }
   }
 };
 
@@ -752,8 +1242,11 @@ window.applyAuthenticatedSession = async function(user, token) {
     }
     const nameInput = document.getElementById('fill-full-name') || document.getElementById('fill-name');
     const phoneInput = document.getElementById('fill-phone');
+    const emailInput = document.getElementById('fill-email');
     if (nameInput) nameInput.value = '';
     if (phoneInput) phoneInput.value = '';
+    if (emailInput) emailInput.value = '';
+    invalidateOtpScope('application', true);
 
     document.querySelectorAll('.nav-officer-item').forEach(el => { el.style.display = 'none'; });
     document.querySelectorAll('.nav-applicant-item').forEach(el => { el.style.display = 'flex'; });
@@ -1545,7 +2038,28 @@ const I18N = {
     modal_site_msg_lbl: "Custom Maintenance Notice for Visitors",
     ph_site_msg: "Enter message visitors will see while website is offline...",
     modal_site_how: "<strong>How Offline Mode Works:</strong> Taking the website offline shows public visitors and applicants a branded <em>Maintenance Page</em> and returns HTTP <code>503</code> on public routes. Loan Officers can still log in at any time to restore Online access.",
-    btn_go_online: "Go Online (Live)"
+    btn_go_online: "Go Online (Live)",
+    otp_box_title: "Email OTP Verification",
+    otp_app_title: "Application Email OTP Check",
+    otp_badge_pending: "Not Verified",
+    otp_badge_verified: "✓ Verified",
+    btn_send_otp: "Send OTP",
+    btn_resend_otp: "Resend OTP",
+    btn_verify_otp: "Verify OTP",
+    ph_otp_code: "6-digit OTP",
+    otp_hint_signup: "Click Send OTP to receive a 6-digit verification code in your inbox.",
+    otp_hint_apply: "Verify your email via 6-digit OTP before submitting your loan application.",
+    otp_hint_forgot: "Enter your registered email and click Send OTP to receive a recovery code.",
+    otp_hint_unconfigured: "Email OTP delivery requires BREVO_API_KEY + EMAIL_FROM (or SMTP) in Railway variables.",
+    lbl_fill_email: "Applicant Email for Verification *",
+    ph_fill_email: "Enter your email for OTP verification",
+    fp_modal_title: "Reset Password via Email OTP",
+    fp_lbl_email: "Registered Email Address",
+    ph_fp_email: "name@domain.com",
+    fp_lbl_otp: "6-Digit Email OTP",
+    fp_lbl_new_pwd: "New Password (Min 8 chars, letter + digit)",
+    fp_lbl_confirm_pwd: "Confirm New Password",
+    fp_btn_submit: "Verify & Reset Password"
   },
   hi: {
     page_title: "मेरिडियन फेयरलेंड एआई • मिशन भारत | पारदर्शी ऋण निर्णय प्रणाली",
@@ -1971,7 +2485,28 @@ const I18N = {
     modal_site_msg_lbl: "आगंतुकों के लिए रखरखाव संदेश",
     ph_site_msg: "वेबसाइट ऑफ़लाइन रहने पर आगंतुकों को दिखने वाला संदेश दर्ज करें...",
     modal_site_how: "<strong>ऑफ़लाइन मोड कैसे काम करता है:</strong> वेबसाइट को ऑफ़लाइन करने पर सामान्य आगंतुकों और आवेदकों को एक ब्रांडेड <em>रखरखाव पृष्ठ</em> दिखाई देता है और सार्वजनिक मार्ग HTTP <code>503</code> लौटाते हैं। ऋण अधिकारी किसी भी समय लॉग इन करके ऑनलाइन सेवा बहाल कर सकते हैं।",
-    btn_go_online: "ऑनलाइन करें (लाइव)"
+    btn_go_online: "ऑनलाइन करें (लाइव)",
+    otp_box_title: "ईमेल OTP सत्यापन",
+    otp_app_title: "आवेदन ईमेल OTP जांच",
+    otp_badge_pending: "असत्यापित",
+    otp_badge_verified: "✓ सत्यापित",
+    btn_send_otp: "OTP भेजें",
+    btn_resend_otp: "पुनः OTP भेजें",
+    btn_verify_otp: "OTP सत्यापित करें",
+    ph_otp_code: "6-अंकीय OTP",
+    otp_hint_signup: "इनबॉक्स में 6-अंकीय सत्यापन कोड प्राप्त करने के लिए 'OTP भेजें' पर क्लिक करें।",
+    otp_hint_apply: "ऋण आवेदन जमा करने से पहले 6-अंकीय OTP से अपना ईमेल सत्यापित करें।",
+    otp_hint_forgot: "रिकवरी कोड प्राप्त करने के लिए अपना पंजीकृत ईमेल दर्ज करें और 'OTP भेजें' दबाएं।",
+    otp_hint_unconfigured: "ईमेल OTP भेजने के लिए सर्वर वैरिएबल्स में BREVO_API_KEY + EMAIL_FROM (या SMTP) सेट करना आवश्यक है।",
+    lbl_fill_email: "सत्यापन हेतु आवेदक ईमेल *",
+    ph_fill_email: "OTP सत्यापन के लिए अपना ईमेल दर्ज करें",
+    fp_modal_title: "ईमेल OTP द्वारा पासवर्ड रीसेट करें",
+    fp_lbl_email: "पंजीकृत ईमेल पता",
+    ph_fp_email: "name@domain.com",
+    fp_lbl_otp: "6-अंकीय ईमेल OTP",
+    fp_lbl_new_pwd: "नया पासवर्ड (न्यूनतम 8 अक्षर, अक्षर + अंक)",
+    fp_lbl_confirm_pwd: "नए पासवर्ड की पुष्टि करें",
+    fp_btn_submit: "OTP जांचें व पासवर्ड बदलें"
   }
 };
 
@@ -2289,6 +2824,7 @@ function applyTranslations() {
 
   syncFormHelperDisplays();
   syncBackendModalUI();
+  syncOtpUIStates();
 }
 
 function syncFormHelperDisplays() {
@@ -2715,6 +3251,33 @@ window.handleLoanApplicationSubmit = async function(event) {
     return;
   }
 
+  const typedEmail = (document.getElementById('fill-email')?.value || '').trim().toLowerCase();
+  const appOtpCfg = OTP_SCOPE_CONFIG.application;
+  const appOtpState = otpState.application;
+  const appOtpRaw = (document.getElementById(appOtpCfg.otpId)?.value || '').replace(/\s+/g, '');
+  const appSameEmailVerified = appOtpState && appOtpState.verified && appOtpState.email === typedEmail && appOtpState.verificationToken;
+  const otpToken = appSameEmailVerified ? appOtpState.verificationToken : null;
+  const otpCode = (!otpToken && /^\d{6}$/.test(appOtpRaw) && typedEmail) ? appOtpRaw : null;
+
+  if (state.otpStatus.require_otp_on_application) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(typedEmail)) {
+      window.showMeridianToast(
+        hi ? 'कृपया OTP सत्यापन के लिए अपना वैध ईमेल पता दर्ज करें।' : 'Please enter a valid email address for Application OTP check.',
+        true
+      );
+      document.getElementById('fill-email')?.focus();
+      return;
+    }
+    if (!otpToken && !otpCode) {
+      window.showMeridianToast(
+        hi ? 'कृपया आवेदन जमा करने से पहले ईमेल OTP सत्यापन पूरा करें।' : 'Please complete the 6-digit Email OTP verification before submitting.',
+        true
+      );
+      document.getElementById(appOtpCfg.otpId)?.focus();
+      return;
+    }
+  }
+
   const submitBtn = document.getElementById('btn-submit-app');
   if (submitBtn) {
     submitBtn.disabled = true;
@@ -2727,6 +3290,7 @@ window.handleLoanApplicationSubmit = async function(event) {
   const formData = {
     full_name: (document.getElementById('fill-full-name')?.value || '').trim(),
     phone: (document.getElementById('fill-phone')?.value || '').trim(),
+    email: typedEmail || null,
     gender: document.getElementById('fill-gender')?.value || 'Female',
     marital_status: document.getElementById('fill-married')?.value || 'No',
     dependents: document.getElementById('fill-dependents')?.value || '0',
@@ -2742,7 +3306,9 @@ window.handleLoanApplicationSubmit = async function(event) {
     property_area: document.getElementById('fill-property-area')?.value || 'Rural',
     user_id: currentAuthUser ? currentAuthUser.id : null,
     applicant_id: currentAuthUser ? currentAuthUser.id : null,
-    applicant_email: currentAuthUser ? currentAuthUser.email : null
+    applicant_email: typedEmail || (currentAuthUser ? currentAuthUser.email : null),
+    otp_verification_token: otpToken,
+    otp_code: otpCode
   };
 
   let savedRecord = null;
@@ -2768,6 +3334,12 @@ window.handleLoanApplicationSubmit = async function(event) {
 
     if (response.status === 401 || response.status === 403 || response.status === 400) {
       const errData = await response.json().catch(() => ({}));
+      if (errData.code === 'EMAIL_OTP_REQUIRED' || errData.code === 'EMAIL_OTP_INVALID') {
+        window.fetchOtpStatus();
+        appOtpState.statusKind = 'error';
+        appOtpState.rawError = errData.error || '';
+        syncOtpUIStates();
+      }
       window.showMeridianToast(errData.error || (hi ? 'आवेदन जमा करने में अवरोध आया।' : 'Unable to submit loan application.'), true);
       if (submitBtn) {
         submitBtn.disabled = false;
@@ -2782,6 +3354,7 @@ window.handleLoanApplicationSubmit = async function(event) {
       savedRecord = resData.application;
       prediction = resData.prediction;
       explanation = resData.explanation;
+      invalidateOtpScope('application', true);
     }
   } catch (err) {
     state.backendConnected = false;
@@ -3903,7 +4476,21 @@ function setupEventListeners() {
   document.getElementById('loan-fillup-form')?.addEventListener('reset', () => {
     setTimeout(() => {
       syncFormHelperDisplays();
+      clearPersonalFormInputs();
     }, 0);
+  });
+
+  Object.entries(OTP_SCOPE_CONFIG).forEach(([scope, cfg]) => {
+    document.getElementById(cfg.emailId)?.addEventListener('input', (e) => {
+      const cur = (e.target.value || '').trim().toLowerCase();
+      if (otpState[scope].email && otpState[scope].email !== cur) {
+        invalidateOtpScope(scope, true);
+      } else if (otpState[scope].statusKind === 'error' || otpState[scope].statusKind === 'unconfigured') {
+        otpState[scope].statusKind = 'default';
+        otpState[scope].rawError = '';
+        syncOtpUIStates();
+      }
+    });
   });
 
   document.getElementById('sim-slider-coapp')?.addEventListener('input', (e) => {
@@ -4775,6 +5362,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   syncFormHelperDisplays();
   syncSimulatorSliderLabels();
   await window.checkSiteAvailability();
+  await window.fetchOtpStatus();
   await window.checkExistingSession();
   checkBackendConnection();
   applyTranslations();

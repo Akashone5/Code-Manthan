@@ -205,7 +205,7 @@
             <div class="auth-form-group">
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <label class="auth-label" for="signin-applicant-password" data-i18n="lbl_password">Password</label>
-                <a href="javascript:void(0)" onclick="openForgotPassword()" style="font-size: 0.78rem; color: #064E3B; font-weight: 700; text-decoration: none;" data-i18n="link_forgot_pwd">Forgot Password?</a>
+                <a href="javascript:void(0)" onclick="openForgotPassword('applicant')" style="font-size: 0.78rem; color: #064E3B; font-weight: 700; text-decoration: none;" data-i18n="link_forgot_pwd">Forgot Password?</a>
               </div>
               <div class="auth-input-wrapper">
                 <span class="auth-input-icon">🔒</span>
@@ -247,6 +247,19 @@
                 <span class="auth-input-icon">✉️</span>
                 <input type="email" id="signup-app-email" class="auth-input" placeholder="applicant@domain.com" data-i18n-placeholder="ph_app_email" required autocomplete="off">
               </div>
+            </div>
+
+            <div class="otp-verify-box" id="otp-box-signup-app">
+              <div class="otp-header-row">
+                <span class="otp-label" data-i18n="otp_box_title">Email OTP Verification</span>
+                <span id="otp-badge-signup-app" class="otp-status-badge otp-badge-pending" data-i18n="otp_badge_pending">Not Verified</span>
+              </div>
+              <div class="otp-controls-row">
+                <button type="button" id="btn-send-otp-signup-app" class="otp-btn" onclick="sendEmailOtp('signup_app')" data-i18n="btn_send_otp">Send OTP</button>
+                <input type="text" id="signup-app-otp" class="otp-code-input" maxlength="6" inputmode="numeric" pattern="[0-9]*" placeholder="6-digit OTP" data-i18n-placeholder="ph_otp_code" autocomplete="one-time-code">
+                <button type="button" id="btn-verify-otp-signup-app" class="otp-btn primary" onclick="verifyEmailOtp('signup_app')" data-i18n="btn_verify_otp">Verify OTP</button>
+              </div>
+              <div id="otp-status-signup-app" class="otp-feedback-text" data-i18n="otp_hint_signup">Click Send OTP to receive a 6-digit verification code in your inbox.</div>
             </div>
 
             <div class="auth-form-group">
@@ -296,7 +309,7 @@
             <div class="auth-form-group">
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <label class="auth-label" for="signin-officer-password" data-i18n="lbl_officer_pwd">Officer Password</label>
-                <a href="javascript:void(0)" onclick="openForgotPassword()" style="font-size: 0.78rem; color: #064E3B; font-weight: 700; text-decoration: none;" data-i18n="link_forgot_pwd">Forgot Password?</a>
+                <a href="javascript:void(0)" onclick="openForgotPassword('officer')" style="font-size: 0.78rem; color: #064E3B; font-weight: 700; text-decoration: none;" data-i18n="link_forgot_pwd">Forgot Password?</a>
               </div>
               <div class="auth-input-wrapper">
                 <span class="auth-input-icon">🔒</span>
@@ -336,6 +349,19 @@
                 <span class="auth-input-icon">✉️</span>
                 <input type="email" id="signup-off-email" class="auth-input" placeholder="officer@meridianbank.in" data-i18n-placeholder="ph_off_email" required autocomplete="off">
               </div>
+            </div>
+
+            <div class="otp-verify-box" id="otp-box-signup-off">
+              <div class="otp-header-row">
+                <span class="otp-label" data-i18n="otp_box_title">Email OTP Verification</span>
+                <span id="otp-badge-signup-off" class="otp-status-badge otp-badge-pending" data-i18n="otp_badge_pending">Not Verified</span>
+              </div>
+              <div class="otp-controls-row">
+                <button type="button" id="btn-send-otp-signup-off" class="otp-btn" onclick="sendEmailOtp('signup_off')" data-i18n="btn_send_otp">Send OTP</button>
+                <input type="text" id="signup-off-otp" class="otp-code-input" maxlength="6" inputmode="numeric" pattern="[0-9]*" placeholder="6-digit OTP" data-i18n-placeholder="ph_otp_code" autocomplete="one-time-code">
+                <button type="button" id="btn-verify-otp-signup-off" class="otp-btn primary" onclick="verifyEmailOtp('signup_off')" data-i18n="btn_verify_otp">Verify OTP</button>
+              </div>
+              <div id="otp-status-signup-off" class="otp-feedback-text" data-i18n="otp_hint_signup">Click Send OTP to receive a 6-digit verification code in your inbox.</div>
             </div>
 
             <div class="auth-form-group">
@@ -1290,6 +1316,23 @@
                 </div>
               </div>
 
+              <div class="form-group">
+                <label class="form-label" id="lbl-fill-email" for="fill-email" data-i18n="lbl_fill_email">Applicant Email for Verification *</label>
+                <input type="email" id="fill-email" class="form-control" autocomplete="off" placeholder="Enter your email for OTP verification" data-i18n-placeholder="ph_fill_email">
+                <div class="otp-verify-box" id="otp-box-apply">
+                  <div class="otp-header-row">
+                    <span class="otp-label" data-i18n="otp_app_title">Application Email OTP Check</span>
+                    <span id="otp-badge-apply" class="otp-status-badge otp-badge-pending" data-i18n="otp_badge_pending">Not Verified</span>
+                  </div>
+                  <div class="otp-controls-row">
+                    <button type="button" id="btn-send-otp-apply" class="otp-btn" onclick="sendEmailOtp('application')" data-i18n="btn_send_otp">Send OTP</button>
+                    <input type="text" id="fill-app-otp" class="otp-code-input" maxlength="6" inputmode="numeric" pattern="[0-9]*" placeholder="6-digit OTP" data-i18n-placeholder="ph_otp_code" autocomplete="one-time-code">
+                    <button type="button" id="btn-verify-otp-apply" class="otp-btn primary" onclick="verifyEmailOtp('application')" data-i18n="btn_verify_otp">Verify OTP</button>
+                  </div>
+                  <div id="otp-status-apply" class="otp-feedback-text" data-i18n="otp_hint_apply">Verify your email via 6-digit OTP before submitting your loan application.</div>
+                </div>
+              </div>
+
               <div class="form-row">
                 <div class="form-group">
                   <label class="form-label" id="lbl-fill-married">Marital Status *</label>
@@ -1754,6 +1797,61 @@
     </div>
   </div>
 
+</div>
+<div id="forgot-password-modal" class="modal-overlay" style="display: none;">
+  <div class="modal-content" style="max-width: 480px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #064E3B; padding-bottom: 0.8rem; margin-bottom: 1rem;">
+      <h3 style="color: #064E3B; font-size: 1.18rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+        <span>🔐</span> <span data-i18n="fp_modal_title">Reset Password via Email OTP</span>
+      </h3>
+      <button type="button" class="btn btn-outline" style="padding: 2px 8px; font-size: 0.85rem;" onclick="closeForgotPasswordModal()">✕</button>
+    </div>
+
+    <div id="fp-alert" class="auth-alert" style="display: none;"></div>
+
+    <form id="form-forgot-password" onsubmit="handleForgotPasswordSubmit(event)" autocomplete="off">
+      <div class="auth-form-group">
+        <label class="auth-label" for="fp-email" data-i18n="fp_lbl_email">Registered Email Address</label>
+        <div class="otp-controls-row" style="align-items: stretch;">
+          <input type="email" id="fp-email" class="auth-input" style="padding-left: 0.85rem; flex: 1;" placeholder="name@domain.com" data-i18n-placeholder="ph_fp_email" required autocomplete="off">
+          <button type="button" id="btn-send-otp-forgot" class="otp-btn primary" onclick="sendEmailOtp('forgot_password')" data-i18n="btn_send_otp">Send OTP</button>
+        </div>
+        <div id="otp-status-forgot" class="otp-feedback-text" data-i18n="otp_hint_forgot">Enter your registered email and click Send OTP to receive a recovery code.</div>
+      </div>
+
+      <div class="auth-form-group">
+        <label class="auth-label" for="fp-otp" data-i18n="fp_lbl_otp">6-Digit Email OTP</label>
+        <div class="otp-controls-row">
+          <input type="text" id="fp-otp" class="otp-code-input" style="flex: 1;" maxlength="6" inputmode="numeric" pattern="[0-9]*" placeholder="6-digit OTP" data-i18n-placeholder="ph_otp_code" required autocomplete="one-time-code">
+          <button type="button" id="btn-verify-otp-forgot" class="otp-btn" onclick="verifyEmailOtp('forgot_password')" data-i18n="btn_verify_otp">Verify OTP</button>
+          <span id="otp-badge-forgot" class="otp-status-badge otp-badge-pending" data-i18n="otp_badge_pending">Not Verified</span>
+        </div>
+      </div>
+
+      <div class="auth-form-group">
+        <label class="auth-label" for="fp-new-password" data-i18n="fp_lbl_new_pwd">New Password (Min 8 chars, letter + digit)</label>
+        <div class="auth-input-wrapper">
+          <span class="auth-input-icon">🔒</span>
+          <input type="password" id="fp-new-password" class="auth-input" placeholder="••••••••" required autocomplete="new-password">
+          <button type="button" class="pwd-toggle-btn" onclick="togglePasswordVisibility('fp-new-password', this)" title="Show/Hide Password" data-i18n-title="title_show_hide_pwd">👁️</button>
+        </div>
+      </div>
+
+      <div class="auth-form-group">
+        <label class="auth-label" for="fp-confirm-password" data-i18n="fp_lbl_confirm_pwd">Confirm New Password</label>
+        <div class="auth-input-wrapper">
+          <span class="auth-input-icon">🔒</span>
+          <input type="password" id="fp-confirm-password" class="auth-input" placeholder="••••••••" required autocomplete="new-password">
+          <button type="button" class="pwd-toggle-btn" onclick="togglePasswordVisibility('fp-confirm-password', this)" title="Show/Hide Password" data-i18n-title="title_show_hide_pwd">👁️</button>
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 0.65rem; margin-top: 1.15rem;">
+        <button type="button" class="btn btn-outline" onclick="closeForgotPasswordModal()" data-i18n="btn_close">Close</button>
+        <button type="submit" id="btn-fp-submit" class="btn btn-primary" data-i18n="fp_btn_submit">Verify &amp; Reset Password</button>
+      </div>
+    </form>
+  </div>
 </div>
 <div id="meridian-toast-container" class="toast-container"></div>
 <script src="app.js"></script>

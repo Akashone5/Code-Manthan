@@ -53,3 +53,4 @@ def get_client_ip(request: Request) -> str:
     return "unknown"
 
 auth_rate_limiter = SlidingWindowRateLimiter(max_attempts=8, window_seconds=300)
+otp_send_rate_limiter = SlidingWindowRateLimiter(max_attempts=12, window_seconds=600)

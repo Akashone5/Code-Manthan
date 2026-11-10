@@ -9,6 +9,8 @@ class SignUpRequest(BaseModel):
     confirm_password: Optional[str] = Field(default=None, description="Password confirmation")
     role: str = Field(default="applicant", description="Account classification: 'applicant' or 'officer'")
     officer_key: Optional[str] = Field(default=None, description="Clearance key required for officer provisioning")
+    otp_verification_token: Optional[str] = Field(default=None, description="Verified email OTP token")
+    otp_code: Optional[str] = Field(default=None, description="Optional 6-digit email OTP code")
 
 class SignInRequest(BaseModel):
     email: str = Field(..., description="Registered account email")
@@ -18,6 +20,23 @@ class SignInRequest(BaseModel):
 
 class ForgotPasswordRequest(BaseModel):
     email: str = Field(..., description="Email address for dispatching password reset instructions")
+
+class SendOtpRequest(BaseModel):
+    email: str = Field(..., description="Recipient email address for 6-digit OTP delivery")
+    purpose: str = Field(default="signup", description="Verification scope: signup, forgot_password, or application")
+    lang: str = Field(default="en", description="Preferred email language: en or hi")
+
+class VerifyOtpRequest(BaseModel):
+    email: str = Field(..., description="Email address receiving the OTP")
+    purpose: str = Field(default="signup", description="Verification scope: signup, forgot_password, or application")
+    otp: str = Field(..., description="6-digit OTP verification code")
+
+class ResetPasswordRequest(BaseModel):
+    email: str = Field(..., description="Registered account email address")
+    otp: Optional[str] = Field(default=None, description="6-digit OTP code from email")
+    verification_token: Optional[str] = Field(default=None, description="Verified OTP token from /api/auth/verify-otp")
+    password: str = Field(..., description="New account password", min_length=8)
+    confirm_password: Optional[str] = Field(default=None, description="Confirmation of new password")
 
 class UserProfileResponse(BaseModel):
     id: str

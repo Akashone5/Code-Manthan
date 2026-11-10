@@ -1,6 +1,7 @@
 import os
 import sqlite3
 import tempfile
+import uuid
 from src.preprocess import normalize_applicant
 from src.train import predict_loan
 from src.explain import explain_decision
@@ -147,8 +148,9 @@ def run_tests():
     assert database.verify_session_token(tok) is None, "Revoked session token still accepted"
     print("[OK] Test 13: Server-side session issuance, verification & revocation verified")
 
-    user_a = database.register_user('Rohan Mehta', 'rohan.a.test@example.com', '9811100001', 'Password@123', 'applicant')
-    user_b = database.register_user('Rohan Mehta', 'rohan.b.test@example.com', '9811100002', 'Password@123', 'applicant')
+    iso_uid = uuid.uuid4().hex[:8]
+    user_a = database.register_user('Rohan Mehta', f'rohan.a.{iso_uid}@example.com', '9811100001', 'Password@123', 'applicant')
+    user_b = database.register_user('Rohan Mehta', f'rohan.b.{iso_uid}@example.com', '9811100002', 'Password@123', 'applicant')
     app_a_data = {**test_applicant, 'full_name': 'Rohan Mehta', 'applicant_email': user_a['email']}
     saved_a = database.save_loan_application(app_a_data, pred, exp, user_id=user_a['id'])
     vault_a = database.get_all_saved_applications(user_id=user_a['id'], role='applicant', user_email=user_a['email'])
@@ -209,8 +211,95 @@ def run_tests():
         db_ops.EXPORT_CSV = orig_csv
     print("[OK] Test 15: Idempotent legacy thousands -> INR DB migration & flexible small loan integrity verified")
 
+    orig_db, orig_csv = db_ops.DB_FILE, db_ops.EXPORT_CSV
+    try:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
+            tmp_db = os.path.join(tmpdir, "otp_test.db")
+            tmp_csv = os.path.join(tmpdir, "otp_test.csv")
+            db_ops.DB_FILE = tmp_db
+            db_ops.EXPORT_CSV = tmp_csv
+            db_ops.init_db()
+
+            c_schema = sqlite3.connect(tmp_db)
+            try:
+                tbls = {r[0] for r in c_schema.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+                assert "email_otps" in tbls, "email_otps table missing after init_db()"
+                cols = {r[1] for r in c_schema.execute("PRAGMA table_info(loan_applications)").fetchall()}
+                assert "email_otp_verified" in cols, "email_otp_verified column missing after init_db()"
+            finally:
+                c_schema.close()
+
+            otp1 = database.create_email_otp('otp.cooldown@example.com', 'signup', ttl_seconds=600, cooldown_seconds=60)
+            assert len(otp1['otp_code']) == 6 and otp1['otp_code'].isdigit(), "OTP code must be 6 numeric digits"
+            try:
+                database.create_email_otp('otp.cooldown@example.com', 'signup', ttl_seconds=600, cooldown_seconds=60)
+                assert False, "Expected immediate second OTP request to trigger cooldown"
+            except ValueError as err:
+                assert str(err).startswith("COOLDOWN:"), f"Expected COOLDOWN error, got: {err}"
+
+            wrong_code = "000000" if otp1['otp_code'] != "000000" else "111111"
+            for attempt_idx in range(5):
+                try:
+                    database.verify_email_otp('otp.cooldown@example.com', 'signup', wrong_code)
+                    assert False, "Wrong OTP should fail verification"
+                except ValueError as err:
+                    if attempt_idx < 4:
+                        assert "remaining" in str(err), f"Expected remaining attempts notice, got: {err}"
+                    else:
+                        assert "Maximum attempts" in str(err), f"Expected lockout after 5 bad attempts, got: {err}"
+            try:
+                database.verify_email_otp('otp.cooldown@example.com', 'signup', otp1['otp_code'])
+                assert False, "Correct OTP must remain locked after 5 wrong attempts"
+            except ValueError as err:
+                assert "Maximum verification attempts reached" in str(err)
+
+            otp2 = database.create_email_otp('otp.verify@example.com', 'application', ttl_seconds=600, cooldown_seconds=60)
+            ver2 = database.verify_email_otp('otp.verify@example.com', 'application', otp2['otp_code'])
+            assert ver2['verified'] is True and ver2['verification_token'].startswith('vtok-')
+            assert database.validate_otp_verification_token('otp.verify@example.com', 'application', ver2['verification_token']) is True
+            try:
+                database.validate_otp_verification_token('otp.verify@example.com', 'signup', ver2['verification_token'])
+                assert False, "Token purpose mismatch should fail"
+            except ValueError:
+                pass
+            assert database.consume_otp_verification_token('otp.verify@example.com', 'application', ver2['verification_token']) is True
+            try:
+                database.consume_otp_verification_token('otp.verify@example.com', 'application', ver2['verification_token'])
+                assert False, "Single-use verification token replay must be rejected"
+            except ValueError:
+                pass
+
+            database.register_user('OTP Reset User', 'otp.reset@example.com', '9811998877', 'OldPass@123', 'applicant')
+            pre_login = database.login_user('otp.reset@example.com', 'OldPass@123')
+            assert pre_login.get('success') and pre_login.get('token')
+            old_tok = pre_login['token']
+            assert database.verify_session_token(old_tok) is not None
+
+            fp_otp = database.create_email_otp('otp.reset@example.com', 'forgot_password', ttl_seconds=600, cooldown_seconds=60)
+            reset_res = database.reset_password_with_otp('otp.reset@example.com', 'NewPass@456', otp_code=fp_otp['otp_code'])
+            assert reset_res['success'] is True
+            assert database.verify_session_token(old_tok) is None, "Password reset must revoke active sessions"
+            assert database.login_user('otp.reset@example.com', 'OldPass@123').get('success') is False
+            post_login = database.login_user('otp.reset@example.com', 'NewPass@456')
+            assert post_login.get('success') is True
+
+            saved_ver = db_ops.save_application(
+                {**test_applicant, 'applicant_email': 'otp.verify@example.com', 'email_otp_verified': True},
+                pred,
+                exp,
+                user_id=post_login['user']['id']
+            )
+            assert int(saved_ver.get('email_otp_verified') or 0) == 1
+            reloaded_ver = db_ops.get_application_by_number(saved_ver['application_no'])
+            assert int(reloaded_ver.get('email_otp_verified') or 0) == 1
+            db_ops.checkpoint_db('TRUNCATE')
+    finally:
+        db_ops.DB_FILE = orig_db
+        db_ops.EXPORT_CSV = orig_csv
+    print("[OK] Test 16: Real Email OTP DB lifecycle, cooldown, lockout, single-use tokens & password reset session revocation verified")
+
     print("-" * 70)
-    print("ALL 15 SYSTEM VALIDATION SUITES PASSED CLEANLY (100% OPERATIONAL)")
+    print("ALL 16 SYSTEM VALIDATION SUITES PASSED CLEANLY (100% OPERATIONAL)")
     print("=" * 70)
 
 if __name__ == '__main__':

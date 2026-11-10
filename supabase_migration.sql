@@ -50,6 +50,22 @@ CREATE TABLE IF NOT EXISTS public.loan_applications (
 );
 
 ALTER TABLE public.loan_applications ADD COLUMN IF NOT EXISTS applicant_email TEXT;
+ALTER TABLE public.loan_applications ADD COLUMN IF NOT EXISTS email_otp_verified BOOLEAN DEFAULT FALSE;
+
+CREATE TABLE IF NOT EXISTS public.email_otps (
+    id TEXT PRIMARY KEY,
+    email TEXT NOT NULL,
+    purpose TEXT NOT NULL CHECK (purpose IN ('signup', 'forgot_password', 'application')),
+    otp_hash TEXT NOT NULL,
+    salt TEXT NOT NULL,
+    attempts_left INTEGER NOT NULL DEFAULT 5,
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    verified_at TIMESTAMPTZ,
+    verification_token TEXT,
+    token_expires_at TIMESTAMPTZ,
+    token_consumed_at TIMESTAMPTZ
+);
 
 CREATE TABLE IF NOT EXISTS public.system_settings (
     setting_key TEXT PRIMARY KEY,
@@ -89,6 +105,7 @@ CREATE INDEX IF NOT EXISTS idx_loan_app_created ON public.loan_applications(crea
 CREATE INDEX IF NOT EXISTS idx_loan_app_no ON public.loan_applications(application_no);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_app_no ON public.audit_logs(application_no);
 CREATE INDEX IF NOT EXISTS idx_user_sessions_user ON public.user_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_email_otps_lookup ON public.email_otps(email, purpose, created_at DESC);
 
 CREATE OR REPLACE FUNCTION public.is_officer()
 RETURNS BOOLEAN
@@ -166,6 +183,7 @@ ALTER TABLE public.loan_applications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.email_otps ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Users can view own profile or officers view all" ON public.profiles;
 CREATE POLICY "Users can view own profile or officers view all"
@@ -256,9 +274,17 @@ FOR ALL
 USING (auth.uid() = user_id OR auth.role() = 'service_role')
 WITH CHECK (auth.uid() = user_id OR auth.role() = 'service_role');
 
+DROP POLICY IF EXISTS "Service role manages email OTP records" ON public.email_otps;
+CREATE POLICY "Service role manages email OTP records"
+ON public.email_otps
+FOR ALL
+USING (auth.role() = 'service_role')
+WITH CHECK (auth.role() = 'service_role');
+
 GRANT ALL ON public.profiles TO anon, authenticated, service_role;
 GRANT ALL ON public.loan_applications TO anon, authenticated, service_role;
 GRANT ALL ON public.system_settings TO anon, authenticated, service_role;
 GRANT ALL ON public.audit_logs TO anon, authenticated, service_role;
 GRANT ALL ON public.user_sessions TO anon, authenticated, service_role;
+GRANT ALL ON public.email_otps TO service_role;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;

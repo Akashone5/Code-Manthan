@@ -1,7 +1,9 @@
 import os
 import sys
+import uuid
 from fastapi.testclient import TestClient
 from main import app
+from src.api import email_service
 
 client = TestClient(app)
 
@@ -204,9 +206,12 @@ def run_tests():
     created_app_no = apply_res["application"]["application_no"]
     print(f"[PASS] 18. POST /api/apply -> 403 for Officer, 201 Application Vaulted for Applicant ({created_app_no})")
 
+    same_uid = uuid.uuid4().hex[:8]
+    same_email_a = f"samename.a.{same_uid}@example.com"
+    same_email_b = f"samename.b.{same_uid}@example.com"
     res_su1 = client.post("/api/auth/signup", json={
         "full_name": "SameName Test",
-        "email": "samename.a@example.com",
+        "email": same_email_a,
         "phone": "9811100011",
         "password": "Password@123",
         "confirm_password": "Password@123",
@@ -215,15 +220,15 @@ def run_tests():
     assert res_su1.status_code == 201, res_su1.text
     res_su2 = client.post("/api/auth/signup", json={
         "full_name": "SameName Test",
-        "email": "samename.b@example.com",
+        "email": same_email_b,
         "phone": "9811100022",
         "password": "Password@123",
         "confirm_password": "Password@123",
         "role": "applicant"
     })
     assert res_su2.status_code == 201, res_su2.text
-    res_si1 = client.post("/api/auth/signin", json={"email": "samename.a@example.com", "password": "Password@123", "expected_role": "applicant"})
-    res_si2 = client.post("/api/auth/signin", json={"email": "samename.b@example.com", "password": "Password@123", "expected_role": "applicant"})
+    res_si1 = client.post("/api/auth/signin", json={"email": same_email_a, "password": "Password@123", "expected_role": "applicant"})
+    res_si2 = client.post("/api/auth/signin", json={"email": same_email_b, "password": "Password@123", "expected_role": "applicant"})
     assert res_si1.status_code == 200 and res_si2.status_code == 200
     hdr_a = {"Authorization": f"Bearer {res_si1.json()['token']}"}
     hdr_b = {"Authorization": f"Bearer {res_si2.json()['token']}"}
@@ -457,6 +462,266 @@ def run_tests():
     )
     assert k_blocked.status_code == 429
     print("[PASS] 32. Rate Limiting -> 429 Too Many Requests enforced on repeated auth & passkey failures")
+
+    otp_env_keys = [
+        "EMAIL_PROVIDER", "BREVO_API_KEY", "RESEND_API_KEY",
+        "SMTP_HOST", "SMTP_USER", "SMTP_PASSWORD",
+        "EMAIL_FROM", "REQUIRE_EMAIL_OTP", "OTP_ALLOW_DEV_PREVIEW"
+    ]
+    saved_env = {k: os.environ.get(k) for k in otp_env_keys}
+    orig_send_otp = email_service.send_otp_email
+    run_uid = uuid.uuid4().hex[:8]
+
+    def _restore_otp_env():
+        email_service.send_otp_email = orig_send_otp
+        for k, v in saved_env.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+
+    try:
+        for k in otp_env_keys:
+            os.environ.pop(k, None)
+
+        r_status_off = client.get("/api/auth/otp-status")
+        assert r_status_off.status_code == 200
+        st_off = r_status_off.json()
+        assert st_off["email_otp_configured"] is False
+        assert st_off["require_otp_on_forgot_password"] is True
+
+        r_send_unconf = client.post(
+            "/api/auth/send-otp",
+            json={"email": f"otp.unconf.{run_uid}@example.com", "purpose": "signup", "lang": "en"},
+            headers={"X-Forwarded-For": "198.51.100.33"}
+        )
+        assert r_send_unconf.status_code == 503
+        assert r_send_unconf.json().get("code") == "EMAIL_PROVIDER_NOT_CONFIGURED"
+        print("[PASS] 33. GET /api/auth/otp-status & fail-closed 503 when email provider unconfigured")
+
+        dispatched_emails = []
+
+        def _mock_send_otp(to_email, otp_code, purpose, lang="en"):
+            dispatched_emails.append({
+                "to": to_email,
+                "otp_code": otp_code,
+                "purpose": purpose,
+                "lang": lang
+            })
+            return True, "sent"
+
+        os.environ["BREVO_API_KEY"] = "test-brevo-key-000"
+        os.environ["EMAIL_FROM"] = "no-reply@meridianbank.in"
+        os.environ["REQUIRE_EMAIL_OTP"] = "true"
+        email_service.send_otp_email = _mock_send_otp
+
+        r_status_on = client.get("/api/auth/otp-status")
+        assert r_status_on.status_code == 200
+        st_on = r_status_on.json()
+        assert st_on["email_otp_configured"] is True
+        assert st_on["provider"] == "brevo"
+        assert st_on["require_otp_on_signup"] is True
+        assert st_on["require_otp_on_application"] is True
+
+        r_dup = client.post(
+            "/api/auth/send-otp",
+            json={"email": "applicant@meridianbank.in", "purpose": "signup", "lang": "en"},
+            headers={"X-Forwarded-For": "198.51.100.34"}
+        )
+        assert r_dup.status_code == 409
+
+        su_email = f"otp.signup.{run_uid}@example.com"
+        r_no_otp_su = client.post("/api/auth/signup", json={
+            "full_name": "OTP Verified Borrower",
+            "email": su_email,
+            "phone": "9811554433",
+            "password": "Password@123",
+            "confirm_password": "Password@123",
+            "role": "applicant"
+        })
+        assert r_no_otp_su.status_code == 400
+        assert r_no_otp_su.json().get("code") == "EMAIL_OTP_REQUIRED"
+
+        email_service.send_otp_email = lambda *args, **kwargs: (False, "Simulated upstream SMTP outage")
+        r_502 = client.post(
+            "/api/auth/send-otp",
+            json={"email": su_email, "purpose": "signup", "lang": "en"},
+            headers={"X-Forwarded-For": "198.51.100.35"}
+        )
+        assert r_502.status_code == 502 and r_502.json().get("code") == "EMAIL_DELIVERY_FAILED"
+        email_service.send_otp_email = _mock_send_otp
+
+        r_send_su = client.post(
+            "/api/auth/send-otp",
+            json={"email": su_email, "purpose": "signup", "lang": "hi"},
+            headers={"X-Forwarded-For": "198.51.100.34"}
+        )
+        assert r_send_su.status_code == 200
+        send_body = r_send_su.json()
+        assert send_body["dispatched"] is True and "dev_preview_otp" not in send_body
+        assert len(dispatched_emails) == 1 and dispatched_emails[-1]["lang"] == "hi"
+        su_otp_code = dispatched_emails[-1]["otp_code"]
+
+        r_cooldown = client.post(
+            "/api/auth/send-otp",
+            json={"email": su_email, "purpose": "signup", "lang": "en"},
+            headers={"X-Forwarded-For": "198.51.100.34"}
+        )
+        assert r_cooldown.status_code == 429 and int(r_cooldown.headers.get("Retry-After", "0")) >= 1
+
+        bad_su_code = "000000" if su_otp_code != "000000" else "111111"
+        r_bad_v = client.post(
+            "/api/auth/verify-otp",
+            json={"email": su_email, "purpose": "signup", "otp": bad_su_code},
+            headers={"X-Forwarded-For": "198.51.100.34"}
+        )
+        assert r_bad_v.status_code == 400
+
+        r_ok_v = client.post(
+            "/api/auth/verify-otp",
+            json={"email": su_email, "purpose": "signup", "otp": su_otp_code},
+            headers={"X-Forwarded-For": "198.51.100.34"}
+        )
+        assert r_ok_v.status_code == 200
+        su_vtok = r_ok_v.json()["verification_token"]
+        assert su_vtok.startswith("vtok-")
+
+        r_ok_su = client.post("/api/auth/signup", json={
+            "full_name": "OTP Verified Borrower",
+            "email": su_email,
+            "phone": "9811554433",
+            "password": "Password@123",
+            "confirm_password": "Password@123",
+            "role": "applicant",
+            "otp_verification_token": su_vtok
+        })
+        assert r_ok_su.status_code == 201 and r_ok_su.json().get("email_verified") is True
+
+        r_replay_su = client.post("/api/auth/signup", json={
+            "full_name": "Replay Attacker",
+            "email": f"replay.{run_uid}@example.com",
+            "phone": "9811554434",
+            "password": "Password@123",
+            "confirm_password": "Password@123",
+            "role": "applicant",
+            "otp_verification_token": su_vtok
+        })
+        assert r_replay_su.status_code == 400
+        print("[PASS] 34. Real Email OTP Signup -> 502 rollback, 409 duplicate, 429 cooldown, Hindi dispatch, 201 verified signup & replay block")
+
+        r_si_new = client.post(
+            "/api/auth/signin",
+            json={"email": su_email, "password": "Password@123", "expected_role": "applicant"},
+            headers={"X-Forwarded-For": "198.51.100.36"}
+        )
+        assert r_si_new.status_code == 200
+        su_session_tok = r_si_new.json()["token"]
+        su_headers = {"Authorization": f"Bearer {su_session_tok}"}
+        assert client.get("/api/auth/session", headers=su_headers).status_code == 200
+
+        before_fp_count = len(dispatched_emails)
+        r_unknown_fp = client.post(
+            "/api/auth/send-otp",
+            json={"email": f"missing.user.{run_uid}@example.com", "purpose": "forgot_password", "lang": "en"},
+            headers={"X-Forwarded-For": "198.51.100.36"}
+        )
+        assert r_unknown_fp.status_code == 200 and r_unknown_fp.json()["dispatched"] is True
+        assert len(dispatched_emails) == before_fp_count
+
+        r_send_fp = client.post(
+            "/api/auth/send-otp",
+            json={"email": su_email, "purpose": "forgot_password", "lang": "en"},
+            headers={"X-Forwarded-For": "198.51.100.36"}
+        )
+        assert r_send_fp.status_code == 200
+        assert len(dispatched_emails) == before_fp_count + 1
+        fp_otp_code = dispatched_emails[-1]["otp_code"]
+
+        r_ver_fp = client.post(
+            "/api/auth/verify-otp",
+            json={"email": su_email, "purpose": "forgot_password", "otp": fp_otp_code},
+            headers={"X-Forwarded-For": "198.51.100.36"}
+        )
+        assert r_ver_fp.status_code == 200
+        fp_vtok = r_ver_fp.json()["verification_token"]
+
+        r_reset_ok = client.post(
+            "/api/auth/reset-password",
+            json={
+                "email": su_email,
+                "verification_token": fp_vtok,
+                "password": "NewPassword@789",
+                "confirm_password": "NewPassword@789"
+            },
+            headers={"X-Forwarded-For": "198.51.100.36"}
+        )
+        assert r_reset_ok.status_code == 200 and r_reset_ok.json()["success"] is True
+
+        assert client.get("/api/auth/session", headers=su_headers).status_code == 401
+        r_old_si = client.post(
+            "/api/auth/signin",
+            json={"email": su_email, "password": "Password@123", "expected_role": "applicant"},
+            headers={"X-Forwarded-For": "198.51.100.37"}
+        )
+        assert r_old_si.status_code == 401
+        r_new_si = client.post(
+            "/api/auth/signin",
+            json={"email": su_email, "password": "NewPassword@789", "expected_role": "applicant"},
+            headers={"X-Forwarded-For": "198.51.100.38"}
+        )
+        assert r_new_si.status_code == 200
+        su_new_headers = {"Authorization": f"Bearer {r_new_si.json()['token']}"}
+        print("[PASS] 35. Forgot Password Real Email OTP -> anti-enumeration, password updated & prior Bearer sessions revoked")
+
+        r_app_no_otp = client.post("/api/apply", json={**sample_app, "email": su_email}, headers=su_new_headers)
+        assert r_app_no_otp.status_code == 400 and r_app_no_otp.json().get("code") == "EMAIL_OTP_REQUIRED"
+
+        r_send_app_otp = client.post(
+            "/api/auth/send-otp",
+            json={"email": su_email, "purpose": "application", "lang": "en"},
+            headers={"X-Forwarded-For": "198.51.100.39"}
+        )
+        assert r_send_app_otp.status_code == 200
+        app_otp_code = dispatched_emails[-1]["otp_code"]
+
+        r_ver_app_otp = client.post(
+            "/api/auth/verify-otp",
+            json={"email": su_email, "purpose": "application", "otp": app_otp_code},
+            headers={"X-Forwarded-For": "198.51.100.39"}
+        )
+        assert r_ver_app_otp.status_code == 200
+        app_vtok = r_ver_app_otp.json()["verification_token"]
+
+        r_apply_ok = client.post(
+            "/api/apply",
+            json={**sample_app, "email": su_email, "otp_verification_token": app_vtok},
+            headers=su_new_headers
+        )
+        assert r_apply_ok.status_code == 201
+        apply_body = r_apply_ok.json()
+        assert apply_body["email_otp_verified"] is True
+        assert int(apply_body["application"].get("email_otp_verified") or 0) == 1
+
+        r_apply_replay = client.post(
+            "/api/apply",
+            json={**sample_app, "email": su_email, "otp_verification_token": app_vtok},
+            headers=su_new_headers
+        )
+        assert r_apply_replay.status_code == 400
+
+        os.environ["REQUIRE_EMAIL_OTP"] = "false"
+        for k in ("EMAIL_PROVIDER", "BREVO_API_KEY", "RESEND_API_KEY", "SMTP_HOST", "SMTP_USER", "SMTP_PASSWORD"):
+            os.environ.pop(k, None)
+        r_forge = client.post(
+            "/api/apply",
+            json={**sample_app, "email": "applicant@meridianbank.in", "applicant_email": "applicant@meridianbank.in"},
+            headers=su_new_headers
+        )
+        assert r_forge.status_code == 201
+        assert r_forge.json()["application"]["applicant_email"] == su_email
+        print("[PASS] 36. Application Check Real Email OTP -> verified submit (201), replay block (400) & cross-account email forgery blocked")
+    finally:
+        _restore_otp_env()
 
     print("=" * 70)
     print("ALL FASTAPI ENDPOINTS & POLICIES VALIDATED SUCCESSFULLY (100% PASS)")

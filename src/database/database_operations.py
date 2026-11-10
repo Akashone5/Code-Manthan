@@ -5,6 +5,7 @@ import json
 import uuid
 import shutil
 import random
+import secrets
 import hashlib
 import datetime
 import sqlite3
@@ -14,6 +15,14 @@ from contextlib import contextmanager
 from typing import List, Dict, Any, Optional, Tuple, Iterator
 
 from .supabase_client import get_supabase_client
+
+VALID_OTP_PURPOSES = ('signup', 'forgot_password', 'application')
+
+def _utc_now_dt() -> datetime.datetime:
+    return datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+
+def _utc_now_str() -> str:
+    return _utc_now_dt().strftime("%Y-%m-%d %H:%M:%S")
 
 _ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 _SEED_DB_FILE = os.path.join(_ROOT_DIR, 'meridian_loans.db')
@@ -182,7 +191,8 @@ def init_db():
                 recommendations_json TEXT,
                 officer_status TEXT DEFAULT 'Pending',
                 officer_remarks TEXT,
-                officer_notes TEXT
+                officer_notes TEXT,
+                email_otp_verified INTEGER DEFAULT 0
             )
         ''')
 
@@ -197,7 +207,8 @@ def init_db():
             ('officer_status', "TEXT DEFAULT 'Pending'"),
             ('officer_remarks', "TEXT"),
             ('officer_notes', "TEXT"),
-            ('salary_slip', "TEXT DEFAULT 'Yes'")
+            ('salary_slip', "TEXT DEFAULT 'Yes'"),
+            ('email_otp_verified', "INTEGER DEFAULT 0")
         ]:
             if col_name not in existing_cols:
                 try:
@@ -253,6 +264,28 @@ def init_db():
                 expires_at TEXT NOT NULL,
                 last_seen_at TEXT NOT NULL
             )
+        ''')
+
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS email_otps (
+                id TEXT PRIMARY KEY,
+                email TEXT NOT NULL,
+                purpose TEXT NOT NULL CHECK(purpose IN ('signup', 'forgot_password', 'application')),
+                otp_hash TEXT NOT NULL,
+                salt TEXT NOT NULL,
+                attempts_left INTEGER NOT NULL DEFAULT 5,
+                created_at TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                verified_at TEXT,
+                verification_token TEXT,
+                token_expires_at TEXT,
+                token_consumed_at TEXT
+            )
+        ''')
+
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_email_otps_lookup
+            ON email_otps (email, purpose, created_at)
         ''')
 
         now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -464,6 +497,284 @@ def validate_password_strength(password: str) -> Tuple[bool, str]:
     if not any(c.isdigit() for c in password):
         return False, "Password must contain at least one number."
     return True, "Strong password."
+
+def _normalize_otp_purpose(purpose: str) -> str:
+    clean = str(purpose or '').strip().lower()
+    if clean not in VALID_OTP_PURPOSES:
+        raise ValueError("Invalid OTP verification purpose.")
+    return clean
+
+def _hash_otp_code(email: str, purpose: str, otp_code: str, salt: str) -> str:
+    msg = f"{email}:{purpose}:{otp_code}".encode('utf-8')
+    return hmac.new(salt.encode('utf-8'), msg, hashlib.sha256).hexdigest()
+
+def create_email_otp(
+    email: str,
+    purpose: str,
+    ttl_seconds: int = 600,
+    cooldown_seconds: int = 60
+) -> Dict[str, Any]:
+    clean_email = (email or '').strip().lower()
+    if not validate_email_format(clean_email):
+        raise ValueError("Invalid email address format.")
+    clean_purpose = _normalize_otp_purpose(purpose)
+
+    now_dt = _utc_now_dt()
+    now_str = now_dt.strftime("%Y-%m-%d %H:%M:%S")
+    safe_ttl = max(60, int(ttl_seconds))
+    exp_str = (now_dt + datetime.timedelta(seconds=safe_ttl)).strftime("%Y-%m-%d %H:%M:%S")
+    prune_cutoff = (now_dt - datetime.timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+
+    otp_code = f"{secrets.randbelow(1000000):06d}"
+    salt = secrets.token_hex(16)
+    otp_id = str(uuid.uuid4())
+    otp_hash = _hash_otp_code(clean_email, clean_purpose, otp_code, salt)
+    cooldown_wait = 0
+
+    with get_sqlite_conn() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "DELETE FROM email_otps WHERE created_at < ?",
+            (prune_cutoff,)
+        )
+        if cooldown_seconds > 0:
+            cursor.execute('''
+                SELECT created_at, token_consumed_at FROM email_otps
+                WHERE LOWER(email) = ? AND purpose = ?
+                ORDER BY created_at DESC LIMIT 1
+            ''', (clean_email, clean_purpose))
+            prev = cursor.fetchone()
+            if prev and prev['token_consumed_at'] is None:
+                try:
+                    prev_dt = datetime.datetime.strptime(prev['created_at'], "%Y-%m-%d %H:%M:%S")
+                    elapsed = (now_dt - prev_dt).total_seconds()
+                    if 0 <= elapsed < cooldown_seconds:
+                        cooldown_wait = max(1, int(cooldown_seconds - elapsed))
+                except Exception:
+                    pass
+
+        if cooldown_wait == 0:
+            cursor.execute('''
+                DELETE FROM email_otps
+                WHERE LOWER(email) = ? AND purpose = ? AND token_consumed_at IS NULL
+            ''', (clean_email, clean_purpose))
+            cursor.execute('''
+                INSERT INTO email_otps (
+                    id, email, purpose, otp_hash, salt, attempts_left,
+                    created_at, expires_at, verified_at, verification_token,
+                    token_expires_at, token_consumed_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL)
+            ''', (otp_id, clean_email, clean_purpose, otp_hash, salt, 5, now_str, exp_str))
+
+    if cooldown_wait > 0:
+        raise ValueError(f"COOLDOWN:{cooldown_wait}")
+
+    return {
+        'otp_id': otp_id,
+        'email': clean_email,
+        'purpose': clean_purpose,
+        'otp_code': otp_code,
+        'expires_in_seconds': safe_ttl,
+        'cooldown_seconds': max(0, int(cooldown_seconds))
+    }
+
+def delete_email_otp(otp_id: str) -> None:
+    clean_id = (otp_id or '').strip()
+    if not clean_id:
+        return
+    with get_sqlite_conn() as conn:
+        conn.execute("DELETE FROM email_otps WHERE id = ?", (clean_id,))
+
+def verify_email_otp(
+    email: str,
+    purpose: str,
+    otp_code: str,
+    token_ttl_seconds: int = 900
+) -> Dict[str, Any]:
+    clean_email = (email or '').strip().lower()
+    if not validate_email_format(clean_email):
+        raise ValueError("Invalid email address format.")
+    clean_purpose = _normalize_otp_purpose(purpose)
+    clean_code = re.sub(r'\s+', '', str(otp_code or ''))
+    if len(clean_code) != 6 or not clean_code.isdigit():
+        raise ValueError("Please enter the 6-digit numeric OTP sent to your email.")
+
+    now_dt = _utc_now_dt()
+    now_str = now_dt.strftime("%Y-%m-%d %H:%M:%S")
+    safe_token_ttl = max(60, int(token_ttl_seconds))
+    tok_exp_str = (now_dt + datetime.timedelta(seconds=safe_token_ttl)).strftime("%Y-%m-%d %H:%M:%S")
+
+    err_msg: Optional[str] = None
+    verification_token: Optional[str] = None
+
+    with get_sqlite_conn() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT * FROM email_otps
+            WHERE LOWER(email) = ? AND purpose = ? AND token_consumed_at IS NULL
+            ORDER BY created_at DESC LIMIT 1
+        ''', (clean_email, clean_purpose))
+        row = cursor.fetchone()
+        if not row:
+            err_msg = "No active OTP found for this email. Please click 'Send OTP' first."
+        else:
+            rec = dict(row)
+            if rec['expires_at'] < now_str:
+                err_msg = "OTP has expired. Please request a new verification code."
+            elif int(rec.get('attempts_left') or 0) <= 0:
+                err_msg = "Maximum verification attempts reached. Please request a new OTP."
+            else:
+                expected_hash = _hash_otp_code(clean_email, clean_purpose, clean_code, rec['salt'])
+                if not hmac.compare_digest(expected_hash, rec['otp_hash']):
+                    remaining = max(0, int(rec['attempts_left']) - 1)
+                    cursor.execute(
+                        "UPDATE email_otps SET attempts_left = ? WHERE id = ?",
+                        (remaining, rec['id'])
+                    )
+                    if remaining > 0:
+                        err_msg = f"Invalid OTP code. {remaining} attempt{'s' if remaining != 1 else ''} remaining."
+                    else:
+                        err_msg = "Invalid OTP code. Maximum attempts reached; please request a new OTP."
+                else:
+                    verification_token = f"vtok-{secrets.token_urlsafe(32)}"
+                    cursor.execute('''
+                        UPDATE email_otps
+                        SET verified_at = ?, verification_token = ?, token_expires_at = ?
+                        WHERE id = ?
+                    ''', (now_str, verification_token, tok_exp_str, rec['id']))
+
+    if err_msg:
+        raise ValueError(err_msg)
+
+    return {
+        'verified': True,
+        'email': clean_email,
+        'purpose': clean_purpose,
+        'verification_token': verification_token,
+        'expires_in_seconds': safe_token_ttl
+    }
+
+def validate_otp_verification_token(email: str, purpose: str, verification_token: str) -> bool:
+    clean_email = (email or '').strip().lower()
+    if not validate_email_format(clean_email):
+        raise ValueError("Invalid email address format.")
+    clean_purpose = _normalize_otp_purpose(purpose)
+    clean_tok = (verification_token or '').strip()
+    if not clean_tok:
+        raise ValueError("Email OTP verification is required before continuing.")
+
+    now_str = _utc_now_str()
+    err_msg: Optional[str] = None
+
+    with get_sqlite_conn() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT * FROM email_otps WHERE verification_token = ? LIMIT 1",
+            (clean_tok,)
+        )
+        row = cursor.fetchone()
+        if not row:
+            err_msg = "Email verification token is invalid or missing. Please verify your email with a new OTP."
+        else:
+            rec = dict(row)
+            if rec['email'].strip().lower() != clean_email:
+                err_msg = "Verified OTP email does not match the submitted email address."
+            elif rec['purpose'] != clean_purpose:
+                err_msg = "OTP verification token was issued for a different action."
+            elif not rec.get('verified_at'):
+                err_msg = "OTP has not been verified yet."
+            elif rec.get('token_consumed_at'):
+                err_msg = "This OTP verification has already been used. Please request a fresh OTP."
+            elif not rec.get('token_expires_at') or rec['token_expires_at'] < now_str:
+                err_msg = "Email verification expired. Please request and verify a new OTP."
+
+    if err_msg:
+        raise ValueError(err_msg)
+    return True
+
+def consume_otp_verification_token(email: str, purpose: str, verification_token: str) -> bool:
+    clean_email = (email or '').strip().lower()
+    clean_purpose = _normalize_otp_purpose(purpose)
+    clean_tok = (verification_token or '').strip()
+    if not clean_tok:
+        raise ValueError("Email verification token is missing.")
+
+    now_str = _utc_now_str()
+    validate_otp_verification_token(clean_email, clean_purpose, clean_tok)
+
+    consumed = False
+    with get_sqlite_conn() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            UPDATE email_otps
+            SET token_consumed_at = ?
+            WHERE verification_token = ?
+              AND LOWER(email) = ?
+              AND purpose = ?
+              AND verified_at IS NOT NULL
+              AND token_consumed_at IS NULL
+              AND token_expires_at >= ?
+        ''', (now_str, clean_tok, clean_email, clean_purpose, now_str))
+        consumed = cursor.rowcount == 1
+
+    if not consumed:
+        raise ValueError("Email verification token has expired or already been used. Please request a fresh OTP.")
+    return True
+
+def reset_password_with_otp(
+    email: str,
+    new_password: str,
+    otp_code: Optional[str] = None,
+    verification_token: Optional[str] = None
+) -> Dict[str, Any]:
+    clean_email = (email or '').strip().lower()
+    if not validate_email_format(clean_email):
+        raise ValueError("Invalid email address format.")
+
+    is_strong, msg = validate_password_strength(new_password or '')
+    if not is_strong:
+        raise ValueError(msg)
+
+    clean_tok = (verification_token or '').strip()
+    clean_otp = (otp_code or '').strip()
+    if not clean_tok and not clean_otp:
+        raise ValueError("Please enter the 6-digit OTP sent to your email.")
+
+    profile = get_user_by_email(clean_email)
+    if not profile:
+        if clean_tok:
+            validate_otp_verification_token(clean_email, 'forgot_password', clean_tok)
+        else:
+            verify_email_otp(clean_email, 'forgot_password', clean_otp)
+        raise ValueError("Account not found for this email address.")
+
+    if clean_tok:
+        validate_otp_verification_token(clean_email, 'forgot_password', clean_tok)
+        consume_otp_verification_token(clean_email, 'forgot_password', clean_tok)
+    else:
+        verified = verify_email_otp(clean_email, 'forgot_password', clean_otp)
+        consume_otp_verification_token(clean_email, 'forgot_password', verified['verification_token'])
+
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    pwd_hash, salt = _hash_password(new_password.strip())
+    with get_sqlite_conn() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            UPDATE profiles
+            SET password_hash = ?, salt = ?, updated_at = ?
+            WHERE id = ?
+        ''', (pwd_hash, salt, now_str, profile['id']))
+        cursor.execute(
+            "DELETE FROM user_sessions WHERE user_id = ?",
+            (profile['id'],)
+        )
+
+    checkpoint_db('PASSIVE')
+    return {
+        'success': True,
+        'email': clean_email,
+        'role': profile.get('role', 'applicant')
+    }
 
 def create_user_profile(full_name: str, email: str, phone: str, password: str,
                         role: str = 'applicant', officer_key: Optional[str] = None) -> Dict[str, Any]:
@@ -766,7 +1077,8 @@ def save_application(applicant_data: Dict[str, Any], prediction_result: Dict[str
         'recommendations_json': json.dumps(recs),
         'officer_status': 'Pending',
         'officer_remarks': '',
-        'officer_notes': 'Submitted via Mission Bharat Digital Portal'
+        'officer_notes': 'Submitted via Mission Bharat Digital Portal',
+        'email_otp_verified': 1 if applicant_data.get('email_otp_verified') else 0
     }
 
     sb_client = get_supabase_client()
@@ -774,7 +1086,8 @@ def save_application(applicant_data: Dict[str, Any], prediction_result: Dict[str
 
     if sb_client.is_configured():
         try:
-            res = sb_client.insert('loan_applications', record_dict)
+            sb_record = {k: v for k, v in record_dict.items() if k != 'email_otp_verified'}
+            res = sb_client.insert('loan_applications', sb_record)
             if res.get('success'):
                 data = res.get('data')
                 if isinstance(data, list) and len(data) > 0:
@@ -794,8 +1107,9 @@ def save_application(applicant_data: Dict[str, Any], prediction_result: Dict[str
                 cibil_score, credit_history, property_area, loan_purpose,
                 approval_likelihood, status, monthly_emi, dti_percent,
                 explanation_summary, positive_factors_json, risk_factors_json,
-                recommendations_json, officer_status, officer_remarks, officer_notes
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                recommendations_json, officer_status, officer_remarks, officer_notes,
+                email_otp_verified
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             record_dict.get('applicant_id'), record_dict.get('user_id'), record_dict.get('applicant_email'),
             record_dict['application_no'], record_dict['created_at'], record_dict['updated_at'],
@@ -808,7 +1122,7 @@ def save_application(applicant_data: Dict[str, Any], prediction_result: Dict[str
             record_dict['monthly_emi'], record_dict['dti_percent'], record_dict['explanation_summary'],
             record_dict['positive_factors_json'], record_dict['risk_factors_json'],
             record_dict['recommendations_json'], record_dict['officer_status'], record_dict['officer_remarks'],
-            record_dict['officer_notes']
+            record_dict['officer_notes'], record_dict['email_otp_verified']
         ))
         record_id = cursor.lastrowid
         record_dict['id'] = record_id
