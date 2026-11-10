@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from fastapi import APIRouter, Header, Query, status
 from fastapi.responses import JSONResponse
 
@@ -9,11 +9,31 @@ from src.api.schemas import AccuracyMetricsResponse
 
 router = APIRouter(prefix="/api", tags=["Algorithmic Equity & Analytics"])
 
-def _offline_guard(x_user_id: Optional[str] = None, x_user_role: Optional[str] = None):
+def _resolve_caller(
+    authorization: Optional[str] = None,
+    x_user_id: Optional[str] = None,
+    x_user_role: Optional[str] = None
+) -> Tuple[Optional[str], Optional[str]]:
+    if authorization and authorization.strip():
+        verified = database.verify_session_token(authorization)
+        if not verified:
+            return None, None
+        uid = str(verified.get("id") or "").strip() or None
+        role = str(verified.get("role") or "applicant").strip().lower()
+        return uid, role
+    clean_uid = (x_user_id or "").strip() or None
+    clean_role = (x_user_role or "").strip().lower() or None
+    if clean_uid:
+        profile = database.get_user_profile(clean_uid)
+        if profile:
+            return str(profile["id"]), str(profile.get("role") or clean_role or "applicant").strip().lower()
+    return clean_uid, clean_role
+
+def _offline_guard(x_user_id: Optional[str] = None, x_user_role: Optional[str] = None, officer_key: Optional[str] = None):
     avail = database.get_site_availability()
     if avail["online"]:
         return None
-    is_off, _ = database.is_verified_officer(user_id=x_user_id, user_role=x_user_role)
+    is_off, _ = database.is_verified_officer(user_id=x_user_id, user_role=x_user_role, officer_key=officer_key)
     if is_off:
         return None
     return JSONResponse(
@@ -27,21 +47,47 @@ def _offline_guard(x_user_id: Optional[str] = None, x_user_role: Optional[str] =
         }
     )
 
+def _require_officer_or_offline(
+    authorization: Optional[str] = None,
+    x_user_id: Optional[str] = None,
+    x_user_role: Optional[str] = None,
+    x_officer_key: Optional[str] = None
+):
+    uid, role = _resolve_caller(authorization, x_user_id, x_user_role)
+    guard_resp = _offline_guard(x_user_id=uid, x_user_role=role, officer_key=x_officer_key)
+    if guard_resp is not None:
+        return guard_resp
+    is_off, _ = database.is_verified_officer(user_id=uid, user_role=role, officer_key=x_officer_key)
+    if not is_off:
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={
+                "success": False,
+                "error": "Forbidden: Institutional analytics and portfolio datasets are restricted to Loan Officers."
+            }
+        )
+    return None
+
 APPLICANTS_DB = load_sample_dataset()
 
 @router.get(
     "/fairness",
-    summary="Conduct demographic fairness audit (80% Four-Fifths Rule)",
-    responses={200: {"description": "Fairness audit report generated"}}
+    summary="Conduct demographic fairness audit (80% Four-Fifths Rule, Officer Only)",
+    responses={
+        200: {"description": "Fairness audit report generated"},
+        403: {"description": "Forbidden: Officer clearance required"}
+    }
 )
 async def get_fairness_audit(
     affirmative: bool = Query(default=False, description="Apply Mission Bharat affirmative rural calibration"),
+    authorization: Optional[str] = Header(default=None, alias="Authorization"),
     x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
-    x_user_role: Optional[str] = Header(default=None, alias="X-User-Role")
+    x_user_role: Optional[str] = Header(default=None, alias="X-User-Role"),
+    x_officer_key: Optional[str] = Header(default=None, alias="X-Officer-Key")
 ):
-    guard_resp = _offline_guard(x_user_id=x_user_id, x_user_role=x_user_role)
-    if guard_resp is not None:
-        return guard_resp
+    deny = _require_officer_or_offline(authorization, x_user_id, x_user_role, x_officer_key)
+    if deny is not None:
+        return deny
     global APPLICANTS_DB
     if not APPLICANTS_DB:
         APPLICANTS_DB = load_sample_dataset()
@@ -65,16 +111,21 @@ async def get_fairness_audit(
 
 @router.get(
     "/accuracy",
-    summary="Retrieve underwriting model validation performance metrics",
-    responses={200: {"description": "Model validation metrics and weights"}}
+    summary="Retrieve underwriting model validation performance metrics (Officer Only)",
+    responses={
+        200: {"description": "Model validation metrics and weights"},
+        403: {"description": "Forbidden: Officer clearance required"}
+    }
 )
 async def get_accuracy_metrics(
+    authorization: Optional[str] = Header(default=None, alias="Authorization"),
     x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
-    x_user_role: Optional[str] = Header(default=None, alias="X-User-Role")
+    x_user_role: Optional[str] = Header(default=None, alias="X-User-Role"),
+    x_officer_key: Optional[str] = Header(default=None, alias="X-Officer-Key")
 ):
-    guard_resp = _offline_guard(x_user_id=x_user_id, x_user_role=x_user_role)
-    if guard_resp is not None:
-        return guard_resp
+    deny = _require_officer_or_offline(authorization, x_user_id, x_user_role, x_officer_key)
+    if deny is not None:
+        return deny
     model_params = _load_model_parameters()
     metrics = model_params.get("metrics", {})
     features = model_params.get("features", [])
@@ -105,17 +156,22 @@ async def get_accuracy_metrics(
 
 @router.get(
     "/applicants",
-    summary="Retrieve portfolio sample records for testing",
-    responses={200: {"description": "Portfolio sample records list"}}
+    summary="Retrieve portfolio sample records (Officer Only)",
+    responses={
+        200: {"description": "Portfolio sample records list"},
+        403: {"description": "Forbidden: Officer clearance required"}
+    }
 )
 async def get_sample_applicants(
     limit: int = Query(default=50, ge=1, le=200, description="Maximum records to return"),
+    authorization: Optional[str] = Header(default=None, alias="Authorization"),
     x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
-    x_user_role: Optional[str] = Header(default=None, alias="X-User-Role")
+    x_user_role: Optional[str] = Header(default=None, alias="X-User-Role"),
+    x_officer_key: Optional[str] = Header(default=None, alias="X-Officer-Key")
 ):
-    guard_resp = _offline_guard(x_user_id=x_user_id, x_user_role=x_user_role)
-    if guard_resp is not None:
-        return guard_resp
+    deny = _require_officer_or_offline(authorization, x_user_id, x_user_role, x_officer_key)
+    if deny is not None:
+        return deny
     global APPLICANTS_DB
     if not APPLICANTS_DB:
         APPLICANTS_DB = load_sample_dataset()

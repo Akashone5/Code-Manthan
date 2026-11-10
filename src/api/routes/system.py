@@ -57,6 +57,7 @@ async def get_system_availability():
 async def update_system_availability(
     payload: SiteAvailabilityUpdateRequest,
     request: Request,
+    authorization: Optional[str] = Header(default=None, alias="Authorization"),
     x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
     x_user_role: Optional[str] = Header(default=None, alias="X-User-Role"),
     x_officer_key: Optional[str] = Header(default=None, alias="X-Officer-Key")
@@ -73,10 +74,21 @@ async def update_system_availability(
             }
         )
 
+    actor_uid = x_user_id
+    actor_role = x_user_role
+    if authorization and authorization.strip():
+        verified = database.verify_session_token(authorization)
+        if verified:
+            actor_uid = str(verified.get("id") or "") or None
+            actor_role = str(verified.get("role") or "") or None
+        else:
+            actor_uid = None
+            actor_role = None
+
     key_candidate = payload.officer_key or x_officer_key
     allowed, actor_name = database.is_verified_officer(
-        user_id=x_user_id,
-        user_role=x_user_role,
+        user_id=actor_uid,
+        user_role=actor_role,
         officer_key=key_candidate
     )
     if not allowed:
@@ -94,7 +106,8 @@ async def update_system_availability(
         online=payload.online,
         message=payload.maintenance_message,
         title=payload.title,
-        updated_by=actor_name
+        updated_by=actor_name,
+        officer_id=actor_uid
     )
     return JSONResponse(
         status_code=status.HTTP_200_OK,
@@ -141,15 +154,20 @@ async def api_hub():
         <h3>Authentication &amp; Production API Endpoints:</h3>
         <ul>
             <li><code>POST /api/auth/signup</code> - Register new Applicant or Officer (Requires Passkey)</li>
-            <li><code>POST /api/auth/signin</code> - Authenticate user credentials &amp; issue session</li>
-            <li><code>POST /api/auth/logout</code> - Terminate active session</li>
-            <li><code>GET /api/saved-applications</code> - Role-based application retrieval</li>
-            <li><code>POST /api/apply</code> - Submit loan application linked to authenticated user</li>
+            <li><code>POST /api/auth/signin</code> - Authenticate user credentials &amp; issue persistent session</li>
+            <li><code>GET /api/auth/session</code> - Verify stored Bearer / session token state</li>
+            <li><code>POST /api/auth/logout</code> - Terminate &amp; revoke active session</li>
+            <li><code>GET /api/saved-applications</code> - Strict role-isolated application retrieval</li>
+            <li><code>POST /api/apply</code> - Submit loan application (Applicant Portal only)</li>
+            <li><code>GET/PATCH /api/application/{{application_no}}</code> - Fetch or persist What-If underwriting updates</li>
             <li><code>POST /api/predict</code> - Credit decision &amp; factor explainability</li>
             <li><code>POST /api/what-if</code> - Counterfactual scenario simulator</li>
             <li><code>POST /api/officer/sanction</code> - Authorized officer decisioning &amp; remarks</li>
-            <li><code>GET /api/fairness</code> - Four-fifths (80%) demographic parity audit</li>
-            <li><code>GET /api/accuracy</code> - Underwriting validation performance report</li>
+            <li><code>GET/POST /api/officer/audit-logs</code> - Persistent compliance audit trail (Officer only)</li>
+            <li><code>GET /api/officer/backup</code> - Atomic SQLite / JSON vault snapshot (Officer only)</li>
+            <li><code>GET /api/fairness</code> - Four-fifths (80%) demographic parity audit (Officer only)</li>
+            <li><code>GET /api/accuracy</code> - Underwriting validation performance report (Officer only)</li>
+            <li><code>GET /api/applicants</code> - Institutional portfolio sample records (Officer only)</li>
             <li><code>GET /api/health</code> - JSON uptime health probe</li>
             <li><code>GET /api/system/availability</code> - Check public Online/Offline website state</li>
             <li><code>POST /api/system/availability</code> - Switch website Online or Offline (Officer/Admin only)</li>

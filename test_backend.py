@@ -92,8 +92,59 @@ def run_tests():
     assert len(app_vault) <= len(off_vault), "Applicant should not see more applications than officer"
     print(f"[OK] Test 10: Role-based isolation verified (Applicant visible: {len(app_vault)}, Officer visible: {len(off_vault)})")
 
+    updated_fields = {
+        'loan_amount': 110,
+        'loan_term_months': 240,
+        'cibil_score': 810,
+        'salary_slip': 'Yes'
+    }
+    merged_for_score = {**test_applicant, **updated_fields}
+    new_pred = predict_loan(merged_for_score)
+    new_exp = explain_decision(merged_for_score, new_pred)
+    patched = database.update_application_details(saved['application_no'], updated_fields, new_pred, new_exp)
+    assert patched is not None, "update_application_details returned None"
+    assert float(patched['loan_amount']) == 110.0, "Updated loan amount did not persist"
+    assert int(patched['loan_term_months']) == 240, "Updated tenure did not persist"
+    assert int(patched['cibil_score']) == 810, "Updated CIBIL score did not persist"
+    reloaded = database.get_application_by_number(saved['application_no'])
+    assert reloaded is not None and float(reloaded['loan_amount']) == 110.0, "Reloaded record mismatch after patch"
+    print(f"[OK] Test 11: update_application_details persisted & verified ({saved['application_no']} -> 110k / 240m)")
+
+    log_entry = database.add_audit_log(
+        application_no=saved['application_no'],
+        action='VAULT_INSPECT',
+        notes='Automated compliance verification entry',
+        remarks='Verified CIBIL 810',
+        officer_id=off_login['user']['id'],
+        officer_name=off_login['user']['full_name'],
+        officer_role='officer'
+    )
+    assert log_entry.get('id') is not None, "Audit log failed to insert"
+    recent_logs = database.get_audit_logs(limit=20)
+    assert any(l.get('application_no') == saved['application_no'] and l.get('action') == 'VAULT_INSPECT' for l in recent_logs), "Audit log not found on readback"
+    print(f"[OK] Test 12: add_audit_log & get_audit_logs verified ({len(recent_logs)} log entries retrieved)")
+
+    tok = app_login.get('token', '')
+    assert tok, "Login did not issue a session token"
+    verified_sess = database.verify_session_token(f"Bearer {tok}")
+    assert verified_sess is not None and verified_sess['email'] == 'applicant@meridianbank.in', "Session token failed verification"
+    revoked = database.revoke_session_token(f"Bearer {tok}")
+    assert revoked is True, "Session token revocation returned False"
+    assert database.verify_session_token(tok) is None, "Revoked session token still accepted"
+    print("[OK] Test 13: Server-side session issuance, verification & revocation verified")
+
+    user_a = database.register_user('Rohan Mehta', 'rohan.a.test@example.com', '9811100001', 'Password@123', 'applicant')
+    user_b = database.register_user('Rohan Mehta', 'rohan.b.test@example.com', '9811100002', 'Password@123', 'applicant')
+    app_a_data = {**test_applicant, 'full_name': 'Rohan Mehta', 'applicant_email': user_a['email']}
+    saved_a = database.save_loan_application(app_a_data, pred, exp, user_id=user_a['id'])
+    vault_a = database.get_all_saved_applications(user_id=user_a['id'], role='applicant', user_email=user_a['email'])
+    vault_b = database.get_all_saved_applications(user_id=user_b['id'], role='applicant', user_email=user_b['email'])
+    assert any(r['application_no'] == saved_a['application_no'] for r in vault_a), "Owner A missing own application"
+    assert not any(r['application_no'] == saved_a['application_no'] for r in vault_b), "Same full_name user B leaked User A application!"
+    print("[OK] Test 14: Zero full_name cross-user leakage verified across same-named applicants")
+
     print("-" * 70)
-    print("ALL 10 SYSTEM VALIDATION SUITES PASSED CLEANLY (100% OPERATIONAL)")
+    print("ALL 14 SYSTEM VALIDATION SUITES PASSED CLEANLY (100% OPERATIONAL)")
     print("=" * 70)
 
 if __name__ == '__main__':

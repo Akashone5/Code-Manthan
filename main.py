@@ -35,6 +35,12 @@ async def lifespan(app: FastAPI):
 
     yield
 
+    try:
+        database.checkpoint_db('TRUNCATE')
+        print("[INFO] Database WAL checkpointed cleanly on shutdown.")
+    except Exception as e:
+        print(f"[WARN] Shutdown DB checkpoint notice: {e}")
+
     print("[INFO] Meridian FairLend API shutdown complete.")
 
 app = FastAPI(

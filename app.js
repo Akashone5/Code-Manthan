@@ -24,6 +24,36 @@ function resolveApiBase() {
 const DEFAULT_OFFLINE_TITLE_EN = 'Portal Temporarily Offline';
 const DEFAULT_OFFLINE_MSG_EN = 'Meridian FairLend AI is currently offline for scheduled maintenance. Online underwriting will resume shortly.';
 
+function createBlankApplicantState() {
+  return {
+    id: '',
+    name: '',
+    gender: 'Female',
+    married: 'No',
+    dependents: '0',
+    education: 'Graduate',
+    self_employed: 'No',
+    employment_type: 'Freelancing / Gig Economy / Contractor',
+    salary_slip: 'Yes',
+    applicant_income: 25000,
+    coapplicant_income: 15000,
+    loan_amount: 150,
+    term: 60,
+    cibil_score: 760,
+    credit_history: 1,
+    property_area: 'Rural',
+    loan_purpose: 'Home Improvement / Construction',
+    status: 'Conditional',
+    officer_status: 'Pending',
+    officer_remarks: '',
+    updated_at: ''
+  };
+}
+
+const APPLICANT_TABS = new Set(['apply-view', 'applicant-view', 'database-view']);
+const OFFICER_TABS = new Set(['officer-view', 'database-view', 'portfolio-view', 'model-view', 'fairness-view']);
+let activePortal = 'applicant';
+
 const state = {
   currentRole: 'applicant',
   currentLang: localStorage.getItem('meridian_lang') || 'en',
@@ -43,40 +73,18 @@ const state = {
   },
   backendPrediction: null,
   backendExplanation: null,
-  currentApplicant: {
-    id: 'MB-2026-1001',
-    name: 'Ananya Rao',
-    gender: 'Female',
-    married: 'No',
-    dependents: '0',
-    education: 'Graduate',
-    self_employed: 'No',
-    employment_type: 'Freelancing / Gig Economy / Contractor',
-    salary_slip: 'Yes',
-    applicant_income: 75000,
-    coapplicant_income: 20000,
-    loan_amount: 250,
-    term: 84,
-    cibil_score: 780,
-    credit_history: 1,
-    property_area: 'Semiurban',
-    loan_purpose: 'Commercial Workstation & Cloud Lab'
-  },
+  currentApplicant: createBlankApplicantState(),
   simulated: {
-    loan_amount: 250,
-    coapplicant_income: 20000,
-    term: 84,
-    cibil_score: 780,
+    loan_amount: 150,
+    coapplicant_income: 15000,
+    term: 60,
+    cibil_score: 760,
     credit_history: 1,
     salary_slip: true
   },
   savedDatabaseApps: [],
   lastSubmittedApp: null,
-  auditLog: [
-    { time: '2026-10-28 20:15', officer: 'Underwriter #402', id: 'MB-2026-1004', action: 'System Rejected', note: 'Subprime credit score (CIBIL 580) and 59.5% DTI' },
-    { time: '2026-10-28 20:42', officer: 'Underwriter #108', id: 'MB-2026-1002', action: 'Approved', note: 'Standard prime underwriting pass' },
-    { time: '2026-10-28 21:10', officer: 'Underwriter #304', id: 'MB-2026-1003', action: 'Mission Bharat Pass', note: 'Rural women digital MSME priority incentive applied' }
-  ],
+  auditLog: [],
   portfolioPage: 1,
   portfolioPageSize: 10,
   portfolioFilter: 'all',
@@ -90,7 +98,9 @@ function buildAuthHeaders(extra = {}) {
   const headers = { ...extra };
   if (currentAuthUser?.id) headers['X-User-Id'] = String(currentAuthUser.id);
   if (currentAuthUser?.role) headers['X-User-Role'] = String(currentAuthUser.role);
-  if (currentAuthToken) headers['Authorization'] = `Bearer ${currentAuthToken}`;
+  if (currentAuthToken && !String(currentAuthToken).startsWith('offline-')) {
+    headers['Authorization'] = `Bearer ${currentAuthToken}`;
+  }
   return headers;
 }
 
@@ -137,57 +147,106 @@ function localizeGender(gender, lang = state.currentLang) {
   return gender || 'Not Disclosed';
 }
 
+function syncPortalGatewayVisuals(portal) {
+  const dict = getLangDict();
+  const isOfficer = portal === 'officer';
+  activePortal = isOfficer ? 'officer' : 'applicant';
+
+  const gwApp = document.getElementById('gw-btn-applicant');
+  const gwOff = document.getElementById('gw-btn-officer');
+  if (gwApp) gwApp.classList.toggle('active', !isOfficer);
+  if (gwOff) gwOff.classList.toggle('active', isOfficer);
+
+  const cardHeader = document.getElementById('auth-card-header');
+  if (cardHeader) {
+    cardHeader.className = isOfficer ? 'auth-card-header officer-mode' : 'auth-card-header';
+  }
+
+  const cardTitle = document.getElementById('auth-card-title');
+  const cardSub = document.getElementById('auth-card-subtitle');
+  const gwBadge = document.getElementById('auth-gateway-badge-text');
+  if (cardTitle) cardTitle.innerText = isOfficer ? dict.auth_card_title_officer : dict.auth_card_title_applicant;
+  if (cardSub) cardSub.innerText = isOfficer ? dict.auth_card_sub_officer : dict.auth_card_sub_applicant;
+  if (gwBadge) gwBadge.innerText = isOfficer ? dict.gw_officer_badge : dict.gw_applicant_badge;
+
+  const tabsApp = document.getElementById('auth-tabs-applicant');
+  const tabsOff = document.getElementById('auth-tabs-officer');
+  if (tabsApp) tabsApp.style.display = isOfficer ? 'none' : 'flex';
+  if (tabsOff) tabsOff.style.display = isOfficer ? 'flex' : 'none';
+}
+
+window.switchPortalGateway = function(portal, syncUrl = true) {
+  const targetPortal = portal === 'officer' ? 'officer' : 'applicant';
+  syncPortalGatewayVisuals(targetPortal);
+  const alertEl = document.getElementById('auth-alert');
+  if (alertEl) alertEl.style.display = 'none';
+  window.switchAuthTab(targetPortal === 'officer' ? 'officer' : 'applicant');
+
+  if (syncUrl && window.history && typeof window.history.replaceState === 'function') {
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('portal', targetPortal);
+      url.hash = '';
+      window.history.replaceState({}, '', url.toString());
+    } catch (e) {}
+  }
+};
+
+function initPortalGatewayFromUrl() {
+  let initialPortal = 'applicant';
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const paramPortal = (params.get('portal') || '').trim().toLowerCase();
+    const hashPortal = (window.location.hash || '').replace('#', '').trim().toLowerCase();
+    if (paramPortal === 'officer' || hashPortal === 'officer') {
+      initialPortal = 'officer';
+    }
+  } catch (e) {}
+  window.switchPortalGateway(initialPortal, false);
+}
+
 window.switchAuthTab = function(tabName) {
+  const targetTab = tabName === 'signup' ? 'app-signup' : tabName;
+  if ((targetTab === 'officer' || targetTab === 'off-signup') && activePortal !== 'officer') {
+    syncPortalGatewayVisuals('officer');
+  } else if ((targetTab === 'applicant' || targetTab === 'app-signup') && activePortal !== 'applicant') {
+    syncPortalGatewayVisuals('applicant');
+  }
+
   const btnApp = document.getElementById('tab-btn-applicant');
+  const btnAppSignup = document.getElementById('tab-btn-signup-applicant');
   const btnOff = document.getElementById('tab-btn-officer');
-  const btnSignup = document.getElementById('tab-btn-signup');
+  const btnOffSignup = document.getElementById('tab-btn-signup-officer');
+
   const formApp = document.getElementById('form-signin-applicant');
+  const formAppSignup = document.getElementById('form-signup-applicant');
   const formOff = document.getElementById('form-signin-officer');
-  const formSignup = document.getElementById('form-signup');
+  const formOffSignup = document.getElementById('form-signup-officer');
   const alertEl = document.getElementById('auth-alert');
 
   if (alertEl) alertEl.style.display = 'none';
 
-  btnApp?.classList.remove('active');
-  btnOff?.classList.remove('active');
-  btnSignup?.classList.remove('active');
-  if (formApp) formApp.style.display = 'none';
-  if (formOff) formOff.style.display = 'none';
-  if (formSignup) formSignup.style.display = 'none';
+  [btnApp, btnAppSignup, btnOff, btnOffSignup].forEach(b => b?.classList.remove('active'));
+  [formApp, formAppSignup, formOff, formOffSignup].forEach(f => {
+    if (f) f.style.display = 'none';
+  });
 
-  if (tabName === 'officer') {
+  if (targetTab === 'officer') {
     btnOff?.classList.add('active');
     if (formOff) formOff.style.display = 'block';
     document.getElementById('signin-officer-email')?.focus();
-  } else if (tabName === 'signup') {
-    btnSignup?.classList.add('active');
-    if (formSignup) formSignup.style.display = 'block';
-    document.getElementById('signup-fullname')?.focus();
+  } else if (targetTab === 'off-signup') {
+    btnOffSignup?.classList.add('active');
+    if (formOffSignup) formOffSignup.style.display = 'block';
+    document.getElementById('signup-off-fullname')?.focus();
+  } else if (targetTab === 'app-signup') {
+    btnAppSignup?.classList.add('active');
+    if (formAppSignup) formAppSignup.style.display = 'block';
+    document.getElementById('signup-app-fullname')?.focus();
   } else {
     btnApp?.classList.add('active');
     if (formApp) formApp.style.display = 'block';
     document.getElementById('signin-applicant-email')?.focus();
-  }
-};
-
-window.selectSignupRole = function(role) {
-  const labelApp = document.getElementById('role-label-applicant');
-  const labelOff = document.getElementById('role-label-officer');
-  const keyGroup = document.getElementById('officer-key-group');
-  const radioApp = document.querySelector('input[name="signup-role"][value="applicant"]');
-  const radioOff = document.querySelector('input[name="signup-role"][value="officer"]');
-
-  if (role === 'officer') {
-    if (radioOff) radioOff.checked = true;
-    labelOff?.classList.add('selected');
-    labelApp?.classList.remove('selected');
-    if (keyGroup) keyGroup.style.display = 'block';
-    document.getElementById('signup-officer-key')?.focus();
-  } else {
-    if (radioApp) radioApp.checked = true;
-    labelApp?.classList.add('selected');
-    labelOff?.classList.remove('selected');
-    if (keyGroup) keyGroup.style.display = 'none';
   }
 };
 
@@ -205,6 +264,7 @@ window.togglePasswordVisibility = function(inputId, btn) {
 
 window.quickFillCreds = function(email, password, role = 'applicant') {
   if (role === 'officer') {
+    window.switchPortalGateway('officer');
     window.switchAuthTab('officer');
     const em = document.getElementById('signin-officer-email');
     const pw = document.getElementById('signin-officer-password');
@@ -212,6 +272,7 @@ window.quickFillCreds = function(email, password, role = 'applicant') {
     if (pw) pw.value = password;
     em?.focus();
   } else {
+    window.switchPortalGateway('applicant');
     window.switchAuthTab('applicant');
     const em = document.getElementById('signin-applicant-email');
     const pw = document.getElementById('signin-applicant-password');
@@ -264,7 +325,7 @@ window.handleSignIn = async function(e, expectedRole = 'applicant') {
 
     const data = await res.json();
     if (res.ok && data.success) {
-      window.applyAuthenticatedSession(data.user, data.token);
+      await window.applyAuthenticatedSession(data.user, data.token);
     } else if (res.status === 503 && data.offline) {
       await window.checkSiteAvailability();
       window.showAuthAlert(data.error || (hi ? 'पोर्टल रखरखाव के लिए अस्थायी रूप से ऑफ़लाइन है।' : 'Portal is temporarily offline for scheduled maintenance.'));
@@ -274,7 +335,7 @@ window.handleSignIn = async function(e, expectedRole = 'applicant') {
   } catch (err) {
     if (!isOfficer && (!state.siteAvailability || state.siteAvailability.online !== false) && email.toLowerCase() === 'applicant@meridianbank.in' && password === 'Applicant@123') {
       const fallbackUser = { id: '03416d3d-ff2b-4101-9453-7509939590fc', email, full_name: 'Ananya Rao', phone: '9876543210', role: 'applicant' };
-      window.applyAuthenticatedSession(fallbackUser, 'offline-token-applicant');
+      await window.applyAuthenticatedSession(fallbackUser, 'offline-token-applicant');
     } else {
       window.showAuthAlert(
         hi
@@ -290,30 +351,17 @@ window.handleSignIn = async function(e, expectedRole = 'applicant') {
   }
 };
 
-window.handleSignUp = async function(e) {
-  e.preventDefault();
+async function submitPortalRegistration(payload, btn, defaultBtnHtml) {
   const hi = state.currentLang === 'hi';
-  const dict = getLangDict();
-  const fullName = document.getElementById('signup-fullname')?.value.trim();
-  const email = document.getElementById('signup-email')?.value.trim();
-  const phone = document.getElementById('signup-phone')?.value.trim();
-  const role = document.querySelector('input[name="signup-role"]:checked')?.value || 'applicant';
-  const officerKey = document.getElementById('signup-officer-key')?.value.trim();
-  const password = document.getElementById('signup-password')?.value;
-  const confirmPassword = document.getElementById('signup-confirm-password')?.value;
-  const btn = document.getElementById('btn-signup-submit');
-
-  if (password !== confirmPassword) {
+  if (payload.password !== payload.confirm_password) {
     window.showAuthAlert(hi ? 'पासवर्ड मेल नहीं खाते। कृपया पुनः दर्ज करें।' : 'Passwords do not match. Please re-enter.');
     return;
   }
-
-  if (password.length < 8) {
+  if (!payload.password || payload.password.length < 8) {
     window.showAuthAlert(hi ? 'पासवर्ड कम से कम 8 अक्षरों का होना चाहिए।' : 'Password must be at least 8 characters long.');
     return;
   }
-
-  if (role === 'officer' && !officerKey) {
+  if (payload.role === 'officer' && !payload.officer_key) {
     window.showAuthAlert(hi ? 'ऋण अधिकारी खाता बनाने के लिए अधिकारी क्लीयरेंस पासकी आवश्यक है।' : 'Officer Clearance Key is required for loan officer account creation.');
     return;
   }
@@ -327,24 +375,15 @@ window.handleSignUp = async function(e) {
     const res = await fetch(`${state.apiBase}/api/auth/signup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        full_name: fullName,
-        email: email,
-        phone: phone,
-        role: role,
-        officer_key: officerKey,
-        password: password,
-        confirm_password: confirmPassword
-      })
+      body: JSON.stringify(payload)
     });
 
     const data = await res.json();
     if (res.ok && data.success) {
       window.showAuthAlert(hi ? 'खाता सफलतापूर्वक बन गया! साइन-इन पर ले जाया जा रहा है...' : 'Account created successfully! Redirecting to Sign In...', false);
       setTimeout(() => {
-        const targetRole = role === 'officer' ? 'officer' : 'applicant';
-        window.switchAuthTab(targetRole);
-        window.quickFillCreds(email, password, targetRole);
+        const targetRole = payload.role === 'officer' ? 'officer' : 'applicant';
+        window.quickFillCreds(payload.email, payload.password, targetRole);
       }, 1200);
     } else if (res.status === 503 && data.offline) {
       await window.checkSiteAvailability();
@@ -357,17 +396,162 @@ window.handleSignUp = async function(e) {
   } finally {
     if (btn) {
       btn.disabled = false;
-      btn.innerHTML = `<span>✨</span> <span data-i18n="btn_signup_submit">${dict.btn_signup_submit}</span>`;
+      btn.innerHTML = defaultBtnHtml;
     }
   }
+}
+
+window.handleApplicantSignUp = async function(e) {
+  e.preventDefault();
+  const dict = getLangDict();
+  const btn = document.getElementById('btn-signup-app-submit');
+  const payload = {
+    full_name: document.getElementById('signup-app-fullname')?.value.trim(),
+    email: document.getElementById('signup-app-email')?.value.trim(),
+    phone: document.getElementById('signup-app-phone')?.value.trim(),
+    role: 'applicant',
+    officer_key: null,
+    password: document.getElementById('signup-app-password')?.value || '',
+    confirm_password: document.getElementById('signup-app-confirm-password')?.value || ''
+  };
+  await submitPortalRegistration(payload, btn, `<span>✨</span> <span data-i18n="btn_signup_app_submit">${dict.btn_signup_app_submit}</span>`);
 };
 
-window.handleLogout = function() {
+window.handleOfficerSignUp = async function(e) {
+  e.preventDefault();
+  const dict = getLangDict();
+  const btn = document.getElementById('btn-signup-off-submit');
+  const payload = {
+    full_name: document.getElementById('signup-off-fullname')?.value.trim(),
+    email: document.getElementById('signup-off-email')?.value.trim(),
+    phone: document.getElementById('signup-off-phone')?.value.trim(),
+    role: 'officer',
+    officer_key: document.getElementById('signup-off-key')?.value.trim(),
+    password: document.getElementById('signup-off-password')?.value || '',
+    confirm_password: document.getElementById('signup-off-confirm-password')?.value || ''
+  };
+  await submitPortalRegistration(payload, btn, `<span>🛡️</span> <span data-i18n="btn_signup_off_submit">${dict.btn_signup_off_submit}</span>`);
+};
+
+function escapeHtml(val) {
+  return String(val ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function getOfflineQueueKey() {
+  if (!currentAuthUser || !currentAuthUser.id) return null;
+  return `meridian_offline_queue_${currentAuthUser.id}`;
+}
+
+function readOfflineQueue() {
+  const key = getOfflineQueueKey();
+  if (!key) return [];
   try {
-    if (state.backendConnected) {
-      fetch(`${state.apiBase}/api/auth/logout`, { method: 'POST' }).catch(() => {});
+    const parsed = JSON.parse(localStorage.getItem(key) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function writeOfflineQueue(items) {
+  const key = getOfflineQueueKey();
+  if (!key) return;
+  try {
+    if (!items || items.length === 0) {
+      localStorage.removeItem(key);
+    } else {
+      localStorage.setItem(key, JSON.stringify(items));
     }
   } catch (e) {}
+}
+
+async function syncPendingOfflineApplications() {
+  if (!currentAuthUser || currentAuthUser.role !== 'applicant') return;
+  const pending = readOfflineQueue();
+  if (pending.length === 0) return;
+
+  const remaining = [];
+  for (const rec of pending) {
+    try {
+      const res = await fetch(`${state.apiBase}/api/apply`, {
+        method: 'POST',
+        headers: buildAuthHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(rec)
+      });
+      if (res.ok) {
+        state.backendConnected = true;
+      } else if (res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429) {
+        continue;
+      } else {
+        remaining.push(rec);
+      }
+    } catch (e) {
+      remaining.push(rec);
+    }
+  }
+  writeOfflineQueue(remaining);
+}
+
+function resetWorkspaceState() {
+  state.hasApplied = false;
+  state.backendPrediction = null;
+  state.backendExplanation = null;
+  state.currentApplicant = createBlankApplicantState();
+  state.simulated = {
+    loan_amount: 150,
+    coapplicant_income: 15000,
+    term: 60,
+    cibil_score: 760,
+    credit_history: 1,
+    salary_slip: true
+  };
+  state.savedDatabaseApps = [];
+  state.lastSubmittedApp = null;
+  state.auditLog = [];
+
+  try {
+    localStorage.removeItem('meridian_saved_apps');
+  } catch (e) {}
+
+  ['letter-modal', 'backend-info-modal', 'site-availability-modal'].forEach(mid => {
+    const modal = document.getElementById(mid);
+    if (modal) modal.style.display = 'none';
+  });
+
+  const subBanner = document.getElementById('submission-alert-banner');
+  if (subBanner) subBanner.style.display = 'none';
+  const successCard = document.getElementById('apply-success-card');
+  if (successCard) successCard.style.display = 'none';
+  const adjBanner = document.getElementById('officer-adjudication-banner');
+  if (adjBanner) adjBanner.style.display = 'none';
+
+  const fillForm = document.getElementById('loan-fillup-form');
+  if (fillForm) fillForm.reset();
+  const nameInput = document.getElementById('fill-full-name');
+  const phoneInput = document.getElementById('fill-phone');
+  if (nameInput) nameInput.value = '';
+  if (phoneInput) phoneInput.value = '';
+  const remarksInput = document.getElementById('officer-remarks-input');
+  if (remarksInput) remarksInput.value = '';
+  const activeBadge = document.getElementById('officer-active-app-badge');
+  if (activeBadge) activeBadge.innerText = '-';
+}
+
+window.handleLogout = function() {
+  const prevRole = currentAuthUser?.role || activePortal || 'applicant';
+  const logoutHeaders = buildAuthHeaders();
+  try {
+    fetch(`${state.apiBase}/api/auth/logout`, {
+      method: 'POST',
+      headers: logoutHeaders
+    }).catch(() => {});
+  } catch (e) {}
+
   currentAuthUser = null;
   currentAuthToken = null;
   try {
@@ -377,6 +561,7 @@ window.handleLogout = function() {
     sessionStorage.removeItem('meridian_auth_token');
   } catch (e) {}
 
+  resetWorkspaceState();
   syncSiteAvailabilityUI();
   if (state.siteAvailability && state.siteAvailability.online === false) {
     return;
@@ -386,7 +571,7 @@ window.handleLogout = function() {
   const portal = document.getElementById('auth-portal');
   if (shell) shell.style.display = 'none';
   if (portal) portal.style.display = 'flex';
-  window.switchAuthTab('applicant');
+  window.switchPortalGateway(prevRole === 'officer' ? 'officer' : 'applicant');
 };
 
 window.openForgotPassword = function() {
@@ -420,9 +605,106 @@ function updateAuthRoleUI() {
   if (dbTab) {
     dbTab.innerHTML = isOfficer ? dict.nav_vault_officer : dict.nav_vault_applicant;
   }
+  const dbTitle = document.getElementById('db-view-title');
+  const dbSub = document.getElementById('db-view-sub');
+  if (dbTitle) {
+    dbTitle.setAttribute('data-i18n', isOfficer ? 'db_title' : 'db_title_applicant');
+    dbTitle.innerText = isOfficer ? dict.db_title : dict.db_title_applicant;
+  }
+  if (dbSub) {
+    dbSub.setAttribute('data-i18n', isOfficer ? 'db_sub' : 'db_sub_applicant');
+    dbSub.innerText = isOfficer ? dict.db_sub : dict.db_sub_applicant;
+  }
 }
 
-window.applyAuthenticatedSession = function(user, token) {
+window.activateWorkspaceTab = function(tabId) {
+  const isOfficer = currentAuthUser?.role === 'officer' || state.currentRole === 'officer';
+  const allowedTabs = isOfficer ? OFFICER_TABS : APPLICANT_TABS;
+  let targetTab = tabId;
+  if (!allowedTabs.has(targetTab)) {
+    targetTab = isOfficer ? 'officer-view' : 'apply-view';
+  }
+
+  document.querySelectorAll('.nav-item').forEach(n => {
+    n.classList.toggle('active', n.getAttribute('data-tab') === targetTab);
+  });
+  state.currentTab = targetTab;
+
+  document.querySelectorAll('.tab-section').forEach(sec => {
+    sec.style.display = 'none';
+  });
+  const activeSec = document.getElementById(targetTab);
+  if (activeSec) activeSec.style.display = 'block';
+
+  if (targetTab === 'fairness-view' && isOfficer) {
+    renderFairnessCharts();
+  } else if (targetTab === 'model-view' && isOfficer) {
+    renderModelPerformanceCharts();
+  } else if (targetTab === 'portfolio-view' && isOfficer) {
+    renderPortfolioTable();
+  } else if (targetTab === 'database-view') {
+    window.refreshDatabaseTable();
+  } else if (targetTab === 'officer-view' && isOfficer) {
+    renderAuditTable();
+    fetchAuditLogs();
+  }
+};
+
+function applyRecordToCurrentState(rec) {
+  if (!rec) return;
+  const cibil = parseInt(rec.cibil_score !== undefined ? rec.cibil_score : (rec.credit_history === 1 ? 750 : 540), 10) || 750;
+  const empType = rec.employment_type || 'Freelancing / Gig Economy / Contractor';
+  const termMonths = parseInt(rec.loan_term_months || rec.term || 60, 10) || 60;
+  const salarySlip = rec.salary_slip || 'Yes';
+
+  state.hasApplied = true;
+  state.backendPrediction = null;
+  state.backendExplanation = null;
+
+  state.currentApplicant = {
+    id: rec.application_no || rec.id || '',
+    name: rec.full_name || rec.name || 'Applicant',
+    gender: rec.gender || 'Female',
+    married: rec.marital_status || rec.married || 'Yes',
+    dependents: String(rec.dependents !== undefined ? rec.dependents : '0'),
+    education: rec.education || 'Graduate',
+    self_employed: rec.self_employed || ((empType.includes('Self') || empType.includes('Freelanc')) ? 'Yes' : 'No'),
+    employment_type: empType,
+    salary_slip: salarySlip,
+    applicant_income: parseFloat(rec.applicant_income || 0),
+    coapplicant_income: parseFloat(rec.coapplicant_income || 0),
+    loan_amount: parseFloat(rec.loan_amount || 150),
+    term: termMonths,
+    cibil_score: cibil,
+    credit_history: cibil >= 650 ? 1 : 0,
+    property_area: rec.property_area || 'Rural',
+    loan_purpose: rec.loan_purpose || 'Home Improvement / Construction',
+    status: rec.status || 'Conditional',
+    officer_status: rec.officer_status || 'Pending',
+    officer_remarks: rec.officer_remarks || rec.officer_notes || '',
+    updated_at: rec.updated_at || rec.created_at || ''
+  };
+
+  state.simulated = {
+    loan_amount: state.currentApplicant.loan_amount || 150,
+    coapplicant_income: state.currentApplicant.coapplicant_income || 0,
+    term: termMonths,
+    cibil_score: cibil,
+    credit_history: cibil >= 650 ? 1 : 0,
+    salary_slip: String(salarySlip).toLowerCase() === 'yes'
+  };
+
+  setSliderVal('sim-slider-loan', state.simulated.loan_amount);
+  setSliderVal('sim-slider-coapp', state.simulated.coapplicant_income);
+  setSliderVal('sim-slider-term', Math.max(1, Math.round(state.simulated.term / 12)));
+  setSliderVal('sim-slider-cibil', state.simulated.cibil_score);
+  syncSimSalarySlipVisuals(state.simulated.salary_slip);
+  syncSimulatorSliderLabels();
+  updateUI();
+  updateSimulationUI();
+}
+
+window.applyAuthenticatedSession = async function(user, token) {
   currentAuthUser = user;
   currentAuthToken = token;
 
@@ -430,6 +712,8 @@ window.applyAuthenticatedSession = function(user, token) {
     localStorage.setItem('meridian_auth_user', JSON.stringify(user));
     if (token) localStorage.setItem('meridian_auth_token', token);
   } catch (e) {}
+
+  resetWorkspaceState();
 
   const nameEl = document.getElementById('user-display-name');
   if (nameEl) nameEl.innerText = user.full_name || user.email;
@@ -442,31 +726,61 @@ window.applyAuthenticatedSession = function(user, token) {
   if (shell) shell.style.display = 'block';
 
   state.currentRole = user.role;
+  const isOfficer = user.role === 'officer';
 
-  if (user.role === 'applicant') {
+  if (!isOfficer) {
     if (state.siteAvailability && state.siteAvailability.online === false) {
       if (shell) shell.style.display = 'none';
       if (maintOverlay) maintOverlay.style.display = 'flex';
     }
     const nameInput = document.getElementById('fill-full-name') || document.getElementById('fill-name');
     const phoneInput = document.getElementById('fill-phone');
-    if (nameInput && !nameInput.value) nameInput.value = user.full_name || '';
-    if (phoneInput && !phoneInput.value) phoneInput.value = user.phone || '';
+    if (nameInput) nameInput.value = user.full_name || '';
+    if (phoneInput) phoneInput.value = user.phone || '';
 
-    document.querySelectorAll('.nav-officer-item').forEach(el => el.style.display = 'none');
-    document.querySelectorAll('.nav-common-item').forEach(el => el.style.display = 'flex');
+    document.querySelectorAll('.nav-officer-item').forEach(el => { el.style.display = 'none'; });
+    document.querySelectorAll('.nav-applicant-item').forEach(el => { el.style.display = 'flex'; });
+    document.querySelectorAll('.nav-shared-vault').forEach(el => { el.style.display = 'flex'; });
+    const backupBtn = document.getElementById('btn-download-sqlite-backup');
+    if (backupBtn) backupBtn.style.display = 'none';
+
     updateAuthRoleUI();
-    document.querySelector('[data-tab="apply-view"]')?.click();
+    updateBackendStatusUI();
+    applyTranslations();
+    syncSiteAvailabilityUI();
+    window.activateWorkspaceTab('apply-view');
+
+    await syncPendingOfflineApplications();
+    await window.refreshDatabaseTable();
+    if (state.savedDatabaseApps.length > 0) {
+      applyRecordToCurrentState(state.savedDatabaseApps[0]);
+    } else {
+      state.hasApplied = false;
+      updateUI();
+      updateSimulationUI();
+    }
   } else {
-    document.querySelectorAll('.nav-officer-item').forEach(el => el.style.display = 'flex');
-    document.querySelectorAll('.nav-common-item').forEach(el => el.style.display = 'flex');
-    updateAuthRoleUI();
-    document.querySelector('[data-tab="database-view"]')?.click();
-  }
+    document.querySelectorAll('.nav-applicant-item').forEach(el => { el.style.display = 'none'; });
+    document.querySelectorAll('.nav-officer-item').forEach(el => { el.style.display = 'flex'; });
+    document.querySelectorAll('.nav-shared-vault').forEach(el => { el.style.display = 'flex'; });
+    const backupBtn = document.getElementById('btn-download-sqlite-backup');
+    if (backupBtn) backupBtn.style.display = 'inline-flex';
 
-  applyTranslations();
-  syncSiteAvailabilityUI();
-  window.refreshDatabaseTable();
+    updateAuthRoleUI();
+    updateBackendStatusUI();
+    applyTranslations();
+    syncSiteAvailabilityUI();
+    window.activateWorkspaceTab('officer-view');
+
+    await window.refreshDatabaseTable();
+    if (state.savedDatabaseApps.length > 0) {
+      applyRecordToCurrentState(state.savedDatabaseApps[0]);
+    } else {
+      updateUI();
+      updateSimulationUI();
+    }
+    await fetchAuditLogs();
+  }
 };
 
 window.checkExistingSession = async function() {
@@ -476,26 +790,34 @@ window.checkExistingSession = async function() {
     if (stored) {
       const user = JSON.parse(stored);
       if (user && user.email) {
-        if (user.id) {
+        if (user.id || (token && !String(token).startsWith('offline-'))) {
           try {
-            const verifyRes = await fetch(`${state.apiBase}/api/auth/session?user_id=${encodeURIComponent(user.id)}`);
+            const reqHeaders = {};
+            if (user.id) reqHeaders['X-User-Id'] = String(user.id);
+            if (token && !String(token).startsWith('offline-')) {
+              reqHeaders['Authorization'] = `Bearer ${token}`;
+            }
+            const verifyRes = await fetch(`${state.apiBase}/api/auth/session?user_id=${encodeURIComponent(user.id || '')}`, {
+              headers: reqHeaders
+            });
             if (verifyRes.status === 401 || verifyRes.status === 404) {
               localStorage.removeItem('meridian_auth_user');
               localStorage.removeItem('meridian_auth_token');
               currentAuthUser = null;
+              currentAuthToken = null;
               syncSiteAvailabilityUI();
               return;
             }
             if (verifyRes.ok) {
               const verified = await verifyRes.json();
               if (verified && verified.user) {
-                window.applyAuthenticatedSession(verified.user, token);
+                await window.applyAuthenticatedSession(verified.user, token);
                 return;
               }
             }
           } catch (e) {}
         }
-        window.applyAuthenticatedSession(user, token);
+        await window.applyAuthenticatedSession(user, token);
         return;
       }
     }
@@ -737,7 +1059,7 @@ window.handleMaintOfficerSignIn = async function(e) {
     const data = await res.json();
     if (res.ok && data.success) {
       if (alertEl) alertEl.style.display = 'none';
-      window.applyAuthenticatedSession(data.user, data.token);
+      await window.applyAuthenticatedSession(data.user, data.token);
       window.showMeridianToast(hi ? '🛡️ अधिकारी सत्यापन सफल। वेबसाइट ऑनलाइन करने के लिए ऊपर दिए गए बैनर का उपयोग करें।' : '🛡️ Officer authenticated. Use the banner above to bring the website Online.');
     } else {
       if (alertEl) {
@@ -781,105 +1103,6 @@ window.handleMaintPasskeyBringOnline = async function() {
   }
 };
 
-const DEFAULT_BASELINE_APPLICATIONS = [
-  {
-    application_no: 'MB-2026-1001',
-    created_at: '2026-10-28 14:30:00',
-    full_name: 'Ananya Rao',
-    gender: 'Female',
-    marital_status: 'No',
-    dependents: '0',
-    education: 'Graduate',
-    employment_type: 'Private Sector (Salaried)',
-    salary_slip: 'Yes',
-    applicant_income: 95000,
-    coapplicant_income: 0,
-    loan_amount: 350,
-    loan_term_months: 84,
-    property_area: 'Urban',
-    loan_purpose: 'Home Improvement / Construction',
-    cibil_score: 810,
-    credit_history: 1,
-    approval_likelihood: 98,
-    monthly_emi: 4166,
-    dti_percent: 4.38,
-    status: 'Approved',
-    officer_notes: 'Prime applicant with strong savings and clear credit track record.'
-  },
-  {
-    application_no: 'MB-2026-1002',
-    created_at: '2026-10-28 16:15:00',
-    full_name: 'Devansh Kulkarni',
-    gender: 'Male',
-    marital_status: 'Yes',
-    dependents: '2',
-    education: 'Graduate',
-    employment_type: 'Freelancing / Self-Employed',
-    salary_slip: 'No',
-    applicant_income: 75000,
-    coapplicant_income: 20000,
-    loan_amount: 250,
-    loan_term_months: 120,
-    property_area: 'Semiurban',
-    loan_purpose: 'Small Business Working Capital',
-    cibil_score: 755,
-    credit_history: 1,
-    approval_likelihood: 96,
-    monthly_emi: 2083,
-    dti_percent: 2.19,
-    status: 'Approved',
-    officer_notes: 'Self-employed IT freelancer with high co-applicant support.'
-  },
-  {
-    application_no: 'MB-2026-1003',
-    created_at: '2026-10-28 18:45:00',
-    full_name: 'Kavya Nair',
-    gender: 'Female',
-    marital_status: 'Yes',
-    dependents: '1',
-    education: 'Graduate',
-    employment_type: 'Government / PSU Employee',
-    salary_slip: 'Yes',
-    applicant_income: 48000,
-    coapplicant_income: 18000,
-    loan_amount: 180,
-    loan_term_months: 60,
-    property_area: 'Rural',
-    loan_purpose: 'Agricultural Equipment & Inputs',
-    cibil_score: 760,
-    credit_history: 1,
-    approval_likelihood: 98,
-    monthly_emi: 3000,
-    dti_percent: 4.54,
-    status: 'Approved',
-    officer_notes: 'Rural agri-business loan backed by public sector employment.'
-  },
-  {
-    application_no: 'MB-2026-1004',
-    created_at: '2026-10-28 20:20:00',
-    full_name: 'Rohan Mehta',
-    gender: 'Male',
-    marital_status: 'Yes',
-    dependents: '3+',
-    education: 'Not Graduate',
-    employment_type: 'Informal / Cash Economy',
-    salary_slip: 'No',
-    applicant_income: 28000,
-    coapplicant_income: 0,
-    loan_amount: 400,
-    loan_term_months: 24,
-    property_area: 'Rural',
-    loan_purpose: 'Personal / Medical Facility',
-    cibil_score: 580,
-    credit_history: 0,
-    approval_likelihood: 12,
-    monthly_emi: 16666,
-    dti_percent: 59.52,
-    status: 'Rejected',
-    officer_notes: 'High DTI (60%) and prior default history. Advised credit rehabilitation.'
-  }
-];
-
 const I18N = {
   en: {
     page_title: "Meridian FairLend AI • MISSION BHARAT | Explainable Loan Decision System",
@@ -904,18 +1127,29 @@ const I18N = {
     btn_take_offline: "Take Website Offline",
     pill_site_online: "Website: ONLINE",
     pill_site_offline: "Website: OFFLINE",
-    auth_gateway_badge: "Institutional Access Gateway",
+    gw_applicant_badge: "Applicant Application Portal",
+    gw_officer_badge: "Loan Officer Institutional Portal",
+    gw_applicant_title: "Applicant Application Portal",
+    gw_applicant_sub: "Apply, View Decision & Track Loans",
+    gw_officer_title: "Loan Officer Institutional Portal",
+    gw_officer_sub: "Underwriting Cockpit, Audits & Fairness",
     mission_strip_left: '<strong style="color: #064E3B;">Track:</strong> Application Development &nbsp;|&nbsp; <strong style="color: #064E3B;">Domain:</strong> Banking &amp; Lending &nbsp;|&nbsp; <strong style="color: #064E3B;">System:</strong> भारत ऋण पारदर्शिता एवं समावेशन मंच',
     auth_mission_right: "Dual-Sync Core Engine • RBI Digital Lending Standards",
     auth_hero_tag: "🏛️ SECURE CREDIT UNDERWRITING GATEWAY",
     auth_hero_title: "Explainable Loan Decision System",
     auth_hero_desc: "Empowering transparent, fair, and algorithmic credit decisions across Bharat with SHAP explainability and demographic parity auditing.",
-    auth_card_sub: "Mission Bharat • Institutional Credit Underwriting & Algorithmic Equity",
+    auth_card_title_applicant: "Applicant Application Portal",
+    auth_card_sub_applicant: "Submit Applications, Inspect Personalized Reports & Track Loan Sanctions",
+    auth_card_title_officer: "Loan Officer Institutional Portal",
+    auth_card_sub_officer: "Underwriting Workbench, Regulatory Audits, Portfolio Analytics & Fairness",
     auth_tab_applicant: "Applicant Sign In",
+    auth_tab_signup_applicant: "Create Applicant Account",
     auth_tab_officer: "Officer Sign In",
-    auth_tab_signup: "Create Account",
+    auth_tab_signup_officer: "Register Authorized Officer",
     auth_tag_applicant: "APPLICANT PORTAL • PERSONAL ACCESS",
+    auth_tag_app_signup: "APPLICANT PORTAL • NEW BORROWER REGISTRATION",
     auth_tag_officer: "LOAN OFFICER TERMINAL • INSTITUTIONAL ACCESS",
+    auth_tag_off_signup: "OFFICER PORTAL • AUTHORIZED CLEARANCE REGISTRATION",
     lbl_app_email: "Applicant Email Address",
     ph_app_email: "applicant@domain.com",
     lbl_password: "Password",
@@ -925,25 +1159,24 @@ const I18N = {
     auth_demo_app_title: "Applicant Evaluation Account",
     auth_demo_app_btn: "👤 Ananya Rao (Applicant Demo)",
     lbl_officer_email: "Institutional Officer Email",
+    ph_off_email: "officer@meridianbank.in",
     lbl_officer_pwd: "Officer Password",
     btn_signin_officer: "Sign In as Loan Officer",
     auth_officer_security_title: "Authorized Institutional Portal",
     auth_officer_security_note: "Officer login requires verified bank credentials issued by your branch administrator. Protected by sliding-window brute-force defense.",
     lbl_su_name: "Full Name",
     ph_su_name: "e.g. Ananya Rao",
+    lbl_off_su_name: "Officer Full Name",
+    ph_off_name: "e.g. Vikram Sharma",
     lbl_su_email: "Email Address",
     lbl_su_phone: "Mobile Number",
     ph_su_phone: "10-digit mobile number",
-    lbl_su_role_type: "Account Role Type",
-    su_role_app_title: "Applicant",
-    su_role_app_desc: "Apply & Track Loan",
-    su_role_off_title: "Loan Officer",
-    su_role_off_desc: "Audit & Decisioning",
     lbl_su_passkey: "Officer Clearance Key (Passkey)",
     su_passkey_hint: "Institutional authorization required. Obtain your Officer Clearance Key from your branch administrator.",
     lbl_su_pwd: "Password (Min 8 chars, letter + digit)",
     lbl_su_confirm_pwd: "Confirm Password",
-    btn_signup_submit: "Create Verified Account",
+    btn_signup_app_submit: "Create Applicant Account",
+    btn_signup_off_submit: "Register Authorized Officer",
     auth_comp_1: "🔒 End-to-End Encrypted Session",
     auth_comp_2: "PBKDF2-HMAC-SHA256 Cryptography",
     auth_comp_3: "Persistent Vault & Cloud Sync",
@@ -953,15 +1186,25 @@ const I18N = {
     title_site_toggle_pill: "Control public website availability (Online / Offline)",
     title_signout: "Sign Out of Session",
     btn_signout: "Sign Out",
+    title_encrypted_session: "Encrypted Borrower Session Active",
+    badge_encrypted_session: "Encrypted Borrower Session",
     title_backend_badge: "Click to check or configure REST Backend API connection",
     nav_apply: "<span>📝</span> 1. Apply for a Loan",
     nav_report: "<span>📊</span> 2. My Decision Report",
     nav_vault_applicant: "<span>🗄️</span> 3. My Applications Vault",
-    nav_vault_officer: "<span>🗄️</span> 3. Central Application Vault (Institution-Wide)",
-    nav_portfolio: "<span>📁</span> 4. Historical Portfolio",
-    nav_officer: "<span>⚙️</span> Underwriting Cockpit & SHAP Waterfall",
-    nav_accuracy: '<span>🎯</span> Model Accuracy Report <span class="tag">80% Accuracy</span>',
-    nav_fairness: '<span>⚖️</span> Fairness Across Groups <span class="tag">80% Rule</span>',
+    nav_vault_officer: "<span>🗄️</span> 2. Central Application Vault (Institution-Wide)",
+    nav_portfolio: "<span>📁</span> 3. Historical Portfolio",
+    nav_officer: "<span>⚙️</span> 1. Underwriting Cockpit & SHAP Waterfall",
+    nav_accuracy: '<span>🎯</span> 4. Model Accuracy Report <span class="tag">80% Accuracy</span>',
+    nav_fairness: '<span>⚖️</span> 5. Fairness Across Groups <span class="tag">80% Rule</span>',
+    no_app_title: "No Loan Application Submitted Yet",
+    no_app_desc: "Submit your loan application to generate your live AI underwriting report, personalized eligibility roadmap, and RBI Key Fact Statement.",
+    no_app_cta: "Apply for a Loan →",
+    adj_title: "🏛️ Official Underwriter Decision & Status",
+    status_pending: "PENDING REVIEW",
+    adj_remarks_lbl: "Officer Remarks:",
+    adj_remarks_none: "Awaiting institutional officer review.",
+    adj_updated_lbl: "Last Updated:",
     off_banner_title: "🔴 Website is Currently OFFLINE (Public Maintenance Mode Active)",
     off_banner_desc: "Public visitors and applicants currently see the Maintenance Notice screen. Officer operations remain accessible.",
     btn_put_online_now: "Put Website Online Now",
@@ -985,8 +1228,8 @@ const I18N = {
     apply_suc_score_lbl: "AI Score:",
     apply_suc_emi_lbl: "Monthly EMI:",
     apply_suc_cibil_lbl: "CIBIL Tier:",
-    btn_inspect_cockpit: "Inspect in Cockpit",
-    btn_view_db_table: "View Database Table",
+    btn_view_decision_report: "View My Decision Report",
+    btn_view_my_vault: "View My Applications Vault",
     sec_personal: "1. Personal & Demographic Profile",
     lbl_name: "Full Name of Applicant *",
     ph_fill_name: "e.g. Ananya Rao, Devansh Kulkarni",
@@ -1130,6 +1373,8 @@ const I18N = {
     btn_sanction_approve: "✓ Sanction Loan",
     btn_sanction_subvention: "⚡ Mission Bharat Rural Subvention Pass",
     btn_sanction_decline: "✕ Adverse Action (Decline)",
+    btn_save_officer_terms: "💾 Save Parameter Changes to Vault",
+    btn_officer_preview_letter: "📄 Preview / Issue Sanction Notice",
     off_audit_title: "Underwriter Decision & Compliance Audit Log",
     off_audit_sub: "Complete chronological trail for internal RBI compliance inspection",
     off_th_time: "Timestamp",
@@ -1207,6 +1452,12 @@ const I18N = {
     btn_next_page: "Next →",
     db_title: "Official Meridian Application Vault & Registry",
     db_sub: "All loan applications submitted via the portal are permanently recorded and available here",
+    db_title_applicant: "My Submitted Loan Applications Vault",
+    db_sub_applicant: "Every loan application you submit is securely archived here across sessions and devices",
+    db_count_loading: "Loading Vault...",
+    db_empty_applicant: "No applications submitted from this account yet. Use '1. Apply for a Loan' to create your first application.",
+    db_empty_officer: "No loan applications recorded in the institution vault yet.",
+    btn_download_db_backup: "Download Vault Backup (.db)",
     btn_export_csv: "Export to Excel / CSV",
     btn_export_json: "Export JSON",
     btn_refresh: "Refresh",
@@ -1261,6 +1512,7 @@ const I18N = {
     modal_api_docs_note: 'All authentication, underwriting scoring, SHAP explainability, and fairness checks communicate live with FastAPI (<a id="modal-swagger-link" href="/docs" target="_blank" style="color: #064E3B; font-weight: 700; text-decoration: underline;">OpenAPI /docs</a>).',
     modal_api_custom_t: "Connect Custom Internet Backend URL (Optional):",
     modal_api_custom_d: "If serving frontend separately, enter your deployed internet API base URL:",
+    ph_custom_api: "https://your-service.up.railway.app",
     btn_save_url: "Save URL",
     btn_auto_detect: "Auto-Detect",
     btn_test_reconnect: "Test & Reconnect",
@@ -1299,18 +1551,29 @@ const I18N = {
     btn_take_offline: "वेबसाइट ऑफ़लाइन करें",
     pill_site_online: "वेबसाइट: ऑनलाइन",
     pill_site_offline: "वेबसाइट: ऑफ़लाइन",
-    auth_gateway_badge: "संस्थागत प्रवेश द्वार",
+    gw_applicant_badge: "आवेदक आवेदन पोर्टल",
+    gw_officer_badge: "ऋण अधिकारी संस्थागत पोर्टल",
+    gw_applicant_title: "आवेदक आवेदन पोर्टल",
+    gw_applicant_sub: "आवेदन करें, निर्णय देखें व ऋण ट्रैक करें",
+    gw_officer_title: "ऋण अधिकारी संस्थागत पोर्टल",
+    gw_officer_sub: "अंडरराइटिंग कॉकपिट, ऑडिट व निष्पक्षता",
     mission_strip_left: '<strong style="color: #064E3B;">श्रेणी:</strong> एप्लिकेशन डेवलपमेंट &nbsp;|&nbsp; <strong style="color: #064E3B;">क्षेत्र:</strong> बैंकिंग एवं ऋण सेवा &nbsp;|&nbsp; <strong style="color: #064E3B;">प्रणाली:</strong> भारत ऋण पारदर्शिता एवं समावेशन मंच',
     auth_mission_right: "डुअल-सिंक कोर इंजन • RBI डिजिटल लेंडिंग मानक",
     auth_hero_tag: "🏛️ सुरक्षित ऋण अंडरराइटिंग प्रवेश द्वार",
     auth_hero_title: "व्याख्यात्मक ऋण निर्णय प्रणाली",
     auth_hero_desc: "SHAP पारदर्शिता और जनसांख्यिकीय निष्पक्षता ऑडिट के साथ पूरे भारत में निष्पक्ष, स्पष्ट और भरोसेमंद ऋण निर्णय प्रदान करना।",
-    auth_card_sub: "मिशन भारत • संस्थागत ऋण मूल्यांकन एवं सामाजिक निष्पक्षता",
+    auth_card_title_applicant: "आवेदक आवेदन पोर्टल",
+    auth_card_sub_applicant: "ऋण आवेदन जमा करें, व्यक्तिगत रिपोर्ट जांचें और स्वीकृति स्थिति ट्रैक करें",
+    auth_card_title_officer: "ऋण अधिकारी संस्थागत पोर्टल",
+    auth_card_sub_officer: "अंडरराइटिंग कॉकपिट, नियामक ऑडिट, पोर्टफोलियो विश्लेषण एवं निष्पक्षता",
     auth_tab_applicant: "आवेदक साइन इन",
+    auth_tab_signup_applicant: "नया आवेदक खाता बनाएं",
     auth_tab_officer: "अधिकारी साइन इन",
-    auth_tab_signup: "नया खाता बनाएं",
+    auth_tab_signup_officer: "अधिकृत अधिकारी पंजीकृत करें",
     auth_tag_applicant: "आवेदक पोर्टल • व्यक्तिगत लॉगिन",
+    auth_tag_app_signup: "आवेदक पोर्टल • नया ऋणदाता पंजीकरण",
     auth_tag_officer: "ऋण अधिकारी टर्मिनल • संस्थागत लॉगिन",
+    auth_tag_off_signup: "अधिकारी पोर्टल • अधिकृत क्लीयरेंस पंजीकरण",
     lbl_app_email: "आवेदक ईमेल पता",
     ph_app_email: "applicant@domain.com",
     lbl_password: "पासवर्ड",
@@ -1320,25 +1583,24 @@ const I18N = {
     auth_demo_app_title: "आवेदक डेमो मूल्यांकन खाता",
     auth_demo_app_btn: "👤 अनन्या राव (आवेदक डेमो)",
     lbl_officer_email: "संस्थागत अधिकारी ईमेल",
+    ph_off_email: "officer@meridianbank.in",
     lbl_officer_pwd: "अधिकारी पासवर्ड",
     btn_signin_officer: "ऋण अधिकारी के रूप में साइन इन करें",
     auth_officer_security_title: "अधिकृत संस्थागत पोर्टल",
     auth_officer_security_note: "अधिकारी लॉगिन के लिए शाखा प्रशासक द्वारा जारी सत्यापित बैंक प्रमाण-पत्र आवश्यक हैं। यह स्लाइडिंग-विंडो सुरक्षा द्वारा रक्षित है।",
     lbl_su_name: "पूरा नाम",
     ph_su_name: "जैसे: अनन्या राव",
+    lbl_off_su_name: "अधिकारी का पूरा नाम",
+    ph_off_name: "जैसे: विक्रम शर्मा",
     lbl_su_email: "ईमेल पता",
     lbl_su_phone: "मोबाइल नंबर",
     ph_su_phone: "10 अंकों का मोबाइल नंबर",
-    lbl_su_role_type: "खाते की भूमिका चुनें",
-    su_role_app_title: "आवेदक",
-    su_role_app_desc: "ऋण आवेदन एवं स्थिति देखें",
-    su_role_off_title: "ऋण अधिकारी",
-    su_role_off_desc: "ऑडिट एवं स्वीकृति निर्णय",
     lbl_su_passkey: "अधिकारी क्लीयरेंस पासकी",
     su_passkey_hint: "संस्थागत अनुमति आवश्यक है। अपनी अधिकारी क्लीयरेंस पासकी शाखा प्रशासक से प्राप्त करें।",
     lbl_su_pwd: "पासवर्ड (न्यूनतम 8 अक्षर, अक्षर + अंक)",
     lbl_su_confirm_pwd: "पासवर्ड की पुष्टि करें",
-    btn_signup_submit: "सत्यापित खाता बनाएं",
+    btn_signup_app_submit: "आवेदक खाता बनाएं",
+    btn_signup_off_submit: "अधिकृत अधिकारी पंजीकृत करें",
     auth_comp_1: "🔒 एंड-टू-एंड एन्क्रिप्टेड सत्र",
     auth_comp_2: "PBKDF2-HMAC-SHA256 सुरक्षा",
     auth_comp_3: "स्थायी वॉल्ट एवं क्लाउड सिंक",
@@ -1348,15 +1610,25 @@ const I18N = {
     title_site_toggle_pill: "सार्वजनिक वेबसाइट स्थिति बदलें (ऑनलाइन / ऑफ़लाइन)",
     title_signout: "सत्र से लॉग आउट करें",
     btn_signout: "लॉग आउट",
+    title_encrypted_session: "एन्क्रिप्टेड आवेदक सत्र सक्रिय",
+    badge_encrypted_session: "एन्क्रिप्टेड आवेदक सत्र",
     title_backend_badge: "REST बैकएंड एपीआई कनेक्शन जांचने या बदलने के लिए क्लिक करें",
     nav_apply: "<span>📝</span> 1. ऋण के लिए आवेदन करें",
     nav_report: "<span>📊</span> 2. मेरी निर्णय रिपोर्ट",
     nav_vault_applicant: "<span>🗄️</span> 3. मेरे आवेदन वॉल्ट",
-    nav_vault_officer: "<span>🗄️</span> 3. केंद्रीय आवेदन वॉल्ट (बैंक-व्यापी)",
-    nav_portfolio: "<span>📁</span> 4. ऐतिहासिक पोर्टफोलियो",
-    nav_officer: "<span>⚙️</span> अधिकारी कॉकपिट एवं SHAP विश्लेषण",
-    nav_accuracy: '<span>🎯</span> मॉडल सटीकता रिपोर्ट <span class="tag">80% सटीकता</span>',
-    nav_fairness: '<span>⚖️</span> समूह निष्पक्षता ऑडिट <span class="tag">80% नियम</span>',
+    nav_vault_officer: "<span>🗄️</span> 2. केंद्रीय आवेदन वॉल्ट (बैंक-व्यापी)",
+    nav_portfolio: "<span>📁</span> 3. ऐतिहासिक पोर्टफोलियो",
+    nav_officer: "<span>⚙️</span> 1. अंडरराइटिंग कॉकपिट एवं SHAP विश्लेषण",
+    nav_accuracy: '<span>🎯</span> 4. मॉडल सटीकता रिपोर्ट <span class="tag">80% सटीकता</span>',
+    nav_fairness: '<span>⚖️</span> 5. समूह निष्पक्षता ऑडिट <span class="tag">80% नियम</span>',
+    no_app_title: "अभी तक कोई ऋण आवेदन जमा नहीं किया गया है",
+    no_app_desc: "अपनी लाइव एआई अंडरराइटिंग रिपोर्ट, व्यक्तिगत पात्रता सुधार योजना और आरबीआई मुख्य तथ्य विवरण (KFS) प्राप्त करने के लिए ऋण आवेदन जमा करें।",
+    no_app_cta: "ऋण के लिए आवेदन करें →",
+    adj_title: "🏛️ आधिकारिक अंडरराइटर निर्णय एवं स्थिति",
+    status_pending: "समीक्षा प्रतीक्षित",
+    adj_remarks_lbl: "अधिकारी टिप्पणी:",
+    adj_remarks_none: "संस्थागत अधिकारी की समीक्षा प्रतीक्षित है।",
+    adj_updated_lbl: "अंतिम अद्यतन:",
     off_banner_title: "🔴 वेबसाइट वर्तमान में ऑफ़लाइन है (सार्वजनिक रखरखाव मोड सक्रिय)",
     off_banner_desc: "सामान्य आगंतुकों और आवेदकों को अभी रखरखाव सूचना दिख रही है। अधिकारी कार्य सुलभ हैं।",
     btn_put_online_now: "वेबसाइट अभी ऑनलाइन करें",
@@ -1380,8 +1652,8 @@ const I18N = {
     apply_suc_score_lbl: "AI स्कोर:",
     apply_suc_emi_lbl: "मासिक किस्त:",
     apply_suc_cibil_lbl: "सिबिल श्रेणी:",
-    btn_inspect_cockpit: "कॉकपिट में जांचें",
-    btn_view_db_table: "डेटाबेस तालिका देखें",
+    btn_view_decision_report: "मेरी निर्णय रिपोर्ट देखें",
+    btn_view_my_vault: "मेरे आवेदन वॉल्ट देखें",
     sec_personal: "1. व्यक्तिगत एवं जनसांख्यिकीय विवरण",
     lbl_name: "आवेदक का पूरा नाम *",
     ph_fill_name: "जैसे: अनन्या राव, देवांश कुलकर्णी",
@@ -1525,6 +1797,8 @@ const I18N = {
     btn_sanction_approve: "✓ ऋण स्वीकृत करें",
     btn_sanction_subvention: "⚡ मिशन भारत ग्रामीण सब्सिडी पास",
     btn_sanction_decline: "✕ प्रतिकूल कार्रवाई (अस्वीकार)",
+    btn_save_officer_terms: "💾 वॉल्ट में पैरामीटर बदलाव सहेजें",
+    btn_officer_preview_letter: "📄 स्वीकृति सूचना देखें / जारी करें",
     off_audit_title: "अंडरराइटर निर्णय एवं अनुपालन ऑडिट लॉग",
     off_audit_sub: "आंतरिक RBI अनुपालन निरीक्षण के लिए पूर्ण कालानुक्रमिक रिकॉर्ड",
     off_th_time: "दिनांक व समय",
@@ -1602,6 +1876,12 @@ const I18N = {
     btn_next_page: "अगला →",
     db_title: "आधिकारिक मेरिडियन आवेदन वॉल्ट एवं रजिस्ट्री",
     db_sub: "पोर्टल के माध्यम से जमा किए गए सभी ऋण आवेदन यहां स्थायी रूप से सुरक्षित हैं",
+    db_title_applicant: "मेरे जमा किए गए ऋण आवेदनों का वॉल्ट",
+    db_sub_applicant: "आपके द्वारा जमा किए गए प्रत्येक ऋण आवेदन का स्थायी रिकॉर्ड विभिन्न सत्रों और उपकरणों पर यहां सुरक्षित रहता है",
+    db_count_loading: "वॉल्ट लोड हो रहा है...",
+    db_empty_applicant: "इस खाते से अभी तक कोई आवेदन जमा नहीं हुआ है। अपना पहला आवेदन बनाने के लिए '1. ऋण के लिए आवेदन करें' का उपयोग करें।",
+    db_empty_officer: "संस्थागत वॉल्ट में अभी तक कोई ऋण आवेदन दर्ज नहीं है।",
+    btn_download_db_backup: "वॉल्ट बैकअप (.db) डाउनलोड करें",
     btn_export_csv: "Excel / CSV में निर्यात करें",
     btn_export_json: "JSON निर्यात करें",
     btn_refresh: "ताज़ा करें",
@@ -1656,6 +1936,7 @@ const I18N = {
     modal_api_docs_note: 'सभी प्रमाणीकरण, अंडरराइटिंग स्कोरिंग, SHAP व्याख्या और निष्पक्षता जांच सीधे FastAPI सर्वर से जुड़े हैं (<a id="modal-swagger-link" href="/docs" target="_blank" style="color: #064E3B; font-weight: 700; text-decoration: underline;">OpenAPI /docs</a>)।',
     modal_api_custom_t: "कस्टम इंटरनेट बैकएंड URL जोड़ें (वैकल्पिक):",
     modal_api_custom_d: "यदि आप अलग फ्रंटएंड होस्ट उपयोग कर रहे हैं, तो अपना तैनात बैकएंड URL दर्ज करें:",
+    ph_custom_api: "https://your-service.up.railway.app",
     btn_save_url: "URL सहेजें",
     btn_auto_detect: "स्वतः पहचानें",
     btn_test_reconnect: "परीक्षण करें एवं पुनः जुड़ें",
@@ -1684,10 +1965,30 @@ function syncBackendModalUI() {
 
 function updateBackendStatusUI() {
   const hi = state.currentLang === 'hi';
+  const dict = getLangDict();
+  const isOfficer = currentAuthUser?.role === 'officer' || state.currentRole === 'officer';
+  const badge = document.getElementById('backend-status-badge');
   const badgeText = document.getElementById('backend-status-text');
   const pulseDot = document.getElementById('backend-pulse-dot');
   const modalBadge = document.getElementById('modal-backend-status-badge');
   const modalDesc = document.getElementById('modal-backend-status-desc');
+
+  if (!isOfficer) {
+    if (badge) {
+      badge.style.cursor = 'default';
+      badge.setAttribute('data-i18n-title', 'title_encrypted_session');
+      badge.setAttribute('title', dict.title_encrypted_session);
+    }
+    if (pulseDot) pulseDot.style.background = state.backendConnected ? '#10B981' : '#F59E0B';
+    if (badgeText) badgeText.innerText = dict.badge_encrypted_session;
+    return;
+  }
+
+  if (badge) {
+    badge.style.cursor = 'pointer';
+    badge.setAttribute('data-i18n-title', 'title_backend_badge');
+    badge.setAttribute('title', dict.title_backend_badge);
+  }
   syncBackendModalUI();
 
   if (state.backendConnected) {
@@ -1725,7 +2026,15 @@ function updateBackendStatusUI() {
   }
 }
 
+window.handleStatusBadgeClick = function() {
+  const isOfficer = currentAuthUser?.role === 'officer' || state.currentRole === 'officer';
+  if (!isOfficer) return;
+  window.toggleBackendInfoModal();
+};
+
 window.toggleBackendInfoModal = function() {
+  const isOfficer = currentAuthUser?.role === 'officer' || state.currentRole === 'officer';
+  if (!isOfficer) return;
   const modal = document.getElementById('backend-info-modal');
   if (!modal) return;
   const isHidden = modal.style.display === 'none' || !modal.style.display;
@@ -1787,10 +2096,14 @@ async function checkBackendConnection(showNotification = false) {
         );
       }
       if (currentAuthUser) {
-        window.refreshDatabaseTable();
+        await syncPendingOfflineApplications();
+        await window.refreshDatabaseTable();
+        if (currentAuthUser.role === 'officer') {
+          if (state.currentTab === 'model-view') renderModelPerformanceCharts();
+          if (state.currentTab === 'fairness-view') renderFairnessCharts();
+          if (state.currentTab === 'officer-view') await fetchAuditLogs();
+        }
       }
-      if (state.currentTab === 'model-view') renderModelPerformanceCharts();
-      if (state.currentTab === 'fairness-view') renderFairnessCharts();
       return true;
     }
   } catch (err) {}
@@ -1822,19 +2135,21 @@ window.toggleLanguage = function() {
   updateUI();
   syncSimulatorSliderLabels();
   updateSimulationUI();
-  renderAuditTable();
-  renderPortfolioTable();
-  if (state.savedDatabaseApps && state.savedDatabaseApps.length > 0) {
-    renderDatabaseTableRows(state.savedDatabaseApps);
-  } else {
-    refreshDatabaseTable();
+
+  const isOfficer = currentAuthUser?.role === 'officer';
+  if (isOfficer) {
+    renderAuditTable();
+    renderPortfolioTable();
+    renderModelPerformanceCharts();
+    renderFairnessCharts();
   }
-  renderModelPerformanceCharts();
-  renderFairnessCharts();
+  if (currentAuthUser) {
+    renderDatabaseTableRows(state.savedDatabaseApps || []);
+  }
 
   const letterModal = document.getElementById('letter-modal');
   if (letterModal && letterModal.style.display === 'flex') {
-    window.openDecisionLetterModal();
+    window.openDecisionLetterModal(isOfficer);
   }
 };
 
@@ -1889,6 +2204,7 @@ function applyTranslations() {
   setHtml('[data-tab="model-view"]', dict.nav_accuracy);
   setHtml('[data-tab="fairness-view"]', dict.nav_fairness);
   updateAuthRoleUI();
+  syncPortalGatewayVisuals(activePortal);
 
   const setElText = (id, text) => {
     const el = document.getElementById(id);
@@ -2329,6 +2645,16 @@ window.handleLoanApplicationSubmit = async function(event) {
   const hi = state.currentLang === 'hi';
   const dict = getLangDict();
 
+  if (currentAuthUser?.role === 'officer') {
+    window.showMeridianToast(
+      hi
+        ? 'ऋण आवेदन केवल आवेदक पोर्टल से ही जमा किए जा सकते हैं।'
+        : 'Loan application submission is restricted to the Applicant Portal.',
+      true
+    );
+    return;
+  }
+
   const submitBtn = document.getElementById('btn-submit-app');
   if (submitBtn) {
     submitBtn.disabled = true;
@@ -2339,67 +2665,71 @@ window.handleLoanApplicationSubmit = async function(event) {
   const termMonths = yearsVal * 12;
 
   const formData = {
-    full_name: document.getElementById('fill-full-name')?.value || 'Ananya Rao',
-    phone: document.getElementById('fill-phone')?.value || '9876543210',
+    full_name: (document.getElementById('fill-full-name')?.value || currentAuthUser?.full_name || 'Applicant').trim(),
+    phone: (document.getElementById('fill-phone')?.value || currentAuthUser?.phone || '').trim(),
     gender: document.getElementById('fill-gender')?.value || 'Female',
     marital_status: document.getElementById('fill-married')?.value || 'No',
     dependents: document.getElementById('fill-dependents')?.value || '0',
     education: document.getElementById('fill-education')?.value || 'Graduate',
     employment_type: document.getElementById('fill-employment')?.value || 'Freelancing / Gig Economy / Contractor',
     salary_slip: document.getElementById('fill-salary-slip')?.value || 'Yes',
-    applicant_income: Number(document.getElementById('fill-app-income')?.value || 75000),
-    coapplicant_income: Number(document.getElementById('fill-coapp-income')?.value || 20000),
+    applicant_income: Number(document.getElementById('fill-app-income')?.value || 25000),
+    coapplicant_income: Number(document.getElementById('fill-coapp-income')?.value || 0),
     loan_purpose: document.getElementById('fill-loan-purpose')?.value || 'Home Improvement / Construction',
-    loan_amount: Number(document.getElementById('fill-loan-amount')?.value || 250),
+    loan_amount: Number(document.getElementById('fill-loan-amount')?.value || 150),
     loan_term_months: termMonths,
-    cibil_score: Number(document.getElementById('fill-cibil-slider')?.value || 780),
-    property_area: document.getElementById('fill-property-area')?.value || 'Semiurban',
+    cibil_score: Number(document.getElementById('fill-cibil-slider')?.value || 760),
+    property_area: document.getElementById('fill-property-area')?.value || 'Rural',
     user_id: currentAuthUser ? currentAuthUser.id : null,
-    applicant_id: currentAuthUser ? currentAuthUser.id : null
+    applicant_id: currentAuthUser ? currentAuthUser.id : null,
+    applicant_email: currentAuthUser ? currentAuthUser.email : null
   };
 
   let savedRecord = null;
   let prediction = null;
   let explanation = null;
 
-  if (state.backendConnected) {
-    try {
-      const response = await fetch(`${state.apiBase}/api/apply`, {
-        method: 'POST',
-        headers: buildAuthHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify(formData)
-      });
+  try {
+    const response = await fetch(`${state.apiBase}/api/apply`, {
+      method: 'POST',
+      headers: buildAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(formData)
+    });
 
-      if (response.status === 503) {
-        await window.checkSiteAvailability();
-        alert(hi ? 'पोर्टल निर्धारित रखरखाव के लिए अस्थायी रूप से ऑफ़लाइन है।' : 'Portal is temporarily offline for scheduled maintenance.');
-        if (submitBtn) {
-          submitBtn.disabled = false;
-          submitBtn.innerHTML = `<span>🚀</span> ${dict.btn_submit_app}`;
-        }
-        return;
+    if (response.status === 503) {
+      await window.checkSiteAvailability();
+      alert(hi ? 'पोर्टल निर्धारित रखरखाव के लिए अस्थायी रूप से ऑफ़लाइन है।' : 'Portal is temporarily offline for scheduled maintenance.');
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = `<span>🚀</span> ${dict.btn_submit_app}`;
       }
-
-      if (response.ok) {
-        const resData = await response.json();
-        savedRecord = resData.application;
-        prediction = resData.prediction;
-        explanation = resData.explanation;
-        state.backendPrediction = prediction;
-        state.backendExplanation = explanation;
-      }
-    } catch (err) {
-      console.warn('Backend apply API offline, saving to local vault:', err);
+      return;
     }
-  }
-  if (!savedRecord) {
-    state.backendPrediction = null;
-    state.backendExplanation = null;
+
+    if (response.status === 401 || response.status === 403 || response.status === 400) {
+      const errData = await response.json().catch(() => ({}));
+      window.showMeridianToast(errData.error || (hi ? 'आवेदन जमा करने में अवरोध आया।' : 'Unable to submit loan application.'), true);
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = `<span>🚀</span> ${dict.btn_submit_app}`;
+      }
+      return;
+    }
+
+    if (response.ok) {
+      state.backendConnected = true;
+      const resData = await response.json();
+      savedRecord = resData.application;
+      prediction = resData.prediction;
+      explanation = resData.explanation;
+    }
+  } catch (err) {
+    state.backendConnected = false;
   }
 
   if (!savedRecord) {
     const randomId = Math.floor(1000 + Math.random() * 9000);
-    const appNo = `MB-2026-${randomId}`;
+    const appNo = `MB-OFFLINE-${randomId}`;
 
     prediction = computePrediction({
       applicant_income: formData.applicant_income,
@@ -2415,94 +2745,69 @@ window.handleLoanApplicationSubmit = async function(event) {
     explanation = generatePlainLanguageExplanations(prediction, formData, state.currentLang);
 
     savedRecord = {
+      ...formData,
       id: Date.now(),
       application_no: appNo,
       created_at: new Date().toISOString().replace('T', ' ').substring(0, 19),
-      full_name: formData.full_name,
-      cibil_score: formData.cibil_score,
-      salary_slip: formData.salary_slip,
+      updated_at: new Date().toISOString().replace('T', ' ').substring(0, 19),
       status: prediction.status.charAt(0).toUpperCase() + prediction.status.slice(1),
       approval_likelihood: prediction.approvalPercent,
       monthly_emi: prediction.ratios.emi,
       dti_percent: prediction.ratios.dtiPct,
-      loan_amount: formData.loan_amount,
-      loan_term_months: formData.loan_term_months,
-      property_area: formData.property_area,
-      loan_purpose: formData.loan_purpose,
-      employment_type: formData.employment_type
+      officer_status: 'Pending',
+      officer_remarks: '',
+      _offline_pending: true
     };
 
-    try {
-      const existing = JSON.parse(localStorage.getItem('meridian_saved_apps') || '[]');
-      const existingMap = new Map();
-      DEFAULT_BASELINE_APPLICATIONS.forEach(a => existingMap.set(a.application_no, a));
-      if (Array.isArray(existing)) {
-        existing.forEach(a => { if (a && a.application_no) existingMap.set(a.application_no, a); });
-      }
-      existingMap.set(savedRecord.application_no, savedRecord);
-      const updatedList = Array.from(existingMap.values());
-      updatedList.sort((a, b) => {
-        const timeA = a.created_at || '';
-        const timeB = b.created_at || '';
-        if (timeA && timeB && timeA !== timeB) return timeB.localeCompare(timeA);
-        return (b.application_no || '').localeCompare(a.application_no || '');
-      });
-      localStorage.setItem('meridian_saved_apps', JSON.stringify(updatedList));
-    } catch (e) {}
+    const queue = readOfflineQueue();
+    queue.unshift(savedRecord);
+    writeOfflineQueue(queue);
+    window.showMeridianToast(
+      hi
+        ? '⚠️ नेटवर्क अनुपलब्ध है: आवेदन आपकी स्थानीय कतार में सुरक्षित है और पुनः जुड़ते ही सर्वर में सिंक हो जाएगा।'
+        : '⚠️ Offline fallback: application queued locally and will auto-sync to persistent vault once connected.',
+      true
+    );
   }
 
-  state.hasApplied = true;
+  const sucCard = document.getElementById('apply-success-card');
+  const sucAppNo = document.getElementById('success-app-no');
+  const sucStatus = document.getElementById('success-status-badge');
+  const sucProb = document.getElementById('success-prob-text');
+  const sucEmi = document.getElementById('success-emi-text');
+  const sucCibil = document.getElementById('success-cibil-text');
+  if (sucCard) {
+    const statusRaw = String(savedRecord.status || 'Conditional');
+    const emiVal = Math.round(savedRecord.monthly_emi || prediction?.ratios?.emi || 0);
+    const pctVal = savedRecord.approval_likelihood || prediction?.approvalPercent || 50;
+    const cibilNum = savedRecord.cibil_score || formData.cibil_score;
+    const cibilTier = cibilNum >= 750 ? (hi ? 'उत्कृष्ट' : 'Excellent') : cibilNum >= 650 ? (hi ? 'अच्छा' : 'Good') : (hi ? 'निम्न' : 'Subprime');
+    if (sucAppNo) sucAppNo.innerText = savedRecord.application_no;
+    if (sucStatus) {
+      sucStatus.innerText = localizeStatus(statusRaw, state.currentLang).toUpperCase();
+      sucStatus.className = `badge badge-${statusRaw.toLowerCase() === 'approved' ? 'success' : statusRaw.toLowerCase() === 'conditional' ? 'warning' : 'danger'}`;
+    }
+    if (sucProb) sucProb.innerText = `${pctVal}%`;
+    if (sucEmi) sucEmi.innerText = `₹${emiVal.toLocaleString('en-IN')}${hi ? '/माह' : '/mo'}`;
+    if (sucCibil) sucCibil.innerText = `${cibilNum} (${cibilTier})`;
+    sucCard.style.display = 'block';
+  }
+
   state.lastSubmittedApp = { ...formData, ...savedRecord };
-  state.currentApplicant = {
-    id: savedRecord.application_no,
-    name: savedRecord.full_name,
-    gender: formData.gender,
-    married: formData.marital_status,
-    dependents: formData.dependents,
-    education: formData.education,
-    self_employed: (formData.employment_type || '').includes('Freelanc') || (formData.employment_type || '').includes('Self') ? 'Yes' : 'No',
-    employment_type: formData.employment_type,
-    salary_slip: formData.salary_slip,
-    applicant_income: formData.applicant_income,
-    coapplicant_income: formData.coapplicant_income,
-    loan_amount: formData.loan_amount,
-    term: formData.loan_term_months,
-    cibil_score: formData.cibil_score,
-    credit_history: formData.cibil_score >= 650 ? 1 : 0,
-    property_area: formData.property_area,
-    loan_purpose: formData.loan_purpose
-  };
-
-  state.simulated = {
-    loan_amount: formData.loan_amount,
-    coapplicant_income: formData.coapplicant_income,
-    term: formData.loan_term_months,
-    cibil_score: formData.cibil_score,
-    credit_history: formData.cibil_score >= 650 ? 1 : 0,
-    salary_slip: formData.salary_slip === 'Yes'
-  };
-
-  setSliderVal('sim-slider-loan', state.simulated.loan_amount);
-  setSliderVal('sim-slider-coapp', state.simulated.coapplicant_income);
-  setSliderVal('sim-slider-term', Math.round(state.simulated.term / 12));
-  setSliderVal('sim-slider-cibil', state.simulated.cibil_score);
-  syncSimSalarySlipVisuals(state.simulated.salary_slip);
-  syncSimulatorSliderLabels();
-
+  applyRecordToCurrentState({ ...formData, ...savedRecord });
+  state.backendPrediction = prediction;
+  state.backendExplanation = explanation;
   updateUI();
   updateSimulationUI();
-  refreshDatabaseTable();
+  await window.refreshDatabaseTable();
 
   if (submitBtn) {
     submitBtn.disabled = false;
     submitBtn.innerHTML = `<span>🚀</span> ${dict.btn_submit_app}`;
   }
 
-  const reportTab = document.querySelector('[data-tab="applicant-view"]');
-  if (reportTab) {
-    reportTab.click();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
+  window.activateWorkspaceTab('applicant-view');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 
   const banner = document.getElementById('submission-alert-banner');
   const bannerAppNo = document.getElementById('banner-app-no');
@@ -2512,7 +2817,8 @@ window.handleLoanApplicationSubmit = async function(event) {
   }
 };
 
-window.applyWhatIfScenario = function() {
+window.applyWhatIfScenario = async function() {
+  const hi = state.currentLang === 'hi';
   const sim = state.simulated;
   state.backendPrediction = null;
   state.backendExplanation = null;
@@ -2521,18 +2827,72 @@ window.applyWhatIfScenario = function() {
   state.currentApplicant.coapplicant_income = sim.coapplicant_income;
   state.currentApplicant.term = sim.term;
   state.currentApplicant.cibil_score = sim.cibil_score;
+  state.currentApplicant.credit_history = sim.cibil_score >= 650 ? 1 : 0;
   state.currentApplicant.salary_slip = sim.salary_slip ? 'Yes' : 'No';
 
   setValue('fill-loan-amount', sim.loan_amount);
   setValue('fill-coapp-income', sim.coapplicant_income);
-  const years = Math.round(sim.term / 12);
+  const years = Math.max(1, Math.round(sim.term / 12));
   setValue('fill-loan-years', years);
   updateFillTenureDisplay(years);
   setValue('fill-cibil-slider', sim.cibil_score);
   updateCibilDisplay(sim.cibil_score);
   setSalarySlipChoice(sim.salary_slip ? 'Yes' : 'No');
 
+  let persistedOnServer = false;
+  const appNo = state.currentApplicant?.id;
+  if (state.hasApplied && appNo) {
+    const patchBody = {
+      loan_amount: sim.loan_amount,
+      coapplicant_income: sim.coapplicant_income,
+      loan_term_months: sim.term,
+      cibil_score: sim.cibil_score,
+      salary_slip: sim.salary_slip ? 'Yes' : 'No'
+    };
+    try {
+      const res = await fetch(`${state.apiBase}/api/application/${encodeURIComponent(appNo)}`, {
+        method: 'PATCH',
+        headers: buildAuthHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(patchBody)
+      });
+      if (res.status === 503) {
+        await window.checkSiteAvailability();
+        return;
+      }
+      if (res.ok) {
+        state.backendConnected = true;
+        const data = await res.json();
+        if (data.application) {
+          applyRecordToCurrentState(data.application);
+        }
+        state.backendPrediction = data.prediction || null;
+        state.backendExplanation = data.explanation || null;
+        persistedOnServer = true;
+        await window.refreshDatabaseTable();
+      }
+    } catch (e) {}
+
+    if (!persistedOnServer) {
+      const queue = readOfflineQueue();
+      const idx = queue.findIndex(q => q.application_no === appNo);
+      if (idx >= 0) {
+        const localPred = computePrediction(state.currentApplicant);
+        queue[idx] = {
+          ...queue[idx],
+          ...patchBody,
+          approval_likelihood: localPred.approvalPercent,
+          monthly_emi: localPred.ratios.emi,
+          dti_percent: localPred.ratios.dtiPct,
+          status: localPred.status.charAt(0).toUpperCase() + localPred.status.slice(1)
+        };
+        writeOfflineQueue(queue);
+        await window.refreshDatabaseTable();
+      }
+    }
+  }
+
   updateUI();
+  updateSimulationUI();
 
   const heroCard = document.getElementById('decision-hero-card');
   if (heroCard) {
@@ -2541,17 +2901,96 @@ window.applyWhatIfScenario = function() {
     setTimeout(() => { heroCard.style.outline = 'none'; }, 2000);
   }
 
-  const msg = state.currentLang === 'hi'
-    ? '✨ व्हाट-इफ परिदृश्य सफलतापूर्वक लागू किया गया! आपकी निर्णय रिपोर्ट और मासिक किस्त अपडेट हो गई है।'
-    : '✨ What-If Scenario applied! Your active applicant parameters and Decision Report have been recalculated.';
-  alert(msg);
+  const msg = persistedOnServer
+    ? (hi ? '✨ व्हाट-इफ परिदृश्य स्थायी रूप से वॉल्ट में सहेजा गया और रिपोर्ट अपडेट हो गई!' : '✨ What-If scenario saved permanently to Vault and Decision Report updated!')
+    : (hi ? '✨ व्हाट-इफ परिदृश्य लागू किया गया! आपकी निर्णय रिपोर्ट और मासिक किस्त अपडेट हो गई है।' : '✨ What-If scenario applied! Your active Decision Report has been recalculated.');
+  window.showMeridianToast(msg);
+};
+
+window.saveOfficerTermUpdates = async function() {
+  const hi = state.currentLang === 'hi';
+  const dict = getLangDict();
+  if (currentAuthUser?.role !== 'officer') {
+    window.showMeridianToast(hi ? 'केवल ऋण अधिकारी ही पैरामीटर सहेज सकते हैं।' : 'Officer clearance required to save parameter changes.', true);
+    return;
+  }
+
+  const appNo = state.currentApplicant?.id;
+  if (!appNo) {
+    window.showMeridianToast(hi ? 'कृपया पहले केंद्रीय वॉल्ट से किसी आवेदन का चयन करें।' : 'Select an application from the Central Vault first.', true);
+    return;
+  }
+
+  const btn = document.getElementById('btn-officer-save-terms');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = hi ? '⏳ वॉल्ट में सहेजा जा रहा है...' : '⏳ Saving to Vault...';
+  }
+
+  const ch = Number(document.getElementById('input-credit-history')?.value ?? 1);
+  const existingCibil = Number(state.currentApplicant?.cibil_score || 760);
+  const updatedCibil = ch === 1 ? (existingCibil >= 650 ? existingCibil : 760) : 540;
+  const selfEmp = document.getElementById('input-self-employed')?.value || 'No';
+
+  const patchBody = {
+    applicant_income: Number(document.getElementById('input-app-income')?.value || 0),
+    coapplicant_income: Number(document.getElementById('input-coapp-income')?.value || 0),
+    loan_amount: Number(document.getElementById('input-loan-amount')?.value || 100),
+    loan_term_months: Number(document.getElementById('input-loan-term')?.value || 60),
+    cibil_score: updatedCibil,
+    salary_slip: selfEmp === 'Yes' ? 'No' : 'Yes',
+    property_area: document.getElementById('input-property-area')?.value || 'Rural',
+    employment_type: selfEmp === 'Yes' ? 'Self-Employed (Business/MSME)' : 'Salaried (Private/Corporate)'
+  };
+
+  try {
+    const res = await fetch(`${state.apiBase}/api/application/${encodeURIComponent(appNo)}`, {
+      method: 'PATCH',
+      headers: buildAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(patchBody)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.success) {
+      state.backendConnected = true;
+      if (data.application) {
+        applyRecordToCurrentState(data.application);
+      }
+      state.backendPrediction = data.prediction || null;
+      state.backendExplanation = data.explanation || null;
+      updateUI();
+      updateSimulationUI();
+      await window.refreshDatabaseTable();
+      await fetchAuditLogs();
+      window.showMeridianToast(
+        hi
+          ? `✅ आवेदन ${appNo} के संशोधित पैरामीटर डेटाबेस वॉल्ट में स्थायी रूप से सहेजे गए।`
+          : `✅ Updated parameters for ${appNo} saved permanently to Central Vault.`
+      );
+    } else if (res.status === 404) {
+      window.showMeridianToast(
+        hi
+          ? `नोट: ऐतिहासिक पोर्टफ़ोलियो केस (${appNo}) केवल संदर्भ विश्लेषण के लिए हैं। सहेजने के लिए केंद्रीय वॉल्ट से जमा आवेदन चुनें।`
+          : `Historical portfolio benchmark (${appNo}) is read-only. Select a submitted application from Central Vault to persist changes.`,
+        true
+      );
+    } else {
+      window.showMeridianToast(data.error || (hi ? 'पैरामीटर सहेजने में त्रुटि।' : 'Failed to save parameter changes.'), true);
+    }
+  } catch (e) {
+    window.showMeridianToast(hi ? 'वॉल्ट सर्वर से संपर्क करने में नेटवर्क त्रुटि।' : 'Network error saving updated parameters.', true);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = dict.btn_save_officer_terms;
+    }
+  }
 };
 
 window.resetWhatIfToBaseline = function() {
   const base = state.currentApplicant;
   state.simulated = {
     loan_amount: base.loan_amount || 150,
-    coapplicant_income: base.coapplicant_income || 15000,
+    coapplicant_income: base.coapplicant_income !== undefined ? base.coapplicant_income : 0,
     term: base.term || 60,
     cibil_score: base.cibil_score || 760,
     credit_history: (base.cibil_score || 760) >= 650 ? 1 : 0,
@@ -2679,63 +3118,75 @@ function updateSimulationUI() {
   const delta = simPred.approvalPercent - basePred.approvalPercent;
   applySimulationRender(simPred, delta);
 
-  if (state.backendConnected) {
-    clearTimeout(_whatIfTimer);
-    _whatIfTimer = setTimeout(async () => {
-      try {
-        const res = await fetch(`${state.apiBase}/api/what-if`, {
-          method: 'POST',
-          headers: buildAuthHeaders({ 'Content-Type': 'application/json' }),
-          body: JSON.stringify({
-            base: {
-              ...baseApp,
-              loan_term_months: baseApp.term || 60
-            },
-            adjustments: {
-              loan_amount: sim.loan_amount,
-              coapplicant_income: sim.coapplicant_income,
-              loan_term_months: sim.term,
-              cibil_score: sim.cibil_score,
-              salary_slip: sim.salary_slip ? 'Yes' : 'No'
-            }
-          })
-        });
-        if (res.status === 503) {
-          await window.checkSiteAvailability();
-          return;
-        }
-        if (res.ok) {
-          const data = await res.json();
-          const s = data.simulation;
-          if (s && s.simulated && s.deltas) {
-            applySimulationRender(s.simulated, s.deltas.score_change);
+  clearTimeout(_whatIfTimer);
+  _whatIfTimer = setTimeout(async () => {
+    try {
+      const res = await fetch(`${state.apiBase}/api/what-if`, {
+        method: 'POST',
+        headers: buildAuthHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          base: {
+            ...baseApp,
+            loan_term_months: baseApp.term || 60
+          },
+          adjustments: {
+            loan_amount: sim.loan_amount,
+            coapplicant_income: sim.coapplicant_income,
+            loan_term_months: sim.term,
+            cibil_score: sim.cibil_score,
+            salary_slip: sim.salary_slip ? 'Yes' : 'No'
           }
+        })
+      });
+      if (res.status === 503) {
+        await window.checkSiteAvailability();
+        return;
+      }
+      if (res.ok) {
+        state.backendConnected = true;
+        const data = await res.json();
+        const s = data.simulation;
+        if (s && s.simulated && s.deltas) {
+          applySimulationRender(s.simulated, s.deltas.score_change);
         }
-      } catch (e) {}
-    }, 180);
-  }
+      }
+    } catch (e) {}
+  }, 180);
 }
 
 window.exportVaultToCSV = function() {
-  const apps = state.savedDatabaseApps.length > 0 ? state.savedDatabaseApps : [state.currentApplicant];
+  const hi = state.currentLang === 'hi';
+  const apps = (state.savedDatabaseApps && state.savedDatabaseApps.length > 0)
+    ? state.savedDatabaseApps
+    : (state.hasApplied && state.currentApplicant?.id ? [state.currentApplicant] : []);
 
+  if (apps.length === 0) {
+    window.showMeridianToast(hi ? 'निर्यात करने के लिए कोई आवेदन उपलब्ध नहीं है।' : 'No loan applications available to export yet.', true);
+    return;
+  }
+
+  const csvCell = (val) => `"${String(val ?? '').replace(/"/g, '""')}"`;
   let csvContent = 'data:text/csv;charset=utf-8,';
-  csvContent += 'Application No,Full Name,CIBIL Score,Salary Slip,Applicant Income,Co-Applicant Income,Loan Amount (k),Tenure (Months),Property Area,Status,Approval Likelihood (%),Monthly EMI (INR)\n';
+  csvContent += 'Application No,Submitted At,Updated At,Full Name,CIBIL Score,Salary Slip,Applicant Income,Co-Applicant Income,Loan Amount (k),Tenure (Months),Property Area,AI Score (%),Status,Officer Decision,Officer Remarks,Monthly EMI (INR)\n';
 
   apps.forEach(a => {
     const row = [
-      a.application_no || a.id || 'MB-2026-X',
-      `"${a.full_name || a.name || 'Applicant'}"`,
+      csvCell(a.application_no || a.id || ''),
+      csvCell(a.created_at || ''),
+      csvCell(a.updated_at || a.created_at || ''),
+      csvCell(a.full_name || a.name || 'Applicant'),
       a.cibil_score || 750,
-      `"${a.salary_slip || 'Yes'}"`,
+      csvCell(a.salary_slip || 'Yes'),
       a.applicant_income || 0,
       a.coapplicant_income || 0,
       a.loan_amount || 100,
       a.loan_term_months || a.term || 60,
-      `"${a.property_area || 'Urban'}"`,
-      a.status || 'Approved',
-      a.approval_likelihood || 95,
-      a.monthly_emi || 2500
+      csvCell(a.property_area || 'Urban'),
+      a.approval_likelihood || 50,
+      csvCell(a.status || 'Conditional'),
+      csvCell(a.officer_status || 'Pending'),
+      csvCell(a.officer_remarks || a.officer_notes || ''),
+      a.monthly_emi || 0
     ].join(',');
     csvContent += row + '\n';
   });
@@ -2750,7 +3201,16 @@ window.exportVaultToCSV = function() {
 };
 
 window.exportVaultToJSON = function() {
-  const apps = state.savedDatabaseApps.length > 0 ? state.savedDatabaseApps : [state.currentApplicant];
+  const hi = state.currentLang === 'hi';
+  const apps = (state.savedDatabaseApps && state.savedDatabaseApps.length > 0)
+    ? state.savedDatabaseApps
+    : (state.hasApplied && state.currentApplicant?.id ? [state.currentApplicant] : []);
+
+  if (apps.length === 0) {
+    window.showMeridianToast(hi ? 'निर्यात करने के लिए कोई आवेदन उपलब्ध नहीं है।' : 'No loan applications available to export yet.', true);
+    return;
+  }
+
   const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(apps, null, 2));
   const link = document.createElement('a');
   link.setAttribute('href', dataStr);
@@ -2765,6 +3225,8 @@ function renderDatabaseTableRows(allApps) {
   const countBadge = document.getElementById('db-total-count');
   if (!tbody) return;
   const hi = state.currentLang === 'hi';
+  const dict = getLangDict();
+  const isOfficer = currentAuthUser?.role === 'officer' || state.currentRole === 'officer';
 
   if (countBadge) {
     countBadge.innerText = hi
@@ -2772,8 +3234,24 @@ function renderDatabaseTableRows(allApps) {
       : `${allApps.length} Saved Applications`;
   }
 
+  if (!allApps || allApps.length === 0) {
+    const emptyMsg = isOfficer ? dict.db_empty_officer : dict.db_empty_applicant;
+    const actionBtn = !isOfficer
+      ? `<div style="margin-top: 0.75rem;"><button type="button" class="btn btn-primary" style="padding: 6px 14px; font-size: 0.82rem;" onclick="activateWorkspaceTab('apply-view')">${escapeHtml(dict.no_app_cta)}</button></div>`
+      : '';
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="11" style="text-align: center; padding: 2.25rem 1.25rem; color: #4B6359;">
+          <div style="font-weight: 600;">${escapeHtml(emptyMsg)}</div>
+          ${actionBtn}
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
   tbody.innerHTML = allApps.map(app => {
-    const statusRaw = String(app.status || 'Approved');
+    const statusRaw = String(app.status || 'Conditional');
     const badge = statusRaw === 'Approved' ? 'badge-success' : statusRaw === 'Conditional' ? 'badge-warning' : 'badge-danger';
     const cibilVal = app.cibil_score || (app.credit_history === 1 ? 750 : 540);
     const cibilClass = cibilVal >= 750 ? 'badge-success' : cibilVal >= 650 ? 'badge-info' : 'badge-danger';
@@ -2788,22 +3266,29 @@ function renderDatabaseTableRows(allApps) {
     const loanDisplay = loanAmt > 1000 ? `₹${loanAmt.toLocaleString('en-IN')}` : `₹${(loanAmt * 1000).toLocaleString('en-IN')}`;
     const areaDisplay = localizeArea(app.property_area || 'Urban', state.currentLang);
     const statusDisplay = localizeStatus(statusRaw, state.currentLang);
+    const offStatus = String(app.officer_status || 'Pending').trim();
+    const offTag = (offStatus && offStatus.toLowerCase() !== 'pending')
+      ? `<div style="font-size: 0.68rem; color: #4B6359; margin-top: 2px;">${escapeHtml(localizeStatus(offStatus, state.currentLang))}</div>`
+      : '';
+    const actionLabel = hi
+      ? (isOfficer ? 'कॉकपिट में जांचें' : 'रिपोर्ट देखें')
+      : (isOfficer ? 'Inspect in Cockpit' : 'View Report');
 
     return `
       <tr>
-        <td style="font-weight: 800; color: #064E3B;">${app.application_no}</td>
-        <td style="font-size: 0.8rem; color: #4B6359;">${app.created_at ? app.created_at.substring(0, 16) : (hi ? 'आज' : 'Today')}</td>
-        <td style="font-weight: 700; color: #0B2920;">${app.full_name || (hi ? 'आवेदक' : 'Applicant')}</td>
-        <td><span class="badge ${cibilClass}">${cibilVal}</span></td>
+        <td style="font-weight: 800; color: #064E3B;">${escapeHtml(app.application_no)}</td>
+        <td style="font-size: 0.8rem; color: #4B6359;">${app.created_at ? escapeHtml(String(app.created_at).substring(0, 16)) : (hi ? 'आज' : 'Today')}</td>
+        <td style="font-weight: 700; color: #0B2920;">${escapeHtml(app.full_name || (hi ? 'आवेदक' : 'Applicant'))}</td>
+        <td><span class="badge ${cibilClass}">${escapeHtml(cibilVal)}</span></td>
         <td style="font-size: 0.8rem;">${slipTag}</td>
         <td>₹${totInc.toLocaleString('en-IN')}${hi ? '/माह' : '/mo'}</td>
         <td>${loanDisplay} (${years} ${hi ? 'वर्ष' : 'yrs'})</td>
-        <td>${areaDisplay}</td>
-        <td><strong>${app.approval_likelihood || 85}%</strong></td>
-        <td><span class="badge ${badge}">${statusDisplay}</span></td>
+        <td>${escapeHtml(areaDisplay)}</td>
+        <td><strong>${escapeHtml(app.approval_likelihood || 50)}%</strong></td>
+        <td><span class="badge ${badge}">${escapeHtml(statusDisplay)}</span>${offTag}</td>
         <td>
-          <button class="btn btn-outline" style="padding: 4px 8px; font-size: 0.75rem;" onclick="loadDbApplicantById('${app.application_no}')">
-            🔍 ${hi ? 'जांचें' : 'Inspect'}
+          <button class="btn btn-outline" style="padding: 4px 8px; font-size: 0.75rem;" onclick="loadDbApplicantById('${escapeHtml(app.application_no)}')">
+            🔍 ${actionLabel}
           </button>
         </td>
       </tr>
@@ -2814,137 +3299,136 @@ function renderDatabaseTableRows(allApps) {
 window.refreshDatabaseTable = async function() {
   const tbody = document.getElementById('db-table-body');
   if (!tbody) return;
+  if (!currentAuthUser) {
+    state.savedDatabaseApps = [];
+    renderDatabaseTableRows([]);
+    return;
+  }
 
   const appMap = new Map();
-
-  DEFAULT_BASELINE_APPLICATIONS.forEach(app => {
-    appMap.set(app.application_no, { ...app });
-  });
+  const isOfficer = currentAuthUser.role === 'officer';
 
   try {
-    const localStored = JSON.parse(localStorage.getItem('meridian_saved_apps') || '[]');
-    if (Array.isArray(localStored)) {
-      localStored.forEach(app => {
-        if (app && app.application_no) {
-          appMap.set(app.application_no, { ...(appMap.get(app.application_no) || {}), ...app });
-        }
-      });
+    const queryParams = isOfficer
+      ? '?role=officer'
+      : `?user_id=${encodeURIComponent(currentAuthUser.id)}&role=applicant&email=${encodeURIComponent(currentAuthUser.email || '')}`;
+    const response = await fetch(`${state.apiBase}/api/saved-applications${queryParams}`, { headers: buildAuthHeaders() });
+    if (response.status === 503 && !isOfficer) {
+      await window.checkSiteAvailability();
+      return;
+    }
+    if (response.ok) {
+      state.backendConnected = true;
+      const data = await response.json();
+      if (data.applications && Array.isArray(data.applications)) {
+        data.applications.forEach(app => {
+          if (app && app.application_no) {
+            appMap.set(app.application_no, app);
+          }
+        });
+      }
     }
   } catch (e) {}
 
-  if (state.backendConnected && currentAuthUser) {
-    try {
-      const queryParams = currentAuthUser.role === 'applicant'
-        ? `?user_id=${encodeURIComponent(currentAuthUser.id)}&role=applicant&email=${encodeURIComponent(currentAuthUser.email || '')}`
-        : '?role=officer';
-      const response = await fetch(`${state.apiBase}/api/saved-applications${queryParams}`, { headers: buildAuthHeaders() });
-      if (response.status === 503) {
-        await window.checkSiteAvailability();
-        return;
+  if (!isOfficer) {
+    readOfflineQueue().forEach(app => {
+      if (app && app.application_no && !appMap.has(app.application_no)) {
+        appMap.set(app.application_no, app);
       }
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.applications && Array.isArray(data.applications)) {
-          data.applications.forEach(app => {
-            if (app && app.application_no) {
-              appMap.set(app.application_no, { ...(appMap.get(app.application_no) || {}), ...app });
-            }
-          });
-        }
-      }
-    } catch (e) {}
+    });
   }
 
   let allApps = Array.from(appMap.values());
 
   allApps.sort((a, b) => {
-    const timeA = a.created_at || '';
-    const timeB = b.created_at || '';
+    const timeA = a.updated_at || a.created_at || '';
+    const timeB = b.updated_at || b.created_at || '';
     if (timeA && timeB && timeA !== timeB) return timeB.localeCompare(timeA);
     return (b.application_no || '').localeCompare(a.application_no || '');
   });
 
-  if (currentAuthUser && currentAuthUser.role === 'applicant') {
+  if (!isOfficer) {
     allApps = allApps.filter(app => {
       if (!app) return false;
       const uidMatch = app.user_id && String(app.user_id) === String(currentAuthUser.id);
       const aidMatch = app.applicant_id && String(app.applicant_id) === String(currentAuthUser.id);
-      const emailMatch = currentAuthUser.email && app.email && app.email.toLowerCase() === currentAuthUser.email.toLowerCase();
-      const nameMatch = currentAuthUser.full_name && app.full_name && app.full_name.toLowerCase() === currentAuthUser.full_name.toLowerCase();
-      return uidMatch || aidMatch || emailMatch || nameMatch;
+      const recordEmail = String(app.applicant_email || app.email || '').trim().toLowerCase();
+      const userEmail = String(currentAuthUser.email || '').trim().toLowerCase();
+      const emailMatch = userEmail && recordEmail && recordEmail === userEmail;
+      return uidMatch || aidMatch || emailMatch;
     });
   }
 
   state.savedDatabaseApps = allApps;
-
-  try {
-    localStorage.setItem('meridian_saved_apps', JSON.stringify(allApps));
-  } catch (e) {}
-
   renderDatabaseTableRows(allApps);
+
+  if (state.hasApplied && state.currentApplicant?.id) {
+    const updatedActive = allApps.find(a => a.application_no === state.currentApplicant.id);
+    if (updatedActive) {
+      const nextRemarks = updatedActive.officer_remarks || updatedActive.officer_notes || '';
+      const nextUpdated = updatedActive.updated_at || updatedActive.created_at || '';
+      const nextOffStatus = updatedActive.officer_status || 'Pending';
+      const changed =
+        nextUpdated !== state.currentApplicant.updated_at ||
+        nextOffStatus !== state.currentApplicant.officer_status ||
+        nextRemarks !== state.currentApplicant.officer_remarks ||
+        (updatedActive.status || '') !== (state.currentApplicant.status || '');
+      if (changed) {
+        applyRecordToCurrentState(updatedActive);
+      }
+    }
+  }
 };
 
-window.loadDbApplicantById = function(appNo) {
-  state.hasApplied = true;
-  state.backendPrediction = null;
-  state.backendExplanation = null;
-  const found = (state.savedDatabaseApps || []).find(a => a.application_no === appNo) ||
-                DEFAULT_BASELINE_APPLICATIONS.find(a => a.application_no === appNo);
-  if (found) {
-    state.currentApplicant = {
-      id: found.application_no,
-      name: found.full_name || 'Applicant',
-      gender: found.gender || 'Male',
-      married: found.marital_status || 'Yes',
-      dependents: String(found.dependents || '0'),
-      education: found.education || 'Graduate',
-      self_employed: (found.employment_type || '').includes('Self') || (found.employment_type || '').includes('Freelanc') ? 'Yes' : 'No',
-      employment_type: found.employment_type || 'Freelancing / Gig Economy / Contractor',
-      salary_slip: found.salary_slip || 'Yes',
-      applicant_income: found.applicant_income || 35000,
-      coapplicant_income: found.coapplicant_income || 0,
-      loan_amount: found.loan_amount || 150,
-      term: found.loan_term_months || found.term || 60,
-      cibil_score: found.cibil_score || 750,
-      credit_history: (found.cibil_score >= 650 || found.credit_history === 1) ? 1 : 0,
-      property_area: found.property_area || 'Rural',
-      status: found.status || 'Approved'
-    };
-    state.simulated = {
-      loan_amount: found.loan_amount || 150,
-      coapplicant_income: found.coapplicant_income || 0,
-      term: found.loan_term_months || found.term || 60,
-      cibil_score: found.cibil_score || 750,
-      credit_history: (found.cibil_score >= 650 || found.credit_history === 1) ? 1 : 0,
-      salary_slip: (found.salary_slip || 'Yes') === 'Yes'
-    };
-    setSliderVal('sim-slider-loan', state.simulated.loan_amount);
-    setSliderVal('sim-slider-coapp', state.simulated.coapplicant_income);
-    setSliderVal('sim-slider-term', Math.max(1, Math.round(state.simulated.term / 12)));
-    setSliderVal('sim-slider-cibil', state.simulated.cibil_score);
-    syncSimSalarySlipVisuals(state.simulated.salary_slip);
-    syncSimulatorSliderLabels();
-    updateUI();
-    updateSimulationUI();
-    const targetTab = state.currentRole === 'officer' ? 'officer-view' : 'applicant-view';
-    const tabEl = document.querySelector(`[data-tab="${targetTab}"]`);
-    if (tabEl) tabEl.click();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    addAuditLog('VAULT_INSPECT', `Inspected application ${appNo} (${found.full_name}) from central vault`);
+window.loadDbApplicantById = async function(appNo) {
+  const hi = state.currentLang === 'hi';
+  let found = (state.savedDatabaseApps || []).find(a => a.application_no === appNo) || null;
+
+  try {
+    const res = await fetch(`${state.apiBase}/api/application/${encodeURIComponent(appNo)}`, {
+      headers: buildAuthHeaders()
+    });
+    if (res.status === 503 && currentAuthUser?.role !== 'officer') {
+      await window.checkSiteAvailability();
+      return;
+    }
+    if (res.status === 401 || res.status === 403) {
+      const err = await res.json().catch(() => ({}));
+      window.showMeridianToast(err.error || (hi ? 'अस्वीकृत: आप केवल अपने आवेदन देख सकते हैं।' : 'Forbidden: You may only access your own loan applications.'), true);
+      return;
+    }
+    if (res.ok) {
+      state.backendConnected = true;
+      const data = await res.json();
+      if (data.application) {
+        found = data.application;
+      }
+    }
+  } catch (e) {}
+
+  if (!found) {
+    window.showMeridianToast(hi ? `आवेदन ${appNo} नहीं मिला।` : `Application ${appNo} could not be loaded.`, true);
+    return;
+  }
+
+  applyRecordToCurrentState(found);
+  const isOfficer = currentAuthUser?.role === 'officer' || state.currentRole === 'officer';
+  window.activateWorkspaceTab(isOfficer ? 'officer-view' : 'applicant-view');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+
+  if (isOfficer) {
+    await addAuditLog('VAULT_INSPECT', `Inspected application ${appNo} (${found.full_name || 'Applicant'}) from central vault`);
   }
 };
 
 window.goToDatabaseTab = function() {
-  const dbTab = document.querySelector('[data-tab="database-view"]');
-  if (dbTab) dbTab.click();
+  window.activateWorkspaceTab('database-view');
   window.scrollTo({ top: 0, behavior: 'smooth' });
 };
 
 window.inspectSubmittedApp = function() {
-  const targetTab = state.currentRole === 'officer' ? 'officer-view' : 'applicant-view';
-  const tabBtn = document.querySelector(`[data-tab="${targetTab}"]`);
-  if (tabBtn) tabBtn.click();
+  const isOfficer = currentAuthUser?.role === 'officer' || state.currentRole === 'officer';
+  window.activateWorkspaceTab(isOfficer ? 'officer-view' : 'applicant-view');
   window.scrollTo({ top: 0, behavior: 'smooth' });
 };
 
@@ -2985,6 +3469,68 @@ function updateUI() {
   const lang = state.currentLang;
   const dict = I18N[lang] || I18N.en;
   const explanations = generatePlainLanguageExplanations(pred, applicant, lang);
+
+  const noAppNotice = document.getElementById('no-application-notice');
+  const reportContent = document.getElementById('applicant-report-content');
+  if (noAppNotice && reportContent) {
+    noAppNotice.style.display = state.hasApplied ? 'none' : 'block';
+    reportContent.style.display = state.hasApplied ? 'block' : 'none';
+  }
+
+  const adjBanner = document.getElementById('officer-adjudication-banner');
+  const adjBadge = document.getElementById('adj-status-badge');
+  const adjRemarks = document.getElementById('adj-remarks-text');
+  const adjUpdated = document.getElementById('adj-updated-at');
+  if (adjBanner) {
+    if (state.hasApplied) {
+      adjBanner.style.display = 'flex';
+      const offRaw = String(applicant.officer_status || 'Pending').trim();
+      const offLow = offRaw.toLowerCase();
+      let bannerCls = 'officer-adjudication-banner';
+      let badgeCls = 'badge badge-info';
+      let badgeText = dict.status_pending;
+      if (offLow === 'approved') {
+        bannerCls += ' status-approved';
+        badgeCls = 'badge badge-success';
+        badgeText = localizeStatus('Approved', lang).toUpperCase();
+      } else if (offLow === 'conditional') {
+        bannerCls += ' status-conditional';
+        badgeCls = 'badge badge-warning';
+        badgeText = localizeStatus('Conditional', lang).toUpperCase();
+      } else if (offLow === 'rejected') {
+        bannerCls += ' status-rejected';
+        badgeCls = 'badge badge-danger';
+        badgeText = localizeStatus('Rejected', lang).toUpperCase();
+      }
+      adjBanner.className = bannerCls;
+      if (adjBadge) {
+        adjBadge.className = badgeCls;
+        adjBadge.innerText = badgeText;
+      }
+      if (adjRemarks) {
+        const rem = String(applicant.officer_remarks || '').trim();
+        adjRemarks.innerText = rem || dict.adj_remarks_none;
+      }
+      if (adjUpdated) {
+        const upd = String(applicant.updated_at || '').trim();
+        adjUpdated.innerText = upd ? upd.substring(0, 16) : '-';
+      }
+    } else {
+      adjBanner.style.display = 'none';
+    }
+  }
+
+  const offActiveBadge = document.getElementById('officer-active-app-badge');
+  if (offActiveBadge) {
+    if (applicant.id) {
+      const displayName = applicant.name || (lang === 'hi' ? 'आवेदक' : 'Borrower');
+      offActiveBadge.innerText = `${applicant.id} (${displayName})`;
+      offActiveBadge.className = 'badge badge-info';
+    } else {
+      offActiveBadge.innerText = lang === 'hi' ? 'कोई फ़ाइल चयनित नहीं' : 'No Active File';
+      offActiveBadge.className = 'badge badge-warning';
+    }
+  }
 
   const heroCard = document.getElementById('decision-hero-card');
   const heroTitle = document.getElementById('hero-decision-title');
@@ -3101,18 +3647,19 @@ function updateUI() {
 }
 
 function syncFormInputs(app) {
-  setValue('input-name', app.name || 'Ananya Rao');
+  setValue('input-name', app.name || '');
   setValue('input-gender', app.gender || 'Female');
   setValue('input-married', app.married || 'No');
-  setValue('input-dependents', app.dependents || '0');
+  setValue('input-dependents', app.dependents !== undefined && app.dependents !== '' ? String(app.dependents) : '0');
   setValue('input-education', app.education || 'Graduate');
   setValue('input-self-employed', app.self_employed || 'No');
-  setValue('input-app-income', app.applicant_income || 75000);
-  setValue('input-coapp-income', app.coapplicant_income || 20000);
-  setValue('input-loan-amount', app.loan_amount || 250);
-  setValue('input-loan-term', app.term || 84);
-  setValue('input-credit-history', app.cibil_score >= 650 ? 1 : 0);
-  setValue('input-property-area', app.property_area || 'Semiurban');
+  setValue('input-app-income', app.applicant_income !== undefined ? app.applicant_income : 0);
+  setValue('input-coapp-income', app.coapplicant_income !== undefined ? app.coapplicant_income : 0);
+  setValue('input-loan-amount', app.loan_amount || 150);
+  setValue('input-loan-term', app.term || 60);
+  const cibilVal = app.cibil_score !== undefined ? Number(app.cibil_score) : (app.credit_history === 0 ? 540 : 760);
+  setValue('input-credit-history', cibilVal >= 650 ? 1 : 0);
+  setValue('input-property-area', app.property_area || 'Rural');
 }
 
 function setValue(id, val) {
@@ -3177,94 +3724,89 @@ function renderWaterfall(pred) {
 
 window.officerSanctionLoan = async function(newStatus, note) {
   const hi = state.currentLang === 'hi';
-  const appNo = state.currentApplicant.id || 'MB-2026-1001';
-  const applicantName = state.currentApplicant.name || 'Applicant';
-
-  if (state.backendConnected) {
-    try {
-      const res = await fetch(`${state.apiBase}/api/officer/sanction`, {
-        method: 'POST',
-        headers: buildAuthHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({
-          application_no: appNo,
-          status: newStatus,
-          note: note,
-          remarks: document.getElementById('officer-remarks-input')?.value.trim() || note,
-          officer_role: currentAuthUser ? currentAuthUser.role : 'officer'
-        })
-      });
-      if (!res.ok) {
-        const errPayload = await res.json().catch(() => ({}));
-        if (res.status === 403) {
-          alert(errPayload.error || (hi ? 'अस्वीकृत: ऋण अधिकारी अनुमति आवश्यक है।' : 'Forbidden: Officer clearance required.'));
-          return;
-        }
-        console.warn('Backend sanction response:', res.status, errPayload);
-      }
-    } catch (e) {
-      console.warn('Backend sanction sync error:', e);
-    }
+  if (currentAuthUser?.role !== 'officer') {
+    window.showMeridianToast(hi ? 'अस्वीकृत: ऋण अधिकारी अनुमति आवश्यक है।' : 'Forbidden: Officer clearance required.', true);
+    return;
   }
 
-  state.currentApplicant.status = newStatus;
-  const matchingSaved = state.savedDatabaseApps.find(a => a.application_no === appNo);
-  if (matchingSaved) {
-    matchingSaved.status = newStatus;
-    matchingSaved.officer_notes = note;
+  const appNo = state.currentApplicant?.id;
+  if (!appNo) {
+    window.showMeridianToast(
+      hi
+        ? 'निर्णय दर्ज करने से पहले कृपया केंद्रीय वॉल्ट से किसी आवेदन का चयन करें।'
+        : 'Please select a submitted application from Central Application Vault first.',
+      true
+    );
+    return;
   }
+
+  const applicantName = state.currentApplicant.name || (hi ? 'आवेदक' : 'Applicant');
+  const remarksVal = document.getElementById('officer-remarks-input')?.value.trim() || note;
 
   try {
-    const existing = JSON.parse(localStorage.getItem('meridian_saved_apps') || '[]');
-    const idx = existing.findIndex(a => a.application_no === appNo);
-    if (idx >= 0) {
-      existing[idx].status = newStatus;
-      existing[idx].officer_notes = note;
-      localStorage.setItem('meridian_saved_apps', JSON.stringify(existing));
+    const res = await fetch(`${state.apiBase}/api/officer/sanction`, {
+      method: 'POST',
+      headers: buildAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({
+        application_no: appNo,
+        status: newStatus,
+        note: note,
+        remarks: remarksVal,
+        officer_role: 'officer'
+      })
+    });
+    const payload = await res.json().catch(() => ({}));
+    if (res.status === 403) {
+      alert(payload.error || (hi ? 'अस्वीकृत: ऋण अधिकारी अनुमति आवश्यक है।' : 'Forbidden: Officer clearance required.'));
+      return;
     }
-  } catch (e) {}
+    if (res.status === 404) {
+      window.showMeridianToast(
+        hi
+          ? `नोट: ऐतिहासिक पोर्टफोलियो केस (${appNo}) केवल संदर्भ विश्लेषण के लिए हैं। निर्णय दर्ज करने के लिए केंद्रीय वॉल्ट से जमा आवेदन चुनें।`
+          : `Application ${appNo} is not in the persistent vault (historical portfolio samples are read-only). Select a submitted application from Central Vault.`,
+        true
+      );
+      return;
+    }
+    if (!res.ok || !payload.success) {
+      window.showMeridianToast(payload.error || (hi ? 'ऋण निर्णय दर्ज करने में त्रुटि हुई।' : 'Failed to record officer decision.'), true);
+      return;
+    }
 
-  addAuditLog(`Officer ${newStatus}`, note);
+    state.backendConnected = true;
+    if (payload.application) {
+      applyRecordToCurrentState(payload.application);
+    } else {
+      state.currentApplicant.status = newStatus;
+      state.currentApplicant.officer_status = newStatus;
+      state.currentApplicant.officer_remarks = remarksVal;
+      state.currentApplicant.updated_at = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    }
 
-  updateUI();
-  refreshDatabaseTable();
+    updateUI();
+    await window.refreshDatabaseTable();
+    await fetchAuditLogs();
 
-  const statusLocalized = localizeStatus(newStatus, state.currentLang);
-  const alertMsg = hi
-    ? `✅ ऋण निर्णय दर्ज हुआ!\n\nआवेदन: ${appNo}\nआवेदक: ${applicantName}\nस्थिति: ${statusLocalized}\n\nयह निर्णय मेरिडियन डेटाबेस वॉल्ट में सुरक्षित दर्ज हो गया है!`
-    : `✅ Loan Decision Recorded!\n\nApplication No: ${appNo}\nApplicant: ${applicantName}\nStatus: ${newStatus}\n\nRecorded persistently in Meridian Server Vault!`;
-  alert(alertMsg);
+    const statusLocalized = localizeStatus(newStatus, state.currentLang);
+    const alertMsg = hi
+      ? `✅ ऋण निर्णय दर्ज हुआ!\n\nआवेदन: ${appNo}\nआवेदक: ${applicantName}\nस्थिति: ${statusLocalized}\n\nयह निर्णय मेरिडियन डेटाबेस वॉल्ट में स्थायी रूप से दर्ज हो गया है!`
+      : `✅ Loan Decision Recorded!\n\nApplication No: ${appNo}\nApplicant: ${applicantName}\nStatus: ${newStatus}\n\nRecorded persistently in Meridian Server Vault!`;
+    alert(alertMsg);
+  } catch (e) {
+    window.showMeridianToast(
+      hi ? 'सर्वर से संपर्क नहीं हो सका। निर्णय सहेजा नहीं गया।' : 'Network error reaching Meridian Server Vault. Decision was not saved.',
+      true
+    );
+  }
 };
 
 function setupEventListeners() {
   document.querySelectorAll('.nav-item').forEach(item => {
     item.addEventListener('click', () => {
-      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-      item.classList.add('active');
       const tabId = item.getAttribute('data-tab');
-      state.currentTab = tabId;
-
-      document.querySelectorAll('.tab-section').forEach(sec => sec.style.display = 'none');
-      const activeSec = document.getElementById(tabId);
-      if (activeSec) activeSec.style.display = 'block';
-
-      if (tabId === 'fairness-view') {
-        renderFairnessCharts();
-      } else if (tabId === 'model-view') {
-        renderModelPerformanceCharts();
-      } else if (tabId === 'portfolio-view') {
-        renderPortfolioTable();
-      } else if (tabId === 'database-view') {
-        refreshDatabaseTable();
-      }
+      if (tabId) window.activateWorkspaceTab(tabId);
     });
-  });
-
-  document.getElementById('role-applicant')?.addEventListener('click', () => {
-    switchRole('applicant');
-  });
-
-  document.getElementById('role-officer')?.addEventListener('click', () => {
-    switchRole('officer');
   });
 
   document.getElementById('sim-slider-loan')?.addEventListener('input', (e) => {
@@ -3292,7 +3834,7 @@ function setupEventListeners() {
   });
 
   document.getElementById('btn-open-letter')?.addEventListener('click', () => {
-    openDecisionLetterModal();
+    window.openDecisionLetterModal(currentAuthUser?.role === 'officer');
   });
 
   document.getElementById('btn-close-letter')?.addEventListener('click', () => {
@@ -3330,20 +3872,21 @@ function setupEventListeners() {
   officerFieldIds.forEach(fid => {
     document.getElementById(fid)?.addEventListener('input', () => {
       const ch = Number(document.getElementById('input-credit-history')?.value ?? 1);
+      const prevCibil = Number(state.currentApplicant.cibil_score || 760);
       state.currentApplicant.name = document.getElementById('input-name')?.value || state.currentApplicant.name;
-      state.currentApplicant.gender = document.getElementById('input-gender')?.value || 'Male';
-      state.currentApplicant.married = document.getElementById('input-married')?.value || 'Yes';
+      state.currentApplicant.gender = document.getElementById('input-gender')?.value || 'Female';
+      state.currentApplicant.married = document.getElementById('input-married')?.value || 'No';
       state.currentApplicant.dependents = document.getElementById('input-dependents')?.value || '0';
       state.currentApplicant.education = document.getElementById('input-education')?.value || 'Graduate';
       state.currentApplicant.self_employed = document.getElementById('input-self-employed')?.value || 'No';
-      state.currentApplicant.employment_type = state.currentApplicant.self_employed === 'Yes' ? 'Self-Employed (MSME)' : 'Salaried (Private)';
+      state.currentApplicant.employment_type = state.currentApplicant.self_employed === 'Yes' ? 'Self-Employed (Business/MSME)' : 'Salaried (Private/Corporate)';
       state.currentApplicant.salary_slip = state.currentApplicant.self_employed === 'Yes' ? 'No' : 'Yes';
       state.currentApplicant.applicant_income = Number(document.getElementById('input-app-income')?.value || 0);
       state.currentApplicant.coapplicant_income = Number(document.getElementById('input-coapp-income')?.value || 0);
       state.currentApplicant.loan_amount = Number(document.getElementById('input-loan-amount')?.value || 100);
-      state.currentApplicant.term = Number(document.getElementById('input-loan-term')?.value || 360);
+      state.currentApplicant.term = Number(document.getElementById('input-loan-term')?.value || 60);
       state.currentApplicant.credit_history = ch;
-      state.currentApplicant.cibil_score = ch === 1 ? 760 : 540;
+      state.currentApplicant.cibil_score = ch === 1 ? (prevCibil >= 650 ? prevCibil : 760) : 540;
       state.currentApplicant.property_area = document.getElementById('input-property-area')?.value || 'Rural';
       state.backendPrediction = null;
       state.backendExplanation = null;
@@ -3352,49 +3895,48 @@ function setupEventListeners() {
       renderOfficerMetrics(localPred, state.currentApplicant);
       renderWaterfall(localPred);
 
-      if (state.backendConnected) {
-        clearTimeout(_officerPredictTimer);
-        _officerPredictTimer = setTimeout(async () => {
-          try {
-            const res = await fetch(`${state.apiBase}/api/predict`, {
-              method: 'POST',
-              headers: buildAuthHeaders({ 'Content-Type': 'application/json' }),
-              body: JSON.stringify({
-                ...state.currentApplicant,
-                loan_term_months: state.currentApplicant.term
-              })
-            });
-            if (res.status === 503) {
-              await window.checkSiteAvailability();
-              return;
+      clearTimeout(_officerPredictTimer);
+      _officerPredictTimer = setTimeout(async () => {
+        try {
+          const res = await fetch(`${state.apiBase}/api/predict`, {
+            method: 'POST',
+            headers: buildAuthHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({
+              ...state.currentApplicant,
+              loan_term_months: state.currentApplicant.term
+            })
+          });
+          if (res.status === 503 && currentAuthUser?.role !== 'officer') {
+            await window.checkSiteAvailability();
+            return;
+          }
+          if (res.ok) {
+            state.backendConnected = true;
+            const data = await res.json();
+            if (data.prediction) {
+              const p = data.prediction;
+              const mapped = {
+                approvalPercent: p.approval_likelihood,
+                contributions: {
+                  credit_history: { impact: p.contributions?.credit_history || 0 },
+                  dti_ratio: { impact: p.contributions?.dti_ratio || 0 },
+                  income_coverage: { impact: p.contributions?.income_coverage || 0 },
+                  salary_slip: { impact: p.contributions?.salary_slip || 0 },
+                  coapplicant: { impact: p.contributions?.coapplicant || 0 },
+                  property_area: { impact: p.contributions?.property_area || 0 }
+                },
+                ratios: {
+                  emi: p.ratios?.emi ?? p.monthly_emi ?? 0,
+                  dtiPct: p.ratios?.dtiPct ?? p.dti_percent ?? 0,
+                  ltiRatio: p.ratios?.ltiRatio ?? 0
+                }
+              };
+              renderOfficerMetrics(mapped, state.currentApplicant);
+              renderWaterfall(mapped);
             }
-            if (res.ok) {
-              const data = await res.json();
-              if (data.prediction) {
-                const p = data.prediction;
-                const mapped = {
-                  approvalPercent: p.approval_likelihood,
-                  contributions: {
-                    credit_history: { impact: p.contributions?.credit_history || 0 },
-                    dti_ratio: { impact: p.contributions?.dti_ratio || 0 },
-                    income_coverage: { impact: p.contributions?.income_coverage || 0 },
-                    salary_slip: { impact: p.contributions?.salary_slip || 0 },
-                    coapplicant: { impact: p.contributions?.coapplicant || 0 },
-                    property_area: { impact: p.contributions?.property_area || 0 }
-                  },
-                  ratios: {
-                    emi: p.ratios?.emi ?? p.monthly_emi ?? 0,
-                    dtiPct: p.ratios?.dtiPct ?? p.dti_percent ?? 0,
-                    ltiRatio: p.ratios?.ltiRatio ?? 0
-                  }
-                };
-                renderOfficerMetrics(mapped, state.currentApplicant);
-                renderWaterfall(mapped);
-              }
-            }
-          } catch (e) {}
-        }, 200);
-      }
+          }
+        } catch (e) {}
+      }, 200);
     });
   });
 }
@@ -3404,34 +3946,8 @@ function setSliderVal(id, val) {
   if (el) el.value = val;
 }
 
-function switchRole(role) {
-  state.currentRole = role;
-  const btnApp = document.getElementById('role-applicant');
-  const btnOff = document.getElementById('role-officer');
-
-  if (role === 'applicant') {
-    if (btnApp) btnApp.classList.add('active');
-    if (btnOff) btnOff.classList.remove('active');
-
-    document.querySelectorAll('.nav-common-item').forEach(el => el.style.display = 'flex');
-    document.querySelectorAll('.nav-applicant-item').forEach(el => el.style.display = 'flex');
-    document.querySelectorAll('.nav-officer-item').forEach(el => el.style.display = 'none');
-
-    document.querySelector('[data-tab="apply-view"]')?.click();
-  } else {
-    if (btnOff) btnOff.classList.add('active');
-    if (btnApp) btnApp.classList.remove('active');
-
-    document.querySelectorAll('.nav-common-item').forEach(el => el.style.display = 'flex');
-    document.querySelectorAll('.nav-applicant-item').forEach(el => el.style.display = 'flex');
-    document.querySelectorAll('.nav-officer-item').forEach(el => el.style.display = 'flex');
-
-    document.querySelector('[data-tab="officer-view"]')?.click();
-  }
-}
-
 window.scrollToSimulator = function() {
-  document.querySelector('[data-tab="applicant-view"]')?.click();
+  window.activateWorkspaceTab('applicant-view');
   setTimeout(() => {
     const simCard = document.getElementById('what-if-card');
     if (simCard) simCard.scrollIntoView({ behavior: 'smooth' });
@@ -3495,23 +4011,34 @@ window.updateCibilDisplay = function(val) {
   if (guide) guide.innerText = guideText;
 };
 
-window.openDecisionLetterModal = function() {
+window.openDecisionLetterModal = function(allowOfficerPreview = false) {
   const hi = state.currentLang === 'hi';
+  const isOfficer = currentAuthUser?.role === 'officer' || state.currentRole === 'officer';
   if (!state.hasApplied) {
+    if (allowOfficerPreview || isOfficer) {
+      window.showMeridianToast(
+        hi
+          ? 'सूचना पत्र बनाने के लिए कृपया पहले केंद्रीय वॉल्ट या पोर्टफोलियो से कोई आवेदन चुनें।'
+          : 'Please select an application from Central Application Vault or Portfolio first to preview a sanction notice.',
+        true
+      );
+      return;
+    }
     alert(
       hi
         ? 'कृपया आधिकारिक स्वीकृति पत्र डाउनलोड करने के लिए पहले ऋण आवेदन जमा करें।'
         : 'Please submit your loan application first to generate and download your official Sanction Letter.'
     );
-    const applyTab = document.querySelector('[data-tab="apply-view"]');
-    if (applyTab) applyTab.click();
+    window.activateWorkspaceTab('apply-view');
     return;
   }
   const modal = document.getElementById('letter-modal');
   if (!modal) return;
 
   const app = state.currentApplicant;
-  const pred = computePrediction(app);
+  const pred = state.backendPrediction
+    ? normalizeBackendPrediction(state.backendPrediction, app)
+    : computePrediction(app);
 
   const setEl = (id, text) => {
     const el = document.getElementById(id);
@@ -3534,8 +4061,9 @@ window.openDecisionLetterModal = function() {
   const totalRepay = emiVal * termMonths;
   const totalInterest = Math.max(0, totalRepay - loanAmtInr);
 
+  const appRef = app.id || 'MB-PENDING';
   setEl('let-applicant-name', app.name || (hi ? 'आवेदक' : 'Applicant'));
-  setEl('let-ref', `MERIDIAN-${app.id || 'MB-2026-1001'}`);
+  setEl('let-ref', `MERIDIAN-${appRef}`);
   setEl('let-date', new Date().toLocaleDateString(hi ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'long', year: 'numeric' }));
   setEl('let-loan-amount', `₹${loanAmtInr.toLocaleString('en-IN')}`);
   setEl('let-tenure', hi ? `${termMonths} माह (${years} वर्ष)` : `${termMonths} Months (${years} Years)`);
@@ -3548,33 +4076,37 @@ window.openDecisionLetterModal = function() {
   setEl('kfs-total-interest', `₹${totalInterest.toLocaleString('en-IN')}`);
   setEl('kfs-total-repayment', `₹${totalRepay.toLocaleString('en-IN')}`);
 
-  const appRef = app.id || 'MB-2026-1001';
+  const offStatLow = String(app.officer_status || '').trim().toLowerCase();
+  const effectiveStatus = (offStatLow === 'approved' || offStatLow === 'conditional' || offStatLow === 'rejected')
+    ? offStatLow
+    : pred.status;
+
   const statusBadge = document.getElementById('let-status-badge');
   const verdictText = document.getElementById('let-verdict-text');
   if (statusBadge) {
-    if (pred.status === 'approved') {
+    if (effectiveStatus === 'approved') {
       statusBadge.innerText = hi ? 'आधिकारिक सैद्धांतिक ऋण स्वीकृति' : 'OFFICIAL IN-PRINCIPLE APPROVAL';
       statusBadge.className = 'badge badge-success';
       if (verdictText) {
         verdictText.innerHTML = hi
-          ? `हमें यह सूचित करते हुए प्रसन्नता हो रही है कि आपका ऋण आवेदन <strong>${appRef}</strong> <strong>RBI फेयर प्रैक्टिसेज कोड</strong> के अंतर्गत सभी अंडरराइटिंग मानदंडों को सफलतापूर्वक पूरा करता है। नीचे आपका आधिकारिक <strong>मुख्य तथ्य विवरण (KFS)</strong> और पारदर्शी कारक विश्लेषण प्रस्तुत है।`
-          : `We are pleased to inform you that your application <strong>${appRef}</strong> has satisfied all underwriting benchmarks under the <strong>RBI Fair Practices Code</strong>. Below is your official <strong>Key Fact Statement (KFS)</strong> and explainable eligibility breakdown.`;
+          ? `हमें यह सूचित करते हुए प्रसन्नता हो रही है कि ऋण आवेदन <strong>${escapeHtml(appRef)}</strong> <strong>RBI फेयर प्रैक्टिसेज कोड</strong> के अंतर्गत सभी अंडरराइटिंग मानदंडों को सफलतापूर्वक पूरा करता है। नीचे आधिकारिक <strong>मुख्य तथ्य विवरण (KFS)</strong> और पारदर्शी कारक विश्लेषण प्रस्तुत है।`
+          : `We are pleased to inform you that application <strong>${escapeHtml(appRef)}</strong> has satisfied all underwriting benchmarks under the <strong>RBI Fair Practices Code</strong>. Below is the official <strong>Key Fact Statement (KFS)</strong> and explainable eligibility breakdown.`;
       }
-    } else if (pred.status === 'conditional') {
+    } else if (effectiveStatus === 'conditional') {
       statusBadge.innerText = hi ? 'सशर्त सैद्धांतिक ऋण स्वीकृति' : 'CONDITIONAL IN-PRINCIPLE SANCTION';
       statusBadge.className = 'badge badge-warning';
       if (verdictText) {
         verdictText.innerHTML = hi
-          ? `आपका आवेदन <strong>${appRef}</strong> <strong>RBI डिजिटल लेंडिंग दिशानिर्देशों</strong> के अंतर्गत प्राथमिक KYC सत्यापन अथवा सह-गारंटर समर्थन के अधीन सैद्धांतिक स्वीकृति के लिए पात्र है।`
-          : `Your application <strong>${appRef}</strong> qualifies for in-principle sanction subject to primary KYC verification or co-guarantor endorsement under the <strong>RBI Digital Lending Guidelines</strong>.`;
+          ? `आवेदन <strong>${escapeHtml(appRef)}</strong> <strong>RBI डिजिटल लेंडिंग दिशानिर्देशों</strong> के अंतर्गत प्राथमिक KYC सत्यापन अथवा सह-गारंटर समर्थन के अधीन सैद्धांतिक स्वीकृति के लिए पात्र है।`
+          : `Application <strong>${escapeHtml(appRef)}</strong> qualifies for in-principle sanction subject to primary KYC verification or co-guarantor endorsement under the <strong>RBI Digital Lending Guidelines</strong>.`;
       }
     } else {
       statusBadge.innerText = hi ? 'प्रतिकूल निर्णय सूचना (अस्वीकृत)' : 'ADVERSE ACTION NOTICE (DECLINED)';
       statusBadge.className = 'badge badge-danger';
       if (verdictText) {
         verdictText.innerHTML = hi
-          ? `स्वचालित ऋण निर्णयों पर <strong>भारतीय रिज़र्व बैंक फेयर प्रैक्टिसेज कोड</strong> के अनुपालन में, इस प्रतिकूल निर्णय के कारण बने विशिष्ट क्रेडिट मापदंडों का पारदर्शी विवरण नीचे दिया गया है।`
-          : `In compliance with the <strong>Reserve Bank of India Fair Practices Code</strong> on automated lending decisions, we provide below the transparent factor determination detailing the specific credit parameters that led to this adverse decision.`;
+          ? `स्वचालित एवं संस्थागत ऋण निर्णयों पर <strong>भारतीय रिज़र्व बैंक फेयर प्रैक्टिसेज कोड</strong> के अनुपालन में, इस प्रतिकूल निर्णय के कारण बने विशिष्ट क्रेडिट मापदंडों का पारदर्शी विवरण नीचे दिया गया है।`
+          : `In compliance with the <strong>Reserve Bank of India Fair Practices Code</strong> on lending decisions, we provide below the transparent factor determination detailing the specific credit parameters that led to this adverse decision.`;
       }
     }
   }
@@ -3627,6 +4159,14 @@ window.openDecisionLetterModal = function() {
       );
     }
 
+    if (app.officer_remarks && String(app.officer_remarks).trim()) {
+      items.push(
+        hi
+          ? `<li><strong>संस्थागत अधिकारी टिप्पणी:</strong> ${escapeHtml(app.officer_remarks)}</li>`
+          : `<li><strong>Underwriter Decision Remarks:</strong> ${escapeHtml(app.officer_remarks)}</li>`
+      );
+    }
+
     const explanations = generatePlainLanguageExplanations(pred, app, state.currentLang);
     if (explanations && explanations.actions && explanations.actions.length > 0) {
       items.push(
@@ -3642,18 +4182,62 @@ window.openDecisionLetterModal = function() {
   modal.style.display = 'flex';
 };
 
-function addAuditLog(action, note) {
+async function fetchAuditLogs() {
+  if (currentAuthUser?.role !== 'officer') {
+    state.auditLog = [];
+    return;
+  }
+  try {
+    const res = await fetch(`${state.apiBase}/api/officer/audit-logs?limit=50`, {
+      headers: buildAuthHeaders()
+    });
+    if (res.ok) {
+      state.backendConnected = true;
+      const data = await res.json();
+      if (Array.isArray(data.logs)) {
+        state.auditLog = data.logs.map(log => ({
+          time: String(log.created_at || '').substring(0, 16) || '-',
+          officer: log.officer_name || 'Loan Officer',
+          id: log.application_no || 'SYSTEM',
+          action: log.action || 'EVENT',
+          note: log.notes || log.remarks || ''
+        }));
+        renderAuditTable();
+      }
+    }
+  } catch (e) {}
+}
+
+async function addAuditLog(action, note, explicitAppNo = null) {
+  if (currentAuthUser?.role !== 'officer') return;
+  const appNo = explicitAppNo || state.currentApplicant?.id || 'SYSTEM';
+  const remarksVal = document.getElementById('officer-remarks-input')?.value.trim() || note || '';
   const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
   state.auditLog.unshift({
     time: now,
     officer: currentAuthUser ? (currentAuthUser.full_name || currentAuthUser.email) : 'Current Officer',
-    id: state.currentApplicant.id,
+    id: appNo,
     action: action,
-    note: note,
-    remarks: document.getElementById('officer-remarks-input')?.value.trim() || note,
-    officer_role: currentAuthUser ? currentAuthUser.role : 'officer'
+    note: note || ''
   });
   renderAuditTable();
+
+  try {
+    const res = await fetch(`${state.apiBase}/api/officer/audit-logs`, {
+      method: 'POST',
+      headers: buildAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({
+        application_no: appNo,
+        action: action,
+        notes: note || '',
+        remarks: remarksVal
+      })
+    });
+    if (res.ok) {
+      state.backendConnected = true;
+      await fetchAuditLogs();
+    }
+  } catch (e) {}
 }
 
 function localizeAuditAction(action) {
@@ -3663,10 +4247,13 @@ function localizeAuditAction(action) {
     'Officer Approved': 'अधिकारी द्वारा स्वीकृत',
     'Officer Conditional': 'अधिकारी द्वारा सशर्त स्वीकृत',
     'Officer Rejected': 'अधिकारी द्वारा अस्वीकृत',
+    'Officer Updated Terms': 'अधिकारी द्वारा शर्तें अपडेट',
     'System Rejected': 'प्रणाली द्वारा अस्वीकृत',
     'Mission Bharat Pass': 'मिशन भारत पास',
     'VAULT_INSPECT': 'वॉल्ट निरीक्षण',
-    'PORTFOLIO_INSPECT': 'पोर्टफोलियो निरीक्षण'
+    'PORTFOLIO_INSPECT': 'पोर्टफोलियो निरीक्षण',
+    'SITE_ONLINE': 'वेबसाइट ऑनलाइन',
+    'SITE_OFFLINE': 'वेबसाइट ऑफ़लाइन'
   };
   return map[action] || action;
 }
@@ -3674,17 +4261,62 @@ function localizeAuditAction(action) {
 function renderAuditTable() {
   const tbody = document.getElementById('audit-table-body');
   if (!tbody) return;
+  const hi = state.currentLang === 'hi';
 
-  tbody.innerHTML = state.auditLog.slice(0, 8).map(log => `
+  if (!state.auditLog || state.auditLog.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="5" style="text-align: center; padding: 1.5rem; color: #64748B;">
+          ${hi ? 'अभी तक कोई ऑडिट प्रविष्टि दर्ज नहीं हुई है।' : 'No compliance audit entries recorded yet.'}
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  tbody.innerHTML = state.auditLog.slice(0, 15).map(log => `
     <tr>
-      <td style="font-size: 0.78rem; color: #64748B;">${log.time}</td>
-      <td style="font-weight: 600;">${log.officer}</td>
-      <td style="font-weight: 700; color: #064E3B;">${log.id}</td>
-      <td><span class="badge badge-info">${localizeAuditAction(log.action)}</span></td>
-      <td style="font-size: 0.82rem;">${log.note}</td>
+      <td style="font-size: 0.78rem; color: #64748B;">${escapeHtml(log.time)}</td>
+      <td style="font-weight: 600;">${escapeHtml(log.officer)}</td>
+      <td style="font-weight: 700; color: #064E3B;">${escapeHtml(log.id)}</td>
+      <td><span class="badge badge-info">${escapeHtml(localizeAuditAction(log.action))}</span></td>
+      <td style="font-size: 0.82rem;">${escapeHtml(log.note)}</td>
     </tr>
   `).join('');
 }
+
+window.downloadSqliteBackup = async function() {
+  const hi = state.currentLang === 'hi';
+  if (currentAuthUser?.role !== 'officer') {
+    window.showMeridianToast(hi ? 'केवल ऋण अधिकारी ही वॉल्ट बैकअप डाउनलोड कर सकते हैं।' : 'Officer clearance required to download vault backup.', true);
+    return;
+  }
+  try {
+    const res = await fetch(`${state.apiBase}/api/officer/backup?format=sqlite`, {
+      headers: buildAuthHeaders()
+    });
+    if (res.status === 401 || res.status === 403) {
+      window.showMeridianToast(hi ? 'अस्वीकृत: डेटाबेस बैकअप डाउनलोड करने के लिए अधिकारी प्रमाणन आवश्यक है।' : 'Forbidden: Verified officer session required for SQLite backup.', true);
+      return;
+    }
+    if (!res.ok) {
+      window.showMeridianToast(hi ? 'वॉल्ट बैकअप डाउनलोड करने में त्रुटि हुई।' : 'Failed to generate vault SQLite backup.', true);
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `meridian_loans_backup_${new Date().toISOString().substring(0, 10)}.db`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+    window.showMeridianToast(hi ? '💽 SQLite वॉल्ट बैकअप डाउनलोड हो गया!' : '💽 SQLite Vault backup downloaded successfully!');
+  } catch (e) {
+    window.showMeridianToast(hi ? 'वॉल्ट बैकअप डाउनलोड करने में नेटवर्क त्रुटि।' : 'Network error downloading vault backup.', true);
+  }
+};
 
 function localizeFeatureLabel(rawFeature) {
   const clean = String(rawFeature || '').trim();
@@ -3712,36 +4344,36 @@ function localizeFeatureLabel(rawFeature) {
 }
 
 async function renderModelPerformanceCharts() {
+  if (currentAuthUser?.role !== 'officer') return;
   const chartContainer = document.getElementById('feature-importance-chart');
   const hi = state.currentLang === 'hi';
   let weights = [];
 
-  if (state.backendConnected) {
-    try {
-      const res = await fetch(`${state.apiBase}/api/accuracy`, { headers: buildAuthHeaders() });
-      if (res.status === 503) {
-        await window.checkSiteAvailability();
-        return;
+  try {
+    const res = await fetch(`${state.apiBase}/api/accuracy`, { headers: buildAuthHeaders() });
+    if (res.status === 503 && currentAuthUser?.role !== 'officer') {
+      await window.checkSiteAvailability();
+      return;
+    }
+    if (res.ok) {
+      state.backendConnected = true;
+      const data = await res.json();
+      const setTxt = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
+      setTxt('model-acc-val', `${data.overall_accuracy_percent}%`);
+      setTxt('model-prec-val', `${data.precision_percent}%`);
+      setTxt('model-rec-val', `${data.recall_sensitivity_percent}%`);
+      setTxt('model-auc-val', `${data.roc_auc_score}`);
+      if (data.confusion_matrix) {
+        setTxt('cm-tp-val', data.confusion_matrix.true_positives);
+        setTxt('cm-fn-val', data.confusion_matrix.false_negatives);
+        setTxt('cm-fp-val', data.confusion_matrix.false_positives);
+        setTxt('cm-tn-val', data.confusion_matrix.true_negatives);
       }
-      if (res.ok) {
-        const data = await res.json();
-        const setTxt = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
-        setTxt('model-acc-val', `${data.overall_accuracy_percent}%`);
-        setTxt('model-prec-val', `${data.precision_percent}%`);
-        setTxt('model-rec-val', `${data.recall_sensitivity_percent}%`);
-        setTxt('model-auc-val', `${data.roc_auc_score}`);
-        if (data.confusion_matrix) {
-          setTxt('cm-tp-val', data.confusion_matrix.true_positives);
-          setTxt('cm-fn-val', data.confusion_matrix.false_negatives);
-          setTxt('cm-fp-val', data.confusion_matrix.false_positives);
-          setTxt('cm-tn-val', data.confusion_matrix.true_negatives);
-        }
-        if (Array.isArray(data.feature_weights)) {
-          weights = data.feature_weights;
-        }
+      if (Array.isArray(data.feature_weights)) {
+        weights = data.feature_weights;
       }
-    } catch (e) {}
-  }
+    }
+  } catch (e) {}
 
   if (weights.length === 0 && typeof MERIDIAN_DATASET !== 'undefined' && MERIDIAN_DATASET.weights) {
     weights = Object.entries(MERIDIAN_DATASET.weights).map(([feature, weight]) => ({ feature, weight }));
@@ -3771,6 +4403,7 @@ async function renderModelPerformanceCharts() {
 }
 
 async function renderFairnessCharts() {
+  if (currentAuthUser?.role !== 'officer') return;
   const tbody = document.getElementById('fairness-table-body');
   if (!tbody) return;
   const hi = state.currentLang === 'hi';
@@ -3778,18 +4411,17 @@ async function renderFairnessCharts() {
   const affirmative = !!(document.getElementById('affirmative-toggle')?.checked);
   let report = null;
 
-  if (state.backendConnected) {
-    try {
-      const res = await fetch(`${state.apiBase}/api/fairness?affirmative=${affirmative}`, { headers: buildAuthHeaders() });
-      if (res.status === 503) {
-        await window.checkSiteAvailability();
-        return;
-      }
-      if (res.ok) {
-        report = await res.json();
-      }
-    } catch (e) {}
-  }
+  try {
+    const res = await fetch(`${state.apiBase}/api/fairness?affirmative=${affirmative}`, { headers: buildAuthHeaders() });
+    if (res.status === 503 && currentAuthUser?.role !== 'officer') {
+      await window.checkSiteAvailability();
+      return;
+    }
+    if (res.ok) {
+      state.backendConnected = true;
+      report = await res.json();
+    }
+  } catch (e) {}
 
   if (!report && typeof MERIDIAN_DATASET !== 'undefined' && Array.isArray(MERIDIAN_DATASET.records)) {
     const recs = MERIDIAN_DATASET.records;
@@ -3862,6 +4494,7 @@ async function renderFairnessCharts() {
 }
 
 function renderPortfolioTable() {
+  if (currentAuthUser?.role !== 'officer') return;
   const tbody = document.getElementById('portfolio-table-body');
   const countLabel = document.getElementById('portfolio-total-count');
   const pageIndicator = document.getElementById('portfolio-page-indicator');
@@ -3944,17 +4577,17 @@ function renderPortfolioTable() {
 
     return `
       <tr>
-        <td style="font-weight: 800; color: #064E3B;">${r.id}</td>
-        <td>${localizeGender(r.gender, state.currentLang)}</td>
-        <td><span class="badge ${r.property_area === 'Rural' ? 'badge-warning' : 'badge-info'}">${localizeArea(r.property_area || 'Urban', state.currentLang)}</span></td>
+        <td style="font-weight: 800; color: #064E3B;">${escapeHtml(r.id)}</td>
+        <td>${escapeHtml(localizeGender(r.gender, state.currentLang))}</td>
+        <td><span class="badge ${r.property_area === 'Rural' ? 'badge-warning' : 'badge-info'}">${escapeHtml(localizeArea(r.property_area || 'Urban', state.currentLang))}</span></td>
         <td>${formattedIncome}</td>
         <td>₹${loanAmt}k <span style="font-size:0.75rem; color:#64748B;">(₹${(loanAmt * 1000).toLocaleString('en-IN')})</span></td>
         <td>${cHistory}</td>
         <td><strong style="color: ${probColor};">${probVal}%</strong></td>
         <td>${statusBadge}</td>
         <td>
-          <button class="btn btn-outline" style="padding: 4px 10px; font-size: 0.75rem;" onclick="loadHistoricalCase('${r.id}')">
-            🔍 ${hi ? 'जांचें व सिमुलेट करें' : 'Inspect &amp; Simulate'}
+          <button class="btn btn-outline" style="padding: 4px 10px; font-size: 0.75rem;" onclick="loadHistoricalCase('${escapeHtml(r.id)}')">
+            🔍 ${hi ? 'कॉकपिट में जांचें' : 'Inspect in Cockpit'}
           </button>
         </td>
       </tr>
@@ -3987,7 +4620,8 @@ window.changePortfolioPage = function(delta) {
   renderPortfolioTable();
 };
 
-window.loadHistoricalCase = function(caseId) {
+window.loadHistoricalCase = async function(caseId) {
+  if (currentAuthUser?.role !== 'officer') return;
   state.hasApplied = true;
   state.backendPrediction = null;
   state.backendExplanation = null;
@@ -4008,7 +4642,7 @@ window.loadHistoricalCase = function(caseId) {
     dependents: String(r.dependents || '0'),
     education: r.education || 'Graduate',
     self_employed: r.self_employed || 'No',
-    primary_employment: r.self_employed === 'Yes' ? 'Freelancing / Self-Employed' : 'Private Sector (Salaried)',
+    employment_type: r.self_employed === 'Yes' ? 'Self-Employed (Business/MSME)' : 'Salaried (Private/Corporate)',
     applicant_income: appInc,
     coapplicant_income: coappInc,
     loan_amount: r.loan_amount || 150,
@@ -4017,22 +4651,29 @@ window.loadHistoricalCase = function(caseId) {
     cibil_score: cibil,
     salary_slip: r.self_employed === 'Yes' ? 'No' : 'Yes',
     property_area: r.property_area || 'Urban',
-    status: (r.pred_status === 'Y' || r.actual_status === 'Y') ? 'Approved' : 'Rejected'
+    loan_purpose: 'Home Improvement / Construction',
+    status: (r.pred_status === 'Y' || r.actual_status === 'Y') ? 'Approved' : 'Rejected',
+    officer_status: 'Pending',
+    officer_remarks: '',
+    updated_at: ''
   };
 
   window.resetWhatIfToBaseline();
   updateUI();
   updateSimulationUI();
 
-  const targetTab = state.currentRole === 'officer' ? 'officer-view' : 'applicant-view';
-  const tabBtn = document.querySelector(`[data-tab="${targetTab}"]`);
-  if (tabBtn) tabBtn.click();
+  window.activateWorkspaceTab('officer-view');
   window.scrollTo({ top: 0, behavior: 'smooth' });
 
-  addAuditLog('PORTFOLIO_INSPECT', `Inspected historical case ${caseId} (${r.gender}, ${r.property_area}, Loan ₹${r.loan_amount}k)`);
+  await addAuditLog(
+    'PORTFOLIO_INSPECT',
+    `Inspected historical case ${caseId} (${r.gender}, ${r.property_area}, Loan ₹${r.loan_amount}k)`,
+    caseId
+  );
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
+  initPortalGatewayFromUrl();
   setupEventListeners();
   applyTranslations();
   syncFormHelperDisplays();
@@ -4041,11 +4682,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   await window.checkExistingSession();
   checkBackendConnection();
   applyTranslations();
-  updateUI();
-  updateSimulationUI();
-  refreshDatabaseTable();
-  renderPortfolioTable();
-  renderAuditTable();
   setInterval(() => {
     window.checkSiteAvailability();
   }, 20000);

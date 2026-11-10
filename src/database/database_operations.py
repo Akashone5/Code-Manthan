@@ -9,7 +9,9 @@ import hashlib
 import datetime
 import sqlite3
 import csv
-from typing import List, Dict, Any, Optional, Tuple
+import tempfile
+from contextlib import contextmanager
+from typing import List, Dict, Any, Optional, Tuple, Iterator
 
 from .supabase_client import get_supabase_client
 
@@ -50,14 +52,59 @@ def _ensure_db_storage_ready():
         except Exception:
             pass
 
-def get_sqlite_conn() -> sqlite3.Connection:
+@contextmanager
+def get_sqlite_conn() -> Iterator[sqlite3.Connection]:
     _ensure_db_storage_ready()
-    conn = sqlite3.connect(DB_FILE, timeout=20.0)
+    conn = sqlite3.connect(DB_FILE, timeout=30.0)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode = WAL;")
-    conn.execute("PRAGMA synchronous = NORMAL;")
-    conn.execute("PRAGMA busy_timeout = 5000;")
-    return conn
+    try:
+        conn.execute("PRAGMA journal_mode = WAL;")
+        conn.execute("PRAGMA synchronous = FULL;")
+        conn.execute("PRAGMA busy_timeout = 10000;")
+        conn.execute("PRAGMA foreign_keys = ON;")
+        yield conn
+        conn.commit()
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        raise
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+def checkpoint_db(mode: str = 'TRUNCATE') -> bool:
+    safe_mode = mode if mode in ('PASSIVE', 'FULL', 'RESTART', 'TRUNCATE') else 'TRUNCATE'
+    try:
+        with get_sqlite_conn() as conn:
+            conn.execute(f"PRAGMA wal_checkpoint({safe_mode});")
+        return True
+    except Exception:
+        return False
+
+def get_sqlite_backup_bytes() -> bytes:
+    _ensure_db_storage_ready()
+    checkpoint_db('TRUNCATE')
+    fd, tmp_path = tempfile.mkstemp(suffix='.db')
+    os.close(fd)
+    try:
+        src = sqlite3.connect(DB_FILE, timeout=30.0)
+        dst = sqlite3.connect(tmp_path)
+        try:
+            src.backup(dst)
+        finally:
+            dst.close()
+            src.close()
+        with open(tmp_path, 'rb') as f:
+            return f.read()
+    finally:
+        try:
+            os.remove(tmp_path)
+        except Exception:
+            pass
 
 def _hash_password(password: str, salt: Optional[str] = None) -> Tuple[str, str]:
     if not salt:
@@ -104,8 +151,10 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 applicant_id TEXT,
                 user_id TEXT,
+                applicant_email TEXT,
                 application_no TEXT UNIQUE NOT NULL,
                 created_at TEXT NOT NULL,
+                updated_at TEXT,
                 full_name TEXT NOT NULL,
                 phone TEXT,
                 gender TEXT NOT NULL,
@@ -142,6 +191,8 @@ def init_db():
         for col_name, col_def in [
             ('applicant_id', "TEXT"),
             ('user_id', "TEXT"),
+            ('applicant_email', "TEXT"),
+            ('updated_at', "TEXT"),
             ('officer_status', "TEXT DEFAULT 'Pending'"),
             ('officer_remarks', "TEXT"),
             ('officer_notes', "TEXT"),
@@ -154,6 +205,22 @@ def init_db():
                     pass
 
         cursor.execute('''
+            UPDATE loan_applications
+            SET updated_at = COALESCE(updated_at, created_at)
+            WHERE updated_at IS NULL
+        ''')
+
+        cursor.execute('''
+            UPDATE loan_applications
+            SET applicant_email = (
+                SELECT p.email FROM profiles p
+                WHERE p.id = COALESCE(loan_applications.user_id, loan_applications.applicant_id)
+            )
+            WHERE (applicant_email IS NULL OR applicant_email = '')
+              AND COALESCE(user_id, applicant_id) IS NOT NULL
+        ''')
+
+        cursor.execute('''
             CREATE TABLE IF NOT EXISTS system_settings (
                 setting_key TEXT PRIMARY KEY,
                 setting_value TEXT NOT NULL,
@@ -162,7 +229,44 @@ def init_db():
             )
         ''')
 
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS audit_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at TEXT NOT NULL,
+                officer_id TEXT,
+                officer_name TEXT NOT NULL,
+                officer_role TEXT DEFAULT 'officer',
+                application_no TEXT NOT NULL,
+                action TEXT NOT NULL,
+                notes TEXT,
+                remarks TEXT
+            )
+        ''')
+
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS user_sessions (
+                token TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                role TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                last_seen_at TEXT NOT NULL
+            )
+        ''')
+
         now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cursor.execute("SELECT COUNT(*) FROM audit_logs")
+        if cursor.fetchone()[0] == 0:
+            baseline_audits = [
+                ("2026-10-28 21:10:00", None, "Underwriter #304", "officer", "MB-2026-1003", "Mission Bharat Pass", "Rural women digital MSME priority incentive applied", "Verified under Mission Bharat guidelines"),
+                ("2026-10-28 20:42:00", None, "Underwriter #108", "officer", "MB-2026-1002", "Approved", "Standard prime underwriting pass", "CIBIL & DTI ratios within prime ceiling"),
+                ("2026-10-28 20:15:00", None, "Underwriter #402", "officer", "MB-2026-1004", "System Rejected", "Subprime credit score (CIBIL 580) and 59.5% DTI", "Credit rehabilitation recommended")
+            ]
+            cursor.executemany('''
+                INSERT INTO audit_logs (created_at, officer_id, officer_name, officer_role, application_no, action, notes, remarks)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ''', baseline_audits)
+
         cursor.execute("SELECT setting_key, setting_value FROM system_settings")
         existing_settings = {row['setting_key']: row['setting_value'] for row in cursor.fetchall()}
 
@@ -259,6 +363,64 @@ def init_db():
                             updated_at = excluded.updated_at
                     ''', ("officer_pwd_env_last", pwd_fp, "Environment Variable (OFFICER_ADMIN_PASSWORD)", now_str))
 
+def _persist_session(token: str, user_id: str, role: str):
+    if not token or not user_id:
+        return
+    now_dt = datetime.datetime.now()
+    now_str = now_dt.strftime("%Y-%m-%d %H:%M:%S")
+    exp_str = (now_dt + datetime.timedelta(days=30)).strftime("%Y-%m-%d %H:%M:%S")
+    with get_sqlite_conn() as conn:
+        conn.execute('''
+            INSERT OR REPLACE INTO user_sessions (token, user_id, role, created_at, expires_at, last_seen_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (token, str(user_id), str(role), now_str, exp_str, now_str))
+
+def verify_session_token(token: str) -> Optional[Dict[str, Any]]:
+    clean = (token or "").strip()
+    if clean.lower().startswith("bearer "):
+        clean = clean[7:].strip()
+    if not clean:
+        return None
+
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with get_sqlite_conn() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT s.token, s.user_id, s.role, s.expires_at,
+                   p.id, p.full_name, p.email, p.phone, p.role AS profile_role, p.is_verified_officer, p.created_at
+            FROM user_sessions s
+            JOIN profiles p ON p.id = s.user_id
+            WHERE s.token = ?
+        ''', (clean,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        rec = dict(row)
+        if rec.get('expires_at') and rec['expires_at'] < now_str:
+            cursor.execute("DELETE FROM user_sessions WHERE token = ?", (clean,))
+            return None
+        cursor.execute("UPDATE user_sessions SET last_seen_at = ? WHERE token = ?", (now_str, clean))
+        return {
+            'id': rec['id'],
+            'full_name': rec['full_name'],
+            'email': rec['email'],
+            'phone': rec.get('phone', ''),
+            'role': rec['profile_role'],
+            'is_verified_officer': bool(rec.get('is_verified_officer', 0)),
+            'created_at': rec['created_at']
+        }
+
+def revoke_session_token(token: str) -> bool:
+    clean = (token or "").strip()
+    if clean.lower().startswith("bearer "):
+        clean = clean[7:].strip()
+    if not clean:
+        return False
+    with get_sqlite_conn() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM user_sessions WHERE token = ?", (clean,))
+        return cursor.rowcount > 0
+
 def validate_email_format(email: str) -> bool:
     pattern = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
     return bool(re.match(pattern, email.strip()))
@@ -344,6 +506,7 @@ def create_user_profile(full_name: str, email: str, phone: str, password: str,
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (user_id, full_name, email, phone, pwd_hash, salt, role, 1 if is_verified_officer else 0, now_str, now_str))
 
+    checkpoint_db('PASSIVE')
     return {
         'id': user_id,
         'full_name': full_name,
@@ -367,7 +530,7 @@ def authenticate_user(email: str, password: str) -> Dict[str, Any]:
             res = sb_client.auth_sign_in(email=email, password=password)
             if res.get('success'):
                 data = res.get('data', {})
-                token = data.get('access_token')
+                token = data.get('access_token') or f"sb-session-{uuid.uuid4().hex}"
                 sb_user = data.get('user', {})
                 user_meta = sb_user.get('user_metadata', {})
                 user_id = sb_user.get('id')
@@ -388,7 +551,9 @@ def authenticate_user(email: str, password: str) -> Dict[str, Any]:
                 else:
                     role = local_profile.get('role', role)
                     full_name = local_profile.get('full_name', full_name)
+                    user_id = local_profile.get('id', user_id)
 
+                _persist_session(token, str(user_id), role)
                 return {
                     'success': True,
                     'token': token,
@@ -397,7 +562,8 @@ def authenticate_user(email: str, password: str) -> Dict[str, Any]:
                         'email': email,
                         'full_name': full_name,
                         'phone': phone,
-                        'role': role
+                        'role': role,
+                        'is_verified_officer': (role == 'officer')
                     }
                 }
         except Exception:
@@ -416,18 +582,19 @@ def authenticate_user(email: str, password: str) -> Dict[str, Any]:
             return {'success': False, 'error': 'Invalid password. Please try again.'}
 
         session_token = f"local-session-{uuid.uuid4().hex}"
-        return {
-            'success': True,
-            'token': session_token,
-            'user': {
-                'id': record['id'],
-                'email': record['email'],
-                'full_name': record['full_name'],
-                'phone': record.get('phone', ''),
-                'role': record['role'],
-                'is_verified_officer': bool(record.get('is_verified_officer', 0))
-            }
+    _persist_session(session_token, record['id'], record['role'])
+    return {
+        'success': True,
+        'token': session_token,
+        'user': {
+            'id': record['id'],
+            'email': record['email'],
+            'full_name': record['full_name'],
+            'phone': record.get('phone', ''),
+            'role': record['role'],
+            'is_verified_officer': bool(record.get('is_verified_officer', 0))
         }
+    }
 
 def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
     with get_sqlite_conn() as conn:
@@ -445,11 +612,11 @@ def get_user_profile(user_id: str) -> Optional[Dict[str, Any]]:
 
 def sync_csv_export():
     try:
-        apps = get_all_applications()
+        apps = get_all_applications(role='officer')
         with open(EXPORT_CSV, 'w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
             writer.writerow([
-                'Application No', 'Submission Date', 'Full Name', 'Phone', 'Gender',
+                'Application No', 'Submission Date', 'Updated At', 'Full Name', 'Email', 'Phone', 'Gender',
                 'Marital Status', 'Dependents', 'Education', 'Employment Type', 'Salary Slip Available',
                 'Monthly Income (INR)', 'Co-Applicant Income (INR)', 'Loan Amount (k)',
                 'Tenure (Months)', 'CIBIL Score', 'Property Area', 'Approval Score (%)',
@@ -457,7 +624,8 @@ def sync_csv_export():
             ])
             for r in apps:
                 writer.writerow([
-                    r.get('application_no'), r.get('created_at'), r.get('full_name'), r.get('phone'),
+                    r.get('application_no'), r.get('created_at'), r.get('updated_at'), r.get('full_name'),
+                    r.get('applicant_email', ''), r.get('phone'),
                     r.get('gender'), r.get('marital_status'), r.get('dependents'), r.get('education'),
                     r.get('employment_type'), r.get('salary_slip', 'Yes'),
                     r.get('applicant_income'), r.get('coapplicant_income'),
@@ -469,12 +637,31 @@ def sync_csv_export():
     except Exception as e:
         print(f"[WARN] CSV audit sync notification: {e}")
 
+def _generate_unique_application_no() -> str:
+    current_year = datetime.datetime.now().year
+    with get_sqlite_conn() as conn:
+        cursor = conn.cursor()
+        for _ in range(25):
+            candidate = f"MB-{current_year}-{random.randint(1000, 9999)}"
+            cursor.execute("SELECT 1 FROM loan_applications WHERE application_no = ?", (candidate,))
+            if not cursor.fetchone():
+                return candidate
+    return f"MB-{current_year}-{uuid.uuid4().hex[:6].upper()}"
+
 def save_application(applicant_data: Dict[str, Any], prediction_result: Dict[str, Any],
                      explanation_result: Dict[str, Any], user_id: Optional[str] = None) -> Dict[str, Any]:
-    random_digits = random.randint(1000, 9999)
-    current_year = datetime.datetime.now().year
-    app_no = f"MB-{current_year}-{random_digits}"
-    created_at = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    app_no = _generate_unique_application_no()
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    resolved_email = (
+        applicant_data.get('applicant_email')
+        or applicant_data.get('email')
+        or ''
+    ).strip().lower()
+    if not resolved_email and user_id:
+        profile = get_user_profile(str(user_id))
+        if profile and profile.get('email'):
+            resolved_email = str(profile['email']).strip().lower()
 
     cibil = int(applicant_data.get('cibil_score', 750))
     credit_hist = 1 if cibil >= 650 else 0
@@ -493,8 +680,10 @@ def save_application(applicant_data: Dict[str, Any], prediction_result: Dict[str
     record_dict: Dict[str, Any] = {
         'applicant_id': user_id,
         'user_id': user_id,
+        'applicant_email': resolved_email,
         'application_no': app_no,
-        'created_at': created_at,
+        'created_at': now_str,
+        'updated_at': now_str,
         'full_name': applicant_data.get('full_name', 'Applicant'),
         'phone': applicant_data.get('phone', ''),
         'gender': applicant_data.get('gender', 'Male'),
@@ -543,17 +732,18 @@ def save_application(applicant_data: Dict[str, Any], prediction_result: Dict[str
         cursor = conn.cursor()
         cursor.execute('''
             INSERT INTO loan_applications (
-                applicant_id, user_id, application_no, created_at, full_name, phone, gender,
+                applicant_id, user_id, applicant_email, application_no, created_at, updated_at, full_name, phone, gender,
                 marital_status, dependents, education, employment_type, salary_slip,
                 applicant_income, coapplicant_income, loan_amount, loan_term_months,
                 cibil_score, credit_history, property_area, loan_purpose,
                 approval_likelihood, status, monthly_emi, dti_percent,
                 explanation_summary, positive_factors_json, risk_factors_json,
                 recommendations_json, officer_status, officer_remarks, officer_notes
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
-            record_dict.get('applicant_id'), record_dict.get('user_id'),
-            record_dict['application_no'], record_dict['created_at'], record_dict['full_name'], record_dict['phone'],
+            record_dict.get('applicant_id'), record_dict.get('user_id'), record_dict.get('applicant_email'),
+            record_dict['application_no'], record_dict['created_at'], record_dict['updated_at'],
+            record_dict['full_name'], record_dict['phone'],
             record_dict['gender'], record_dict['marital_status'], record_dict['dependents'], record_dict['education'],
             record_dict['employment_type'], record_dict['salary_slip'], record_dict['applicant_income'],
             record_dict['coapplicant_income'], record_dict['loan_amount'], record_dict['loan_term_months'],
@@ -567,43 +757,172 @@ def save_application(applicant_data: Dict[str, Any], prediction_result: Dict[str
         record_id = cursor.lastrowid
         record_dict['id'] = record_id
 
+    checkpoint_db('PASSIVE')
     sync_csv_export()
     return new_record or record_dict
 
-def get_all_applications(user_id: Optional[str] = None, role: str = 'officer', user_email: Optional[str] = None) -> List[Dict[str, Any]]:
-    is_applicant = (role == 'applicant')
+def update_application_details(
+    application_no: str,
+    updated_fields: Dict[str, Any],
+    prediction_result: Dict[str, Any],
+    explanation_result: Dict[str, Any]
+) -> Optional[Dict[str, Any]]:
+    existing = get_application_by_number(application_no)
+    if not existing:
+        return None
+
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    cibil = int(updated_fields.get('cibil_score', existing.get('cibil_score', 750)))
+    credit_hist = 1 if cibil >= 650 else 0
+    salary_slip = str(updated_fields.get('salary_slip', existing.get('salary_slip', 'Yes'))).capitalize()
+    term_months = int(
+        updated_fields.get('loan_term_months')
+        or updated_fields.get('term')
+        or existing.get('loan_term_months', 60)
+    )
+    if term_months <= 0:
+        term_months = 60
+
+    pos_factors = [f"{p['factor']}: {p['details']}" for p in explanation_result.get('positive_factors', [])]
+    neg_factors = [f"{n['factor']}: {n['details']}" for n in explanation_result.get('negative_factors', [])]
+    recs = explanation_result.get('recommendations', [])
+
+    update_payload: Dict[str, Any] = {
+        'updated_at': now_str,
+        'applicant_income': float(updated_fields.get('applicant_income', existing.get('applicant_income', 0))),
+        'coapplicant_income': float(updated_fields.get('coapplicant_income', existing.get('coapplicant_income', 0))),
+        'loan_amount': float(updated_fields.get('loan_amount', existing.get('loan_amount', 100))),
+        'loan_term_months': term_months,
+        'cibil_score': cibil,
+        'credit_history': credit_hist,
+        'salary_slip': salary_slip,
+        'property_area': str(updated_fields.get('property_area') or existing.get('property_area', 'Rural')),
+        'employment_type': str(updated_fields.get('employment_type') or existing.get('employment_type', 'Salaried')),
+        'loan_purpose': str(updated_fields.get('loan_purpose') or existing.get('loan_purpose', 'Home Improvement')),
+        'approval_likelihood': int(prediction_result.get('approval_likelihood', existing.get('approval_likelihood', 50))),
+        'status': str(prediction_result.get('status', existing.get('status', 'Conditional'))),
+        'monthly_emi': float(prediction_result.get('monthly_emi', existing.get('monthly_emi', 0))),
+        'dti_percent': float(prediction_result.get('dti_percent', existing.get('dti_percent', 0))),
+        'explanation_summary': explanation_result.get('verdict_summary', ''),
+        'positive_factors_json': json.dumps(pos_factors),
+        'risk_factors_json': json.dumps(neg_factors),
+        'recommendations_json': json.dumps(recs)
+    }
 
     sb_client = get_supabase_client()
     if sb_client.is_configured():
         try:
-            if is_applicant and user_id:
-                params = f"select=*&or=(user_id.eq.{user_id},applicant_id.eq.{user_id})&order=id.desc"
+            sb_client.update('loan_applications', update_payload, 'application_no', application_no)
+        except Exception:
+            pass
+
+    with get_sqlite_conn() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            UPDATE loan_applications
+            SET updated_at = ?,
+                applicant_income = ?,
+                coapplicant_income = ?,
+                loan_amount = ?,
+                loan_term_months = ?,
+                cibil_score = ?,
+                credit_history = ?,
+                salary_slip = ?,
+                property_area = ?,
+                employment_type = ?,
+                loan_purpose = ?,
+                approval_likelihood = ?,
+                status = ?,
+                monthly_emi = ?,
+                dti_percent = ?,
+                explanation_summary = ?,
+                positive_factors_json = ?,
+                risk_factors_json = ?,
+                recommendations_json = ?
+            WHERE application_no = ?
+        ''', (
+            update_payload['updated_at'],
+            update_payload['applicant_income'],
+            update_payload['coapplicant_income'],
+            update_payload['loan_amount'],
+            update_payload['loan_term_months'],
+            update_payload['cibil_score'],
+            update_payload['credit_history'],
+            update_payload['salary_slip'],
+            update_payload['property_area'],
+            update_payload['employment_type'],
+            update_payload['loan_purpose'],
+            update_payload['approval_likelihood'],
+            update_payload['status'],
+            update_payload['monthly_emi'],
+            update_payload['dti_percent'],
+            update_payload['explanation_summary'],
+            update_payload['positive_factors_json'],
+            update_payload['risk_factors_json'],
+            update_payload['recommendations_json'],
+            application_no
+        ))
+
+    checkpoint_db('PASSIVE')
+    sync_csv_export()
+    return get_application_by_number(application_no)
+
+def get_all_applications(user_id: Optional[str] = None, role: str = 'officer', user_email: Optional[str] = None) -> List[Dict[str, Any]]:
+    is_applicant = (str(role).strip().lower() == 'applicant')
+    clean_uid = str(user_id).strip() if user_id else ''
+    clean_email = str(user_email).strip().lower() if user_email else ''
+    if is_applicant and clean_uid and not clean_email:
+        prof = get_user_profile(clean_uid)
+        if prof and prof.get('email'):
+            clean_email = str(prof['email']).strip().lower()
+
+    if is_applicant and not clean_uid and not clean_email:
+        return []
+
+    sb_client = get_supabase_client()
+    if sb_client.is_configured():
+        try:
+            if is_applicant and clean_uid:
+                params = f"select=*&or=(user_id.eq.{clean_uid},applicant_id.eq.{clean_uid})&order=id.desc"
             else:
                 params = "select=*&order=id.desc"
 
             res = sb_client.select('loan_applications', params)
             if res.get('success') and isinstance(res.get('data'), list):
                 apps = res.get('data')
-                if is_applicant and user_id:
-                    return [a for a in apps if str(a.get('user_id') or a.get('applicant_id')) == str(user_id)]
+                if is_applicant:
+                    filtered = []
+                    for a in apps:
+                        uid_m = clean_uid and (str(a.get('user_id') or '') == clean_uid or str(a.get('applicant_id') or '') == clean_uid)
+                        em_m = clean_email and str(a.get('applicant_email') or '').strip().lower() == clean_email
+                        if uid_m or em_m:
+                            filtered.append(a)
+                    return filtered
                 return apps
         except Exception:
             pass
 
     with get_sqlite_conn() as conn:
         cursor = conn.cursor()
-        if is_applicant and user_id:
-            cursor.execute('''
-                SELECT * FROM loan_applications 
-                WHERE user_id = ? OR applicant_id = ?
-                ORDER BY id DESC
-            ''', (str(user_id), str(user_id)))
-        elif is_applicant and user_email:
-            cursor.execute('''
-                SELECT * FROM loan_applications 
-                WHERE user_id = ? OR applicant_id = ?
-                ORDER BY id DESC
-            ''', (str(user_id or ''), str(user_id or '')))
+        if is_applicant:
+            if clean_uid and clean_email:
+                cursor.execute('''
+                    SELECT * FROM loan_applications
+                    WHERE user_id = ? OR applicant_id = ? OR LOWER(applicant_email) = ?
+                    ORDER BY id DESC
+                ''', (clean_uid, clean_uid, clean_email))
+            elif clean_uid:
+                cursor.execute('''
+                    SELECT * FROM loan_applications
+                    WHERE user_id = ? OR applicant_id = ?
+                    ORDER BY id DESC
+                ''', (clean_uid, clean_uid))
+            else:
+                cursor.execute('''
+                    SELECT * FROM loan_applications
+                    WHERE LOWER(applicant_email) = ?
+                    ORDER BY id DESC
+                ''', (clean_email,))
         else:
             cursor.execute('SELECT * FROM loan_applications ORDER BY id DESC')
 
@@ -626,7 +945,71 @@ def get_application_by_number(application_no: str) -> Optional[Dict[str, Any]]:
         row = cursor.fetchone()
         return dict(row) if row else None
 
-def update_application_status(application_no: str, new_status: str, officer_remarks: str = '') -> Optional[Dict[str, Any]]:
+def add_audit_log(
+    application_no: str,
+    action: str,
+    notes: str = '',
+    remarks: str = '',
+    officer_id: Optional[str] = None,
+    officer_name: str = 'Loan Officer',
+    officer_role: str = 'officer'
+) -> Dict[str, Any]:
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    entry = {
+        'created_at': now_str,
+        'officer_id': officer_id,
+        'officer_name': (officer_name or 'Loan Officer').strip(),
+        'officer_role': (officer_role or 'officer').strip(),
+        'application_no': (application_no or 'SYSTEM').strip(),
+        'action': (action or 'EVENT').strip(),
+        'notes': (notes or '').strip(),
+        'remarks': (remarks or notes or '').strip()
+    }
+
+    sb_client = get_supabase_client()
+    if sb_client.is_configured():
+        try:
+            sb_client.insert('audit_logs', entry)
+        except Exception:
+            pass
+
+    with get_sqlite_conn() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO audit_logs (created_at, officer_id, officer_name, officer_role, application_no, action, notes, remarks)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            entry['created_at'], entry['officer_id'], entry['officer_name'],
+            entry['officer_role'], entry['application_no'], entry['action'],
+            entry['notes'], entry['remarks']
+        ))
+        entry['id'] = cursor.lastrowid
+    return entry
+
+def get_audit_logs(limit: int = 100) -> List[Dict[str, Any]]:
+    safe_limit = max(1, min(500, int(limit)))
+    sb_client = get_supabase_client()
+    if sb_client.is_configured():
+        try:
+            res = sb_client.select('audit_logs', f"select=*&order=id.desc&limit={safe_limit}")
+            if res.get('success') and isinstance(res.get('data'), list) and len(res['data']) > 0:
+                return res['data']
+        except Exception:
+            pass
+
+    with get_sqlite_conn() as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM audit_logs ORDER BY id DESC LIMIT ?', (safe_limit,))
+        return [dict(r) for r in cursor.fetchall()]
+
+def update_application_status(
+    application_no: str,
+    new_status: str,
+    officer_remarks: str = '',
+    officer_id: Optional[str] = None,
+    officer_name: str = 'Loan Officer'
+) -> Optional[Dict[str, Any]]:
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     sb_client = get_supabase_client()
     if sb_client.is_configured():
         try:
@@ -634,22 +1017,51 @@ def update_application_status(application_no: str, new_status: str, officer_rema
                 'status': new_status,
                 'officer_status': new_status,
                 'officer_remarks': officer_remarks,
-                'officer_notes': officer_remarks
+                'officer_notes': officer_remarks,
+                'updated_at': now_str
             }
             sb_client.update('loan_applications', update_payload, 'application_no', application_no)
         except Exception:
             pass
 
+    updated_count = 0
     with get_sqlite_conn() as conn:
         cursor = conn.cursor()
         cursor.execute('''
             UPDATE loan_applications
-            SET status = ?, officer_status = ?, officer_remarks = ?, officer_notes = ?
+            SET status = ?, officer_status = ?, officer_remarks = ?, officer_notes = ?, updated_at = ?
             WHERE application_no = ?
-        ''', (new_status, new_status, officer_remarks, officer_remarks, application_no))
+        ''', (new_status, new_status, officer_remarks, officer_remarks, now_str, application_no))
+        updated_count = cursor.rowcount
 
-    sync_csv_export()
+    if updated_count > 0:
+        add_audit_log(
+            application_no=application_no,
+            action=f"Officer {new_status}",
+            notes=officer_remarks or f"Decision recorded as {new_status}",
+            remarks=officer_remarks,
+            officer_id=officer_id,
+            officer_name=officer_name,
+            officer_role='officer'
+        )
+        checkpoint_db('PASSIVE')
+        sync_csv_export()
+
     return get_application_by_number(application_no)
+
+def get_full_vault_snapshot() -> Dict[str, Any]:
+    apps = get_all_applications(role='officer')
+    audits = get_audit_logs(limit=500)
+    avail = get_site_availability()
+    return {
+        'exported_at': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        'storage_backend': os.path.basename(DB_FILE),
+        'total_applications': len(apps),
+        'total_audit_logs': len(audits),
+        'site_availability': avail,
+        'applications': apps,
+        'audit_logs': audits
+    }
 
 DEFAULT_MAINTENANCE_TITLE = "Portal Temporarily Offline"
 DEFAULT_MAINTENANCE_MESSAGE = (
@@ -710,7 +1122,8 @@ def set_site_availability(
     online: bool,
     message: Optional[str] = None,
     title: Optional[str] = None,
-    updated_by: str = "Loan Officer"
+    updated_by: str = "Loan Officer",
+    officer_id: Optional[str] = None
 ) -> Dict[str, Any]:
     now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     actor = (updated_by or "Loan Officer").strip()
@@ -747,6 +1160,16 @@ def set_site_availability(
                     updated_at = excluded.updated_at
             ''', ("maintenance_message", message.strip(), actor, now_str))
 
+    add_audit_log(
+        application_no="SYSTEM",
+        action="SITE_ONLINE" if online else "SITE_OFFLINE",
+        notes=f"Public portal switched {'ONLINE' if online else 'OFFLINE'} by {actor}",
+        remarks=(message or '').strip() or DEFAULT_MAINTENANCE_MESSAGE,
+        officer_id=officer_id,
+        officer_name=actor,
+        officer_role='officer'
+    )
+    checkpoint_db('PASSIVE')
     return get_site_availability()
 
 init_db()

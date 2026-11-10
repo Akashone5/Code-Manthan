@@ -72,6 +72,25 @@ class OfficerSanctionRequest(BaseModel):
     note: Optional[str] = Field(default=None, description="Alternative field for officer remarks")
     officer_role: Optional[str] = Field(default=None, description="Role verification parameter")
 
+class ApplicationUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra='allow')
+
+    applicant_income: Optional[float] = Field(default=None, description="Updated monthly applicant income in INR")
+    coapplicant_income: Optional[float] = Field(default=None, description="Updated monthly co-applicant income in INR")
+    loan_amount: Optional[float] = Field(default=None, description="Updated requested loan quantum in Thousands INR")
+    loan_term_months: Optional[int] = Field(default=None, description="Updated repayment tenure in months")
+    cibil_score: Optional[int] = Field(default=None, description="Updated bureau CIBIL score")
+    salary_slip: Optional[str] = Field(default=None, description="Updated salary slip availability (Yes/No)")
+    property_area: Optional[str] = Field(default=None, description="Updated property territory")
+    employment_type: Optional[str] = Field(default=None, description="Updated employment classification")
+    loan_purpose: Optional[str] = Field(default=None, description="Updated loan purpose")
+
+class AuditLogCreateRequest(BaseModel):
+    application_no: str = Field(default="SYSTEM", description="Target application number or scope")
+    action: str = Field(..., description="Audit action identifier")
+    notes: Optional[str] = Field(default="", description="Audit event notes")
+    remarks: Optional[str] = Field(default="", description="Audit regulatory remarks")
+
 class SavedApplicationsResponse(BaseModel):
     success: bool = True
     role: str

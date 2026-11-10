@@ -192,15 +192,53 @@ async def forgot_password(payload: ForgotPasswordRequest):
         }
     )
 
+def _extract_session_token(
+    authorization: Optional[str] = None,
+    x_session_token: Optional[str] = None,
+    token: Optional[str] = None
+) -> str:
+    if authorization and authorization.strip():
+        raw = authorization.strip()
+        if raw.lower().startswith("bearer "):
+            return raw[7:].strip()
+        return raw
+    if x_session_token and x_session_token.strip():
+        return x_session_token.strip()
+    if token and token.strip():
+        return token.strip()
+    return ""
+
 @router.get(
     "/session",
     summary="Verify stored user profile and role state"
 )
 async def verify_session(
     user_id: Optional[str] = Query(default=None),
+    token: Optional[str] = Query(default=None),
+    authorization: Optional[str] = Header(default=None, alias="Authorization"),
+    x_session_token: Optional[str] = Header(default=None, alias="X-Session-Token"),
     x_user_id: Optional[str] = Header(default=None, alias="X-User-Id")
 ):
+    session_token = _extract_session_token(authorization, x_session_token, token)
     uid = user_id or x_user_id
+
+    if session_token:
+        verified_user = database.verify_session_token(session_token)
+        if not verified_user:
+            return JSONResponse(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                content={"success": False, "error": "Session expired or revoked. Please sign in again."}
+            )
+        if uid and str(verified_user.get("id", "")) != str(uid).strip():
+            return JSONResponse(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                content={"success": False, "error": "Session identity mismatch."}
+            )
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={"success": True, "user": verified_user}
+        )
+
     if not uid:
         return JSONResponse(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -224,7 +262,14 @@ async def verify_session(
     summary="Terminate active session",
     response_model=BaseMessageResponse
 )
-async def logout():
+async def logout(
+    token: Optional[str] = Query(default=None),
+    authorization: Optional[str] = Header(default=None, alias="Authorization"),
+    x_session_token: Optional[str] = Header(default=None, alias="X-Session-Token")
+):
+    session_token = _extract_session_token(authorization, x_session_token, token)
+    if session_token:
+        database.revoke_session_token(session_token)
     return JSONResponse(
         status_code=status.HTTP_200_OK,
         content={"success": True, "message": "Logged out successfully."}

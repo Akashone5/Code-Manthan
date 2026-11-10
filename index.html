@@ -73,7 +73,7 @@
             <div class="form-row">
               <div class="form-group" style="margin-bottom: 0.65rem;">
                 <label class="form-label" data-i18n="lbl_officer_email">Institutional Officer Email</label>
-                <input type="email" id="maint-officer-email" class="form-control" placeholder="officer@meridianbank.in" required>
+                <input type="email" id="maint-officer-email" class="form-control" placeholder="officer@meridianbank.in" data-i18n-placeholder="ph_off_email" required>
               </div>
               <div class="form-group" style="margin-bottom: 0.65rem;">
                 <label class="form-label" data-i18n="lbl_officer_pwd">Officer Password</label>
@@ -115,10 +115,10 @@
 
         <div class="header-controls">
           <span id="auth-site-status-pill" class="site-status-pill online">
-            <span class="status-dot"></span> Website: ONLINE
+            <span class="status-dot"></span> <span id="auth-site-pill-text" data-i18n="pill_site_online">Website: ONLINE</span>
           </span>
-          <span class="live-badge" style="background: rgba(248, 231, 201, 0.18); border: 1px solid var(--warm-cream); color: var(--warm-cream);">
-            <span class="pulse-dot"></span> <span data-i18n="auth_gateway_badge">Institutional Access Gateway</span>
+          <span id="auth-gateway-badge" class="live-badge" style="background: rgba(248, 231, 201, 0.18); border: 1px solid var(--warm-cream); color: var(--warm-cream);">
+            <span class="pulse-dot"></span> <span id="auth-gateway-badge-text" data-i18n="gw_applicant_badge">Applicant Application Portal</span>
           </span>
           <button id="lang-toggle-btn-auth" type="button" class="lang-btn" onclick="toggleLanguage()" title="Bilingual Language Switcher" data-i18n-title="title_lang_btn">🇮🇳 हिन्दी (Hindi)</button>
         </div>
@@ -148,22 +148,41 @@
         </p>
       </div>
 
+      <div class="portal-gateway-switcher" role="tablist" aria-label="Select Portal">
+        <button type="button" id="gw-btn-applicant" class="portal-gw-btn applicant-gw active" onclick="switchPortalGateway('applicant')">
+          <span class="gw-icon">👤</span>
+          <span class="gw-title" data-i18n="gw_applicant_title">Applicant Application Portal</span>
+          <span class="gw-sub" data-i18n="gw_applicant_sub">Apply, View Decision &amp; Track Loans</span>
+        </button>
+        <button type="button" id="gw-btn-officer" class="portal-gw-btn officer-gw" onclick="switchPortalGateway('officer')">
+          <span class="gw-icon">🛡️</span>
+          <span class="gw-title" data-i18n="gw_officer_title">Loan Officer Institutional Portal</span>
+          <span class="gw-sub" data-i18n="gw_officer_sub">Underwriting Cockpit, Audits &amp; Fairness</span>
+        </button>
+      </div>
+
       <div class="auth-modal-card">
-        <div class="auth-card-header">
+        <div id="auth-card-header" class="auth-card-header">
           <div class="auth-brand-logo">M</div>
-          <h2 data-i18n="auth_hero_title">Explainable Loan Decision System</h2>
-          <p data-i18n="auth_card_sub">Mission Bharat &bull; Institutional Credit Underwriting &amp; Algorithmic Equity</p>
+          <h2 id="auth-card-title" data-i18n="auth_card_title_applicant">Applicant Application Portal</h2>
+          <p id="auth-card-subtitle" data-i18n="auth_card_sub_applicant">Submit Applications, Inspect Personalized Reports &amp; Track Loan Sanctions</p>
         </div>
 
-        <div class="auth-nav-tabs">
-          <button id="tab-btn-applicant" class="auth-tab-btn active" onclick="switchAuthTab('applicant')">
+        <div id="auth-tabs-applicant" class="auth-nav-tabs">
+          <button type="button" id="tab-btn-applicant" class="auth-tab-btn active" onclick="switchAuthTab('applicant')">
             <span>👤</span> <span data-i18n="auth_tab_applicant">Applicant Sign In</span>
           </button>
-          <button id="tab-btn-officer" class="auth-tab-btn" onclick="switchAuthTab('officer')">
+          <button type="button" id="tab-btn-signup-applicant" class="auth-tab-btn" onclick="switchAuthTab('app-signup')">
+            <span>✨</span> <span data-i18n="auth_tab_signup_applicant">Create Applicant Account</span>
+          </button>
+        </div>
+
+        <div id="auth-tabs-officer" class="auth-nav-tabs" style="display: none;">
+          <button type="button" id="tab-btn-officer" class="auth-tab-btn active" onclick="switchAuthTab('officer')">
             <span>🛡️</span> <span data-i18n="auth_tab_officer">Officer Sign In</span>
           </button>
-          <button id="tab-btn-signup" class="auth-tab-btn" onclick="switchAuthTab('signup')">
-            <span>✨</span> <span data-i18n="auth_tab_signup">Create Account</span>
+          <button type="button" id="tab-btn-signup-officer" class="auth-tab-btn" onclick="switchAuthTab('off-signup')">
+            <span>🔑</span> <span data-i18n="auth_tab_signup_officer">Register Authorized Officer</span>
           </button>
         </div>
 
@@ -209,6 +228,58 @@
             </div>
           </form>
 
+          <form id="form-signup-applicant" onsubmit="handleApplicantSignUp(event)" style="display: none;">
+            <div class="auth-portal-tag applicant-tag">
+              <span>✨</span> <span data-i18n="auth_tag_app_signup">APPLICANT PORTAL &bull; NEW BORROWER REGISTRATION</span>
+            </div>
+
+            <div class="auth-form-group">
+              <label class="auth-label" for="signup-app-fullname" data-i18n="lbl_su_name">Full Name</label>
+              <div class="auth-input-wrapper">
+                <span class="auth-input-icon">👤</span>
+                <input type="text" id="signup-app-fullname" class="auth-input" placeholder="e.g. Ananya Rao" data-i18n-placeholder="ph_su_name" required autocomplete="name">
+              </div>
+            </div>
+
+            <div class="auth-form-group">
+              <label class="auth-label" for="signup-app-email" data-i18n="lbl_su_email">Email Address</label>
+              <div class="auth-input-wrapper">
+                <span class="auth-input-icon">✉️</span>
+                <input type="email" id="signup-app-email" class="auth-input" placeholder="applicant@domain.com" data-i18n-placeholder="ph_app_email" required autocomplete="email">
+              </div>
+            </div>
+
+            <div class="auth-form-group">
+              <label class="auth-label" for="signup-app-phone" data-i18n="lbl_su_phone">Mobile Number</label>
+              <div class="auth-input-wrapper">
+                <span class="auth-input-icon">📱</span>
+                <input type="tel" id="signup-app-phone" class="auth-input" placeholder="10-digit mobile number" data-i18n-placeholder="ph_su_phone" required autocomplete="tel">
+              </div>
+            </div>
+
+            <div class="auth-form-group">
+              <label class="auth-label" for="signup-app-password" data-i18n="lbl_su_pwd">Password (Min 8 chars, letter + digit)</label>
+              <div class="auth-input-wrapper">
+                <span class="auth-input-icon">🔒</span>
+                <input type="password" id="signup-app-password" class="auth-input" placeholder="••••••••" required autocomplete="new-password">
+                <button type="button" class="pwd-toggle-btn" onclick="togglePasswordVisibility('signup-app-password', this)" title="Show/Hide Password" data-i18n-title="title_show_hide_pwd">👁️</button>
+              </div>
+            </div>
+
+            <div class="auth-form-group">
+              <label class="auth-label" for="signup-app-confirm-password" data-i18n="lbl_su_confirm_pwd">Confirm Password</label>
+              <div class="auth-input-wrapper">
+                <span class="auth-input-icon">🔒</span>
+                <input type="password" id="signup-app-confirm-password" class="auth-input" placeholder="••••••••" required autocomplete="new-password">
+                <button type="button" class="pwd-toggle-btn" onclick="togglePasswordVisibility('signup-app-confirm-password', this)" title="Show/Hide Password" data-i18n-title="title_show_hide_pwd">👁️</button>
+              </div>
+            </div>
+
+            <button type="submit" id="btn-signup-app-submit" class="auth-submit-btn">
+              <span>✨</span> <span data-i18n="btn_signup_app_submit">Create Applicant Account</span>
+            </button>
+          </form>
+
           <form id="form-signin-officer" onsubmit="handleSignIn(event, 'officer')" style="display: none;">
             <div class="auth-portal-tag officer-tag">
               <span>🛡️</span> <span data-i18n="auth_tag_officer">LOAN OFFICER TERMINAL &bull; INSTITUTIONAL ACCESS</span>
@@ -218,7 +289,7 @@
               <label class="auth-label" for="signin-officer-email" data-i18n="lbl_officer_email">Institutional Officer Email</label>
               <div class="auth-input-wrapper">
                 <span class="auth-input-icon">🛡️</span>
-                <input type="email" id="signin-officer-email" class="auth-input" placeholder="officer@meridianbank.in" required autocomplete="email">
+                <input type="email" id="signin-officer-email" class="auth-input" placeholder="officer@meridianbank.in" data-i18n-placeholder="ph_off_email" required autocomplete="email">
               </div>
             </div>
 
@@ -246,79 +317,65 @@
             </div>
           </form>
 
-          <form id="form-signup" onsubmit="handleSignUp(event)" style="display: none;">
+          <form id="form-signup-officer" onsubmit="handleOfficerSignUp(event)" style="display: none;">
+            <div class="auth-portal-tag officer-tag">
+              <span>🔑</span> <span data-i18n="auth_tag_off_signup">OFFICER PORTAL &bull; AUTHORIZED CLEARANCE REGISTRATION</span>
+            </div>
+
             <div class="auth-form-group">
-              <label class="auth-label" for="signup-fullname" data-i18n="lbl_su_name">Full Name</label>
+              <label class="auth-label" for="signup-off-fullname" data-i18n="lbl_off_su_name">Officer Full Name</label>
               <div class="auth-input-wrapper">
-                <span class="auth-input-icon">👤</span>
-                <input type="text" id="signup-fullname" class="auth-input" placeholder="e.g. Ananya Rao" data-i18n-placeholder="ph_su_name" required autocomplete="name">
+                <span class="auth-input-icon">🛡️</span>
+                <input type="text" id="signup-off-fullname" class="auth-input" placeholder="e.g. Vikram Sharma" data-i18n-placeholder="ph_off_name" required autocomplete="name">
               </div>
             </div>
 
             <div class="auth-form-group">
-              <label class="auth-label" for="signup-email" data-i18n="lbl_su_email">Email Address</label>
+              <label class="auth-label" for="signup-off-email" data-i18n="lbl_officer_email">Institutional Officer Email</label>
               <div class="auth-input-wrapper">
                 <span class="auth-input-icon">✉️</span>
-                <input type="email" id="signup-email" class="auth-input" placeholder="applicant@domain.com" data-i18n-placeholder="ph_app_email" required autocomplete="email">
+                <input type="email" id="signup-off-email" class="auth-input" placeholder="officer@meridianbank.in" data-i18n-placeholder="ph_off_email" required autocomplete="email">
               </div>
             </div>
 
             <div class="auth-form-group">
-              <label class="auth-label" for="signup-phone" data-i18n="lbl_su_phone">Mobile Number</label>
+              <label class="auth-label" for="signup-off-phone" data-i18n="lbl_su_phone">Mobile Number</label>
               <div class="auth-input-wrapper">
                 <span class="auth-input-icon">📱</span>
-                <input type="tel" id="signup-phone" class="auth-input" placeholder="10-digit mobile number" data-i18n-placeholder="ph_su_phone" required autocomplete="tel">
+                <input type="tel" id="signup-off-phone" class="auth-input" placeholder="10-digit mobile number" data-i18n-placeholder="ph_su_phone" required autocomplete="tel">
               </div>
             </div>
 
-            <div class="auth-form-group">
-              <label class="auth-label" data-i18n="lbl_su_role_type">Account Role Type</label>
-              <div class="role-radio-group">
-                <label id="role-label-applicant" class="role-radio-label selected" onclick="selectSignupRole('applicant')">
-                  <input type="radio" name="signup-role" value="applicant" checked>
-                  <span class="role-icon">👤</span>
-                  <span class="role-title" data-i18n="su_role_app_title">Applicant</span>
-                  <span class="role-desc" data-i18n="su_role_app_desc">Apply &amp; Track Loan</span>
-                </label>
-                <label id="role-label-officer" class="role-radio-label" onclick="selectSignupRole('officer')">
-                  <input type="radio" name="signup-role" value="officer">
-                  <span class="role-icon">🛡️</span>
-                  <span class="role-title" data-i18n="su_role_off_title">Loan Officer</span>
-                  <span class="role-desc" data-i18n="su_role_off_desc">Audit &amp; Decisioning</span>
-                </label>
-              </div>
-            </div>
-
-            <div id="officer-key-group" class="auth-form-group" style="display: none; background: #FFFDF5; padding: 0.75rem; border-radius: 10px; border: 1.5px solid var(--warm-cream-dark);">
-              <label class="auth-label" for="signup-officer-key" style="color: #78350F;" data-i18n="lbl_su_passkey">Officer Clearance Key (Passkey)</label>
+            <div class="auth-form-group" style="background: #FFFDF5; padding: 0.75rem; border-radius: 10px; border: 1.5px solid var(--warm-cream-dark);">
+              <label class="auth-label" for="signup-off-key" style="color: #78350F;" data-i18n="lbl_su_passkey">Officer Clearance Key (Passkey)</label>
               <div class="auth-input-wrapper">
                 <span class="auth-input-icon">🔑</span>
-                <input type="password" id="signup-officer-key" class="auth-input" placeholder="Enter officer clearance key" data-i18n-placeholder="ph_passkey" autocomplete="off" style="background: #FFFFFF;">
-                <button type="button" class="pwd-toggle-btn" onclick="togglePasswordVisibility('signup-officer-key', this)" title="Show/Hide Password" data-i18n-title="title_show_hide_pwd">👁️</button>
+                <input type="password" id="signup-off-key" class="auth-input" placeholder="Enter officer clearance key" data-i18n-placeholder="ph_passkey" required autocomplete="off" style="background: #FFFFFF;">
+                <button type="button" class="pwd-toggle-btn" onclick="togglePasswordVisibility('signup-off-key', this)" title="Show/Hide Password" data-i18n-title="title_show_hide_pwd">👁️</button>
               </div>
               <small style="font-size: 0.72rem; color: #92400E; display: block; margin-top: 4px;" data-i18n="su_passkey_hint">Institutional authorization required. Obtain your Officer Clearance Key from your branch administrator.</small>
             </div>
 
             <div class="auth-form-group">
-              <label class="auth-label" for="signup-password" data-i18n="lbl_su_pwd">Password (Min 8 chars, letter + digit)</label>
+              <label class="auth-label" for="signup-off-password" data-i18n="lbl_su_pwd">Password (Min 8 chars, letter + digit)</label>
               <div class="auth-input-wrapper">
                 <span class="auth-input-icon">🔒</span>
-                <input type="password" id="signup-password" class="auth-input" placeholder="••••••••" required autocomplete="new-password">
-                <button type="button" class="pwd-toggle-btn" onclick="togglePasswordVisibility('signup-password', this)" title="Show/Hide Password" data-i18n-title="title_show_hide_pwd">👁️</button>
+                <input type="password" id="signup-off-password" class="auth-input" placeholder="••••••••" required autocomplete="new-password">
+                <button type="button" class="pwd-toggle-btn" onclick="togglePasswordVisibility('signup-off-password', this)" title="Show/Hide Password" data-i18n-title="title_show_hide_pwd">👁️</button>
               </div>
             </div>
 
             <div class="auth-form-group">
-              <label class="auth-label" for="signup-confirm-password" data-i18n="lbl_su_confirm_pwd">Confirm Password</label>
+              <label class="auth-label" for="signup-off-confirm-password" data-i18n="lbl_su_confirm_pwd">Confirm Password</label>
               <div class="auth-input-wrapper">
                 <span class="auth-input-icon">🔒</span>
-                <input type="password" id="signup-confirm-password" class="auth-input" placeholder="••••••••" required autocomplete="new-password">
-                <button type="button" class="pwd-toggle-btn" onclick="togglePasswordVisibility('signup-confirm-password', this)" title="Show/Hide Password" data-i18n-title="title_show_hide_pwd">👁️</button>
+                <input type="password" id="signup-off-confirm-password" class="auth-input" placeholder="••••••••" required autocomplete="new-password">
+                <button type="button" class="pwd-toggle-btn" onclick="togglePasswordVisibility('signup-off-confirm-password', this)" title="Show/Hide Password" data-i18n-title="title_show_hide_pwd">👁️</button>
               </div>
             </div>
 
-            <button type="submit" id="btn-signup-submit" class="auth-submit-btn">
-              <span>✨</span> <span data-i18n="btn_signup_submit">Create Verified Account</span>
+            <button type="submit" id="btn-signup-off-submit" class="auth-submit-btn auth-submit-btn-officer">
+              <span>🛡️</span> <span data-i18n="btn_signup_off_submit">Register Authorized Officer</span>
             </button>
           </form>
         </div>
@@ -379,35 +436,35 @@
         <strong style="color: #064E3B;">Domain:</strong> Banking &amp; Lending &nbsp;|&nbsp;
         <strong style="color: #064E3B;">System:</strong> भारत ऋण पारदर्शिता एवं समावेशन मंच
       </div>
-      <div class="live-badge" id="backend-status-badge" style="cursor: pointer;" onclick="toggleBackendInfoModal()" title="Click to check or configure REST Backend API connection" data-i18n-title="title_backend_badge">
+      <div class="live-badge" id="backend-status-badge" onclick="handleStatusBadgeClick()" title="Encrypted Session Active" data-i18n-title="title_encrypted_session">
         <span class="pulse-dot" id="backend-pulse-dot"></span>
-        <span id="backend-status-text">Connecting to Meridian Backend API...</span>
+        <span id="backend-status-text">Encrypted Borrower Session</span>
       </div>
     </div>
   </div>
 
   <nav class="nav-bar">
     <div class="nav-container" id="nav-tabs-container">
-      <div class="nav-item active nav-common-item" data-tab="apply-view">
+      <div class="nav-item active nav-applicant-item" data-tab="apply-view" data-i18n-html="nav_apply">
         <span>📝</span> 1. Apply for a Loan
       </div>
-      <div class="nav-item nav-common-item" data-tab="applicant-view">
+      <div class="nav-item nav-applicant-item" data-tab="applicant-view" data-i18n-html="nav_report">
         <span>📊</span> 2. My Decision Report
       </div>
-      <div class="nav-item nav-common-item" data-tab="database-view">
-        <span>🗄️</span> 3. Application Vault (Database)
+      <div class="nav-item nav-officer-item" data-tab="officer-view" data-i18n-html="nav_officer" style="display: none;">
+        <span>⚙️</span> 1. Underwriting Cockpit &amp; SHAP Waterfall
       </div>
-      <div class="nav-item nav-common-item" data-tab="portfolio-view">
-        <span>📁</span> 4. Historical Portfolio
+      <div class="nav-item nav-shared-vault" data-tab="database-view" data-i18n-html="nav_vault_applicant">
+        <span>🗄️</span> 3. My Applications Vault
       </div>
-      <div class="nav-item nav-officer-item" data-tab="officer-view" style="display: none;">
-        <span>⚙️</span> Underwriting Cockpit &amp; SHAP Waterfall
+      <div class="nav-item nav-officer-item" data-tab="portfolio-view" data-i18n-html="nav_portfolio" style="display: none;">
+        <span>📁</span> 3. Historical Portfolio
       </div>
-      <div class="nav-item nav-officer-item" data-tab="model-view" style="display: none;">
-        <span>🎯</span> Model Accuracy Report <span class="tag">80% Accuracy</span>
+      <div class="nav-item nav-officer-item" data-tab="model-view" data-i18n-html="nav_accuracy" style="display: none;">
+        <span>🎯</span> 4. Model Accuracy Report <span class="tag">80% Accuracy</span>
       </div>
-      <div class="nav-item nav-officer-item" data-tab="fairness-view" style="display: none;">
-        <span>⚖️</span> Fairness Across Groups <span class="tag">80% Rule</span>
+      <div class="nav-item nav-officer-item" data-tab="fairness-view" data-i18n-html="nav_fairness" style="display: none;">
+        <span>⚖️</span> 5. Fairness Across Groups <span class="tag">80% Rule</span>
       </div>
     </div>
   </nav>
@@ -456,6 +513,36 @@
         </div>
       </div>
 
+      <div id="no-application-notice" class="no-application-card" style="display: none;">
+        <div style="font-size: 2.5rem; margin-bottom: 0.75rem;">📄</div>
+        <h3 style="color: #064E3B; font-size: 1.35rem; font-weight: 800; margin-bottom: 0.5rem;" data-i18n="no_app_title">No Loan Application Submitted Yet</h3>
+        <p style="color: #4B6359; max-width: 540px; margin: 0 auto 1.25rem; font-size: 0.92rem;" data-i18n="no_app_desc">
+          Submit your loan application to generate your live AI underwriting report, personalized eligibility roadmap, and RBI Key Fact Statement.
+        </p>
+        <button type="button" class="btn btn-primary" onclick="activateWorkspaceTab('apply-view')" data-i18n="no_app_cta">Apply for a Loan →</button>
+      </div>
+
+      <div id="applicant-report-content">
+
+      <div id="officer-adjudication-banner" class="officer-adjudication-banner" style="display: none;">
+        <div>
+          <div style="font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: #064E3B;" data-i18n="adj_title">
+            🏛️ Official Underwriter Decision &amp; Status
+          </div>
+          <div style="margin-top: 0.35rem; display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+            <span id="adj-status-badge" class="badge badge-info">PENDING REVIEW</span>
+            <span style="font-size: 0.85rem; color: #1E293B;">
+              <strong data-i18n="adj_remarks_lbl">Officer Remarks:</strong>
+              <span id="adj-remarks-text">Awaiting institutional officer review.</span>
+            </span>
+          </div>
+        </div>
+        <div style="font-size: 0.78rem; color: #4B6359;">
+          <span data-i18n="adj_updated_lbl">Last Updated:</span>
+          <strong id="adj-updated-at">-</strong>
+        </div>
+      </div>
+
       <div id="decision-hero-card" class="decision-hero approved">
         <div class="hero-main">
           <div id="hero-status-tag" class="hero-tag">PRE-APPROVED / HIGH LIKELIHOOD</div>
@@ -474,7 +561,7 @@
                 <span style="font-size: 1.1rem;">📝</span>
                 <span id="prompt-apply-text">Apply for a loan to generate and download your official RBI-compliant Sanction Letter.</span>
               </div>
-              <button type="button" class="btn btn-saffron" style="padding: 6px 14px; font-size: 0.8rem; font-weight: 700;" onclick="document.querySelector('[data-tab=\'apply-view\']').click()">
+              <button type="button" class="btn btn-saffron" style="padding: 6px 14px; font-size: 0.8rem; font-weight: 700;" onclick="activateWorkspaceTab('apply-view')">
                 <span id="btn-apply-loan-link">Apply for Loan →</span>
               </button>
             </div>
@@ -651,6 +738,8 @@
         <div id="actions-container"></div>
       </div>
 
+      </div>
+
     </section>
 
     <section id="officer-view" class="tab-section" style="display: none;">
@@ -688,6 +777,7 @@
               </div>
               <div class="card-subtitle" data-i18n="off_intake_sub">Inspect and customize applicant variables for instant scoring</div>
             </div>
+            <span id="officer-active-app-badge" class="badge badge-info">-</span>
           </div>
 
           <form id="applicant-form">
@@ -834,14 +924,20 @@
               <input type="text" id="officer-remarks-input" class="auth-input" style="background: #FFFFFF;" placeholder="Enter official underwriting remarks (e.g., CIBIL score verified, DTI ratio compliant)..." data-i18n-placeholder="ph_officer_remarks">
             </div>
             <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
-              <button id="btn-officer-approve" class="btn" style="background: #10B981; color: white;" data-i18n="btn_sanction_approve">
+              <button type="button" id="btn-officer-approve" class="btn" style="background: #10B981; color: white;" data-i18n="btn_sanction_approve">
                 ✓ Sanction Loan
               </button>
-              <button id="btn-officer-conditional" class="btn btn-saffron" data-i18n="btn_sanction_subvention">
+              <button type="button" id="btn-officer-conditional" class="btn btn-saffron" data-i18n="btn_sanction_subvention">
                 ⚡ Mission Bharat Rural Subvention Pass
               </button>
-              <button id="btn-officer-reject" class="btn" style="background: #EF4444; color: white;" data-i18n="btn_sanction_decline">
+              <button type="button" id="btn-officer-reject" class="btn" style="background: #EF4444; color: white;" data-i18n="btn_sanction_decline">
                 ✕ Adverse Action (Decline)
+              </button>
+              <button type="button" id="btn-officer-save-terms" class="btn btn-primary" onclick="saveOfficerTermUpdates()" data-i18n="btn_save_officer_terms">
+                💾 Save Parameter Changes to Vault
+              </button>
+              <button type="button" id="btn-officer-preview-letter" class="btn btn-outline" onclick="openDecisionLetterModal(true)" data-i18n="btn_officer_preview_letter">
+                📄 Preview / Issue Sanction Notice
               </button>
             </div>
           </div>
@@ -1152,11 +1248,11 @@
             </div>
           </div>
           <div style="display: flex; gap: 0.5rem;">
-            <button class="btn btn-primary" onclick="inspectSubmittedApp()">
-              <span>🔍</span> <span data-i18n="btn_inspect_cockpit">Inspect in Cockpit</span>
+            <button type="button" class="btn btn-primary" onclick="inspectSubmittedApp()">
+              <span>📊</span> <span data-i18n="btn_view_decision_report">View My Decision Report</span>
             </button>
-            <button class="btn btn-outline" onclick="goToDatabaseTab()">
-              <span>🗄️</span> <span data-i18n="btn_view_db_table">View Database Table</span>
+            <button type="button" class="btn btn-outline" onclick="goToDatabaseTab()">
+              <span>🗄️</span> <span data-i18n="btn_view_my_vault">View My Applications Vault</span>
             </button>
           </div>
         </div>
@@ -1376,23 +1472,26 @@
         <div class="card-header">
           <div>
             <div class="card-title">
-              <span>🗄️</span> <span data-i18n="db_title">Official Meridian Application Vault &amp; Registry</span>
+              <span>🗄️</span> <span id="db-view-title" data-i18n="db_title">Official Meridian Application Vault &amp; Registry</span>
             </div>
-            <div class="card-subtitle" data-i18n="db_sub">
+            <div id="db-view-sub" class="card-subtitle" data-i18n="db_sub">
               All loan applications submitted via the portal are permanently recorded and available here
             </div>
           </div>
           <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
-            <span id="db-total-count" class="badge badge-info" style="font-size: 0.8rem;">
-              4 Saved Applications
+            <span id="db-total-count" class="badge badge-info" style="font-size: 0.8rem;" data-i18n="db_count_loading">
+              Loading Vault...
             </span>
-            <button class="btn btn-primary" style="padding: 5px 12px; font-size: 0.8rem;" onclick="exportVaultToCSV()">
+            <button type="button" id="btn-download-sqlite-backup" class="btn btn-saffron nav-officer-item" style="display: none; padding: 5px 12px; font-size: 0.8rem;" onclick="downloadSqliteBackup()">
+              <span>💽</span> <span data-i18n="btn_download_db_backup">Download Vault Backup (.db)</span>
+            </button>
+            <button type="button" class="btn btn-primary" style="padding: 5px 12px; font-size: 0.8rem;" onclick="exportVaultToCSV()">
               <span>📥</span> <span data-i18n="btn_export_csv">Export to Excel / CSV</span>
             </button>
-            <button class="btn btn-outline" style="padding: 5px 10px; font-size: 0.8rem;" onclick="exportVaultToJSON()">
+            <button type="button" class="btn btn-outline" style="padding: 5px 10px; font-size: 0.8rem;" onclick="exportVaultToJSON()">
               <span>💾</span> <span data-i18n="btn_export_json">Export JSON</span>
             </button>
-            <button class="btn btn-outline" style="padding: 5px 10px; font-size: 0.8rem;" onclick="refreshDatabaseTable()">
+            <button type="button" class="btn btn-outline" style="padding: 5px 10px; font-size: 0.8rem;" onclick="refreshDatabaseTable()">
               <span>🔄</span> <span data-i18n="btn_refresh">Refresh</span>
             </button>
           </div>
@@ -1593,7 +1692,7 @@
         <strong style="color: #064E3B;" data-i18n="modal_api_custom_t">Connect Custom Internet Backend URL (Optional):</strong>
         <p style="color: #64748B; margin: 4px 0 8px 0;" data-i18n="modal_api_custom_d">If serving frontend separately, enter your deployed internet API base URL:</p>
         <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-          <input type="url" id="custom-api-base-input" class="form-control" placeholder="https://your-service.up.railway.app" style="flex: 1; min-width: 220px; font-size: 0.82rem;">
+          <input type="url" id="custom-api-base-input" class="form-control" placeholder="https://your-service.up.railway.app" data-i18n-placeholder="ph_custom_api" style="flex: 1; min-width: 220px; font-size: 0.82rem;">
           <button type="button" class="btn btn-primary" style="padding: 6px 12px; font-size: 0.8rem;" onclick="saveCustomApiBase()" data-i18n="btn_save_url">Save URL</button>
           <button type="button" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.8rem;" onclick="resetCustomApiBase()" data-i18n="btn_auto_detect">Auto-Detect</button>
         </div>

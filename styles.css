@@ -1782,6 +1782,115 @@ button.site-status-pill:hover {
   animation: authCardFadeIn 0.25s ease forwards;
 }
 
+.portal-gateway-switcher {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  width: 100%;
+  margin-bottom: 1.25rem;
+}
+
+.portal-gw-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 0.9rem 1rem;
+  border-radius: var(--radius-lg);
+  border: 2px solid var(--border-subtle);
+  background: #FFFFFF;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow-sm);
+  text-align: center;
+}
+
+.portal-gw-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--warm-cream-mid);
+  color: #064E3B;
+}
+
+.portal-gw-btn .gw-icon {
+  font-size: 1.35rem;
+}
+
+.portal-gw-btn .gw-title {
+  font-size: 0.92rem;
+  font-weight: 800;
+}
+
+.portal-gw-btn .gw-sub {
+  font-size: 0.72rem;
+  opacity: 0.85;
+}
+
+.portal-gw-btn.active.applicant-gw {
+  background: linear-gradient(135deg, #064E3B 0%, #032C21 100%);
+  color: #FFFFFF;
+  border-color: var(--warm-cream);
+  box-shadow: 0 6px 16px rgba(6, 78, 59, 0.28);
+}
+
+.portal-gw-btn.active.applicant-gw .gw-sub {
+  color: var(--warm-cream);
+}
+
+.portal-gw-btn.active.officer-gw {
+  background: linear-gradient(135deg, #78350F 0%, #92400E 100%);
+  color: #FFFFFF;
+  border-color: #FDE68A;
+  box-shadow: 0 6px 16px rgba(120, 53, 15, 0.28);
+}
+
+.portal-gw-btn.active.officer-gw .gw-sub {
+  color: #FDE68A;
+}
+
+.auth-card-header.officer-mode {
+  background: linear-gradient(135deg, #78350F 0%, #451A03 100%);
+  border-bottom-color: #FDE68A;
+}
+
+.officer-adjudication-banner {
+  border-radius: var(--radius-md);
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
+  border: 1.5px solid #E2E8F0;
+  background: #FAF3E6;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.officer-adjudication-banner.status-approved {
+  background: #ECFDF5;
+  border-color: #6EE7B7;
+}
+
+.officer-adjudication-banner.status-conditional {
+  background: #FFFBEB;
+  border-color: #FCD34D;
+}
+
+.officer-adjudication-banner.status-rejected {
+  background: #FEF2F2;
+  border-color: #FCA5A5;
+}
+
+.no-application-card {
+  text-align: center;
+  padding: 3rem 2rem;
+  background: #FFFFFF;
+  border: 2px dashed var(--warm-cream-border);
+  border-radius: var(--radius-lg);
+}
+
 .meridian-toast.error {
   background: #991B1B;
   border-color: #FCA5A5;
