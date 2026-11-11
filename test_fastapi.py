@@ -983,6 +983,44 @@ def run_tests():
     ).status_code == 401
     print("[PASS] 40. PATCH /api/auth/profile -> 401/400/409 guards + Applicant & Officer Name/Email persistence & Vault email sync verified")
 
+    assert "@page" in css_src
+    assert "body.letter-modal-open" in css_src
+    assert "body.letter-modal-open #app-shell > *:not(#letter-modal)" in css_src
+    assert "max-height: none !important;" in css_src
+    assert "overflow: visible !important;" in css_src
+    assert "visibility: hidden;" not in css_src
+
+    for let_dom_id in (
+        'id="letter-kfs-card"',
+        'id="letter-adverse-card"',
+        'id="let-submitted-date"',
+        'id="let-purpose"',
+        'id="let-employment"',
+        'id="let-income"',
+        'id="let-cibil"',
+        'id="let-ai-score"',
+        'id="let-officer-status"',
+        'id="kfs-foir-note"',
+        'id="let-signatory-name"'
+    ):
+        assert let_dom_id in html_src, f"Missing Decision Letter element {let_dom_id} in /"
+    for fake_str in ("MERIDIAN-MB-9021", "28 October 2026"):
+        assert fake_str not in html_src, f"Hardcoded placeholder {fake_str!r} still present in /"
+
+    for let_js_sym in (
+        "closeDecisionLetterModal",
+        "letter-modal-open",
+        "letter-adverse-card",
+        "formatLetterTimestamp",
+        "prepareLetterPrintContext",
+        "beforeprint",
+        "afterprint"
+    ):
+        assert let_js_sym in js_src, f"Missing print/letter symbol {let_js_sym} in /app.js"
+    for fake_js_str in ("+28.4%", "-32.1%", "MERIDIAN-MB-9021"):
+        assert fake_js_str not in js_src, f"Hardcoded mock impact/ref string {fake_js_str!r} still present in /app.js"
+    print("[PASS] 41. Single-flow Print/PDF @media print isolation + Authentic RBI KFS / Adverse Action Notice & real SHAP attribution verified")
+
     print("=" * 70)
     print("ALL FASTAPI ENDPOINTS & POLICIES VALIDATED SUCCESSFULLY (100% PASS)")
     print("=" * 70)

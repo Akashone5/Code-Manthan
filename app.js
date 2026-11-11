@@ -28,6 +28,8 @@ function createBlankApplicantState() {
   return {
     id: '',
     name: '',
+    phone: '',
+    applicant_email: '',
     gender: 'Female',
     married: 'No',
     dependents: '0',
@@ -46,6 +48,7 @@ function createBlankApplicantState() {
     status: 'Conditional',
     officer_status: 'Pending',
     officer_remarks: '',
+    created_at: '',
     updated_at: ''
   };
 }
@@ -1016,6 +1019,7 @@ function resetWorkspaceState() {
     const modal = document.getElementById(mid);
     if (modal) modal.style.display = 'none';
   });
+  document.body.classList.remove('letter-modal-open');
 
   const subBanner = document.getElementById('submission-alert-banner');
   if (subBanner) subBanner.style.display = 'none';
@@ -1259,6 +1263,8 @@ function applyRecordToCurrentState(rec) {
   state.currentApplicant = {
     id: rec.application_no || rec.id || '',
     name: rec.full_name || rec.name || 'Applicant',
+    phone: rec.phone || rec.contact_phone || '',
+    applicant_email: rec.applicant_email || rec.email || '',
     gender: rec.gender || 'Female',
     married: rec.marital_status || rec.married || 'Yes',
     dependents: String(rec.dependents !== undefined ? rec.dependents : '0'),
@@ -1277,6 +1283,7 @@ function applyRecordToCurrentState(rec) {
     status: rec.status || 'Conditional',
     officer_status: rec.officer_status || 'Pending',
     officer_remarks: rec.officer_remarks || rec.officer_notes || '',
+    created_at: rec.created_at || '',
     updated_at: rec.updated_at || rec.created_at || ''
   };
 
@@ -2110,11 +2117,18 @@ const I18N = {
     let_division: "Mission Bharat • Inclusive Retail Credit Division",
     let_office: "Reg. Office: Nariman Point, Mumbai 400021 • RBI Reg #N-13.01928",
     let_ref_lbl: "Reference:",
-    let_date_lbl: "Date:",
+    let_submitted_lbl: "Submitted Date:",
+    let_date_lbl: "Decision Date:",
     let_app_name_lbl: "Applicant Name:",
     let_fac_lbl: "Requested Facility:",
     let_tenure_lbl: "Tenure:",
+    let_purpose_lbl: "Facility Purpose:",
     let_area_lbl: "Territory:",
+    let_emp_lbl: "Employment & Verification:",
+    let_income_lbl: "Household Monthly Income:",
+    let_cibil_lbl: "CIBIL Bureau Score:",
+    let_ai_score_lbl: "AI Eligibility Score:",
+    let_officer_status_lbl: "Officer Review Status:",
     kfs_title: "OFFICIAL RBI KEY FACT STATEMENT (KFS)",
     kfs_compliant: "RBI Digital Lending Compliant",
     kfs_row_principal: "Sanctioned Facility Amount (Principal)",
@@ -2129,7 +2143,18 @@ const I18N = {
     kfs_val_prepay: "₹0 (Nil per RBI Master Circular)",
     kfs_row_cooling: "Statutory Cooling-Off / Look-Up Period",
     kfs_val_cooling: "3 Business Days (Full exit without penalty)",
+    adv_title: "APPLICATION UNDERWRITING SUMMARY (NO FACILITY SANCTIONED)",
+    adv_badge: "RBI Fair Lending Disclosure",
+    adv_row_requested: "Requested Loan Facility",
+    adv_row_sanctioned: "Sanctioned Principal Amount",
+    adv_row_cibil: "CIBIL Bureau Assessment (Benchmark ≥ 650)",
+    adv_row_dti: "Obligation Ratio (Prudential Ceiling ≤ 45%)",
+    adv_row_score: "Composite AI Eligibility Score (Pass ≥ 65%)",
+    adv_row_reapply: "Re-Application & Review Window",
     let_factors_heading: "Transparent Factor Determination (Under RBI Fair Lending Code):",
+    let_sig_verify_title: "Electronic Underwriting Record • Tamper-Evident Audit",
+    let_sig_verify_sub: "Valid digital statement generated directly from the Meridian Central Application Vault.",
+    let_sig_auth_lbl: "Issuing Authority",
     let_ombudsman_html: '<strong>RBI Fair Practices Code &amp; Statutory Redressal Mechanism:</strong><br>• <strong>Principal Grievance Redressal Officer:</strong> Smt. Shalini Verma, Nodal Grievance Officer, Meridian FairLend AI, Nariman Point, Mumbai 400021. Toll-Free: <code>1800-209-4000</code> | Email: <code>grievance.bharat@meridian.fin</code> (Resolution SLA: within 15 working days).<br>• <strong>RBI Integrated Ombudsman Scheme:</strong> If your grievance is not redressed within 30 days, you have the statutory right under the Reserve Bank of India Integrated Ombudsman Scheme, 2021 to lodge a complaint online at <strong><a href="https://cms.rbi.org.in" target="_blank" style="color: #064E3B; font-weight: 700; text-decoration: underline;">https://cms.rbi.org.in</a></strong> or dial toll-free <code>14448</code>.',
     btn_print_pdf: "Print / Save PDF",
     btn_close: "Close",
@@ -2641,11 +2666,18 @@ const I18N = {
     let_division: "मिशन भारत • समावेशी खुदरा ऋण प्रभाग",
     let_office: "पंजीकृत कार्यालय: नरीमन पॉइंट, मुंबई 400021 • RBI पंजीकरण #N-13.01928",
     let_ref_lbl: "संदर्भ संख्या:",
-    let_date_lbl: "दिनांक:",
+    let_submitted_lbl: "आवेदन दिनांक:",
+    let_date_lbl: "निर्णय दिनांक:",
     let_app_name_lbl: "आवेदक का नाम:",
     let_fac_lbl: "वांछित ऋण राशि:",
     let_tenure_lbl: "ऋण अवधि:",
+    let_purpose_lbl: "ऋण का उद्देश्य:",
     let_area_lbl: "निवास / संपत्ति क्षेत्र:",
+    let_emp_lbl: "रोजगार व आय सत्यापन:",
+    let_income_lbl: "कुल मासिक पारिवारिक आय:",
+    let_cibil_lbl: "सिबिल क्रेडिट ब्यूरो स्कोर:",
+    let_ai_score_lbl: "AI पात्रता स्कोर:",
+    let_officer_status_lbl: "अधिकारी समीक्षा स्थिति:",
     kfs_title: "आधिकारिक भारतीय रिज़र्व बैंक मुख्य तथ्य विवरण (KFS)",
     kfs_compliant: "RBI डिजिटल लेंडिंग अनुपालित",
     kfs_row_principal: "स्वीकृत ऋण सुविधा राशि (मूलधन)",
@@ -2660,7 +2692,18 @@ const I18N = {
     kfs_val_prepay: "₹0 (RBI मास्टर परिपत्र के अनुसार शून्य)",
     kfs_row_cooling: "वैधानिक कूलिंग-ऑफ / समीक्षा अवधि",
     kfs_val_cooling: "3 कार्य दिवस (बिना किसी जुर्माने के पूर्ण निकास)",
+    adv_title: "आवेदन अंडरराइटिंग सारांश (कोई ऋण राशि स्वीकृत नहीं)",
+    adv_badge: "RBI निष्पक्ष ऋण प्रकटीकरण",
+    adv_row_requested: "अनुरोधित ऋण सुविधा",
+    adv_row_sanctioned: "स्वीकृत मूलधन राशि",
+    adv_row_cibil: "सिबिल ब्यूरो मूल्यांकन (मानक ≥ 650)",
+    adv_row_dti: "दायित्व अनुपात (सुरक्षित सीमा ≤ 45%)",
+    adv_row_score: "समग्र AI पात्रता स्कोर (उत्तीर्ण मानक ≥ 65%)",
+    adv_row_reapply: "पुनः आवेदन एवं समीक्षा विकल्प",
     let_factors_heading: "पारदर्शी कारक निर्धारण (RBI निष्पक्ष ऋण संहिता के अंतर्गत):",
+    let_sig_verify_title: "इलेक्ट्रॉनिक अंडरराइटिंग अभिलेख • छेड़छाड़-रोधी ऑडिट",
+    let_sig_verify_sub: "मेरिडियन केंद्रीय आवेदन वॉल्ट से सीधे जनित मान्य डिजिटल विवरण।",
+    let_sig_auth_lbl: "जारीकर्ता प्राधिकरण",
     let_ombudsman_html: '<strong>RBI फेयर प्रैक्टिसेज कोड एवं वैधानिक शिकायत निवारण प्रणाली:</strong><br>• <strong>प्रधान शिकायत निवारण अधिकारी:</strong> श्रीमती शालिनी वर्मा, नोडल शिकायत अधिकारी, मेरिडियन फेयरलेंड एआई, नरीमन पॉइंट, मुंबई 400021। टोल-फ्री: <code>1800-209-4000</code> | ईमेल: <code>grievance.bharat@meridian.fin</code> (समाधान समय-सीमा: 15 कार्य दिवसों के भीतर)।<br>• <strong>RBI एकीकृत लोकपाल योजना:</strong> यदि आपकी शिकायत का समाधान 30 दिनों में नहीं होता है, तो आपको भारतीय रिज़र्व बैंक एकीकृत लोकपाल योजना, 2021 के अंतर्गत <strong><a href="https://cms.rbi.org.in" target="_blank" style="color: #064E3B; font-weight: 700; text-decoration: underline;">https://cms.rbi.org.in</a></strong> पर ऑनलाइन शिकायत दर्ज करने अथवा टोल-फ्री <code>14448</code> पर कॉल करने का वैधानिक अधिकार है।',
     btn_print_pdf: "प्रिंट / पीडीएफ सहेजें",
     btn_close: "बंद करें",
@@ -4533,8 +4576,12 @@ function updateUI() {
 
   const openLetterBtn = document.getElementById('btn-open-letter');
   if (openLetterBtn && state.hasApplied) {
-    if (pred.status === 'rejected') {
+    const offLow = String(applicant.officer_status || 'Pending').trim().toLowerCase();
+    const effStatus = (offLow === 'approved' || offLow === 'conditional' || offLow === 'rejected') ? offLow : pred.status;
+    if (effStatus === 'rejected') {
       openLetterBtn.innerHTML = `<span>📄</span> ${lang === 'hi' ? 'आधिकारिक प्रतिकूल निर्णय सूचना देखें एवं डाउनलोड करें' : 'View & Download Adverse Action Notice'}`;
+    } else if (offLow === 'approved') {
+      openLetterBtn.innerHTML = `<span>📄</span> ${lang === 'hi' ? 'अधिकारी द्वारा स्वीकृत ऋण पत्र एवं KFS डाउनलोड करें' : 'View & Download Officer-Sanctioned Letter & KFS'}`;
     } else {
       openLetterBtn.innerHTML = `<span>📄</span> ${dict.btn_open_letter}`;
     }
@@ -4772,11 +4819,21 @@ function setupEventListeners() {
     }
   });
 
+  document.getElementById('letter-modal')?.addEventListener('click', (e) => {
+    if (e.target && e.target.id === 'letter-modal') {
+      window.closeDecisionLetterModal();
+    }
+  });
+
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       const settingsEl = document.getElementById('settings-modal');
       if (settingsEl && settingsEl.style.display === 'flex') {
         window.closeSettingsModal(true);
+      }
+      const letterEl = document.getElementById('letter-modal');
+      if (letterEl && letterEl.style.display === 'flex') {
+        window.closeDecisionLetterModal();
       }
     }
   });
@@ -4804,15 +4861,43 @@ function setupEventListeners() {
   });
 
   document.getElementById('btn-close-letter')?.addEventListener('click', () => {
-    document.getElementById('letter-modal').style.display = 'none';
+    window.closeDecisionLetterModal();
   });
 
+  let savedPrintTitle = '';
+  const prepareLetterPrintContext = () => {
+    const letterEl = document.getElementById('letter-modal');
+    if (!letterEl || letterEl.style.display === 'none') return;
+    document.body.classList.add('letter-modal-open');
+    const contentEl = letterEl.querySelector('.modal-content');
+    if (contentEl) contentEl.scrollTop = 0;
+    window.scrollTo(0, 0);
+    if (!savedPrintTitle) savedPrintTitle = document.title;
+    const rawRef = String(state.currentApplicant?.id || 'Application').replace(/[^A-Za-z0-9_-]/g, '_');
+    const offLow = String(state.currentApplicant?.officer_status || '').trim().toLowerCase();
+    const docTag = letterEl.getAttribute('data-effective-status') === 'rejected' || offLow === 'rejected'
+      ? 'Adverse_Notice'
+      : 'Decision_Letter';
+    document.title = `Meridian_${docTag}_${rawRef}`;
+  };
+  const restoreLetterPrintContext = () => {
+    if (savedPrintTitle) {
+      document.title = savedPrintTitle;
+      savedPrintTitle = '';
+    }
+  };
+  window.addEventListener('beforeprint', prepareLetterPrintContext);
+  window.addEventListener('afterprint', restoreLetterPrintContext);
+
   document.getElementById('btn-print-letter')?.addEventListener('click', () => {
+    prepareLetterPrintContext();
     if (window.AndroidBridge && typeof window.AndroidBridge.printPage === 'function') {
       window.AndroidBridge.printPage();
+      setTimeout(restoreLetterPrintContext, 1500);
       return;
     }
     window.print();
+    setTimeout(restoreLetterPrintContext, 1500);
   });
 
   document.getElementById('btn-officer-approve')?.addEventListener('click', () => {
@@ -4981,8 +5066,47 @@ window.updateCibilDisplay = function(val) {
   if (guide) guide.innerText = guideText;
 };
 
+function formatLetterTimestamp(rawTs, hi) {
+  const s = String(rawTs || '').trim();
+  if (!s) return '';
+  let iso = s;
+  if (/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}/.test(s) && !s.includes('T')) {
+    iso = s.replace(' ', 'T');
+    if (!/[Z+-]\d{0,2}:?\d{0,2}$/.test(iso)) iso += 'Z';
+  }
+  const dt = new Date(iso);
+  if (isNaN(dt.getTime())) return s;
+  return dt.toLocaleDateString(hi ? 'hi-IN' : 'en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric'
+  });
+}
+
+function localizePurposeText(rawPurpose, hi) {
+  const p = String(rawPurpose || '').trim();
+  if (!hi) return p || 'Retail Loan Facility';
+  const map = {
+    'Home Improvement / Construction': 'गृह निर्माण / नवीनीकरण / खरीद',
+    'Home Construction / Renovation / Purchase': 'गृह निर्माण / नवीनीकरण / खरीद',
+    'Small Business / MSME Working Capital': 'लघु व्यवसाय / एमएसएमई कार्यशील पूंजी',
+    'Agricultural Equipment / Irrigation / Solar': 'कृषि उपकरण / सिंचाई / सौर ऊर्जा',
+    'Higher Education / Skill Training': 'उच्च शिक्षा / कौशल प्रशिक्षण',
+    'Vehicle / Two-Wheeler / Commercial Transport': 'वाहन / दुपहिया / व्यावसायिक परिवहन',
+    'Personal / Family Health Facility': 'व्यक्तिगत / पारिवारिक स्वास्थ्य सुविधा'
+  };
+  return map[p] || p || 'खुदरा ऋण सुविधा';
+}
+
+window.closeDecisionLetterModal = function() {
+  const modal = document.getElementById('letter-modal');
+  if (modal) modal.style.display = 'none';
+  document.body.classList.remove('letter-modal-open');
+};
+
 window.openDecisionLetterModal = function(allowOfficerPreview = false) {
   const hi = state.currentLang === 'hi';
+  const dict = getLangDict();
   const isOfficer = currentAuthUser?.role === 'officer' || state.currentRole === 'officer';
   if (!state.hasApplied) {
     if (allowOfficerPreview || isOfficer) {
@@ -5017,138 +5141,313 @@ window.openDecisionLetterModal = function(allowOfficerPreview = false) {
 
   let loanAmtInr = parseFloat(app.loan_amount !== undefined && app.loan_amount !== null && app.loan_amount !== '' ? app.loan_amount : 150000);
   if (isNaN(loanAmtInr) || loanAmtInr <= 0) loanAmtInr = 150000;
+  loanAmtInr = Math.round(loanAmtInr);
 
-  const termMonths = parseFloat(app.term || app.loan_term_months || 60);
-  const years = (termMonths / 12).toFixed(1).replace('.0', '');
+  const termMonths = Math.max(1, parseInt(app.term || app.loan_term_months || 60, 10) || 60);
+  const years = (termMonths / 12).toFixed(1).replace(/\.0$/, '');
 
-  const annualRate = 0.0925;
-  const monthlyRate = annualRate / 12;
-  const emiVal = Math.round(
-    (loanAmtInr * monthlyRate * Math.pow(1 + monthlyRate, termMonths)) /
-    (Math.pow(1 + monthlyRate, termMonths) - 1)
-  ) || pred.ratios.emi;
+  const cibilVal = parseInt(
+    app.cibil_score !== undefined && app.cibil_score !== null && app.cibil_score !== ''
+      ? app.cibil_score
+      : (pred.cibil_score || (Number(app.credit_history) === 1 ? 750 : 540)),
+    10
+  ) || 750;
+  const cibilTier = cibilVal >= 750
+    ? (hi ? 'उत्कृष्ट (प्राइम)' : 'Prime')
+    : cibilVal >= 650
+      ? (hi ? 'मानक (योग्य)' : 'Good')
+      : (hi ? 'निम्न (सबप्राइम)' : 'Subprime');
 
-  const totalRepay = emiVal * termMonths;
-  const totalInterest = Math.max(0, totalRepay - loanAmtInr);
+  let aprPct = 13.50;
+  let aprTierNote = hi ? 'जोखिम-समायोजित सांकेतिक दर' : 'Risk-Calibrated Indicative Rate';
+  if (cibilVal >= 750) {
+    aprPct = 9.25;
+    aprTierNote = hi ? 'प्राइम टियर • स्थिर घटती दर' : 'Prime Tier • Fixed Reducing Rate';
+  } else if (cibilVal >= 700) {
+    aprPct = 10.50;
+    aprTierNote = hi ? 'मानक टियर • स्थिर घटती दर' : 'Standard Tier • Fixed Reducing Rate';
+  } else if (cibilVal >= 650) {
+    aprPct = 11.75;
+    aprTierNote = hi ? 'नियर-प्राइम टियर • स्थिर घटती दर' : 'Near-Prime Tier • Fixed Reducing Rate';
+  }
 
-  const appRef = app.id || 'MB-PENDING';
+  const monthlyRate = (aprPct / 100) / 12;
+  const powFactor = Math.pow(1 + monthlyRate, termMonths);
+  const rawEmi = monthlyRate > 0 && powFactor > 1
+    ? (loanAmtInr * monthlyRate * powFactor) / (powFactor - 1)
+    : loanAmtInr / termMonths;
+  const emiVal = Number.isFinite(rawEmi) && rawEmi > 0
+    ? Math.round(rawEmi)
+    : Math.max(1, Math.round(loanAmtInr / termMonths));
+  const totalRepay = Math.max(loanAmtInr, emiVal * termMonths);
+  const totalInterest = totalRepay - loanAmtInr;
+
+  const appInc = Math.max(0, Math.round(Number(app.applicant_income || 0)));
+  const coappInc = Math.max(0, Math.round(Number(app.coapplicant_income || 0)));
+  const totInc = Math.max(1, appInc + coappInc);
+  const basePrincipalEmi = Math.round(pred.ratios?.emi !== undefined ? pred.ratios.emi : (loanAmtInr / termMonths));
+  const baseDtiPct = pred.ratios?.dtiPct !== undefined
+    ? pred.ratios.dtiPct
+    : (Math.round((basePrincipalEmi / totInc) * 1000) / 10);
+  const effectiveFoirPct = Math.round((emiVal / totInc) * 1000) / 10;
+
+  const rawId = String(app.id || 'MB-PENDING').trim();
+  const formattedRef = rawId.startsWith('MERIDIAN-') ? rawId : `MERIDIAN-${rawId}`;
+  const submittedStr = formatLetterTimestamp(app.created_at, hi) || (hi ? 'ऐतिहासिक पोर्टफोलियो अभिलेख' : 'Historical Portfolio Record');
+  const todayStr = new Date().toLocaleDateString(hi ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  const decisionStr = formatLetterTimestamp(app.updated_at || app.created_at, hi) || todayStr;
+
+  const appEmail = String(
+    app.applicant_email || app.email || (currentAuthUser?.role !== 'officer' ? currentAuthUser?.email : '') || ''
+  ).trim();
+  const appPhone = String(app.phone || '').trim();
+  const contactParts = [];
+  if (appEmail) contactParts.push(appEmail);
+  if (appPhone) contactParts.push(appPhone);
+  const contactStr = contactParts.length > 0
+    ? contactParts.join(' • ')
+    : (hi ? 'फ़ाइल आईडी द्वारा सत्यापित (ऐतिहासिक रिकॉर्ड)' : 'Verified by File Reference (Historical Record)');
+
+  const hasSlip = app.salary_slip === 'Yes' || app.salary_slip === true || String(app.salary_slip || '').toLowerCase() === 'yes';
+  const empBase = String(app.employment_type || (app.self_employed === 'Yes' ? 'Self-Employed' : 'Salaried'));
+  const slipTag = hasSlip
+    ? (hi ? 'वेतन पर्ची सत्यापित' : 'Salary Slip Verified')
+    : (hi ? 'बैंक स्टेटमेंट द्वारा सत्यापित' : 'Bank Statement Verified');
+
+  const offStatRaw = String(app.officer_status || 'Pending').trim();
+  const offStatLow = offStatRaw.toLowerCase();
+  const isOfficerFinal = offStatLow === 'approved' || offStatLow === 'conditional' || offStatLow === 'rejected';
+  const effectiveStatus = isOfficerFinal ? offStatLow : pred.status;
+  modal.setAttribute('data-effective-status', effectiveStatus);
+
+  const offStatusText = offStatLow === 'approved'
+    ? (hi ? 'अधिकारी द्वारा स्वीकृत' : 'Sanctioned by Officer')
+    : offStatLow === 'conditional'
+      ? (hi ? 'अधिकारी द्वारा सशर्त स्वीकृत' : 'Conditional Approval (Officer)')
+      : offStatLow === 'rejected'
+        ? (hi ? 'अधिकारी द्वारा अस्वीकृत' : 'Declined by Officer')
+        : (hi ? 'अधिकारी समीक्षा लंबित' : 'Pending Officer Review');
+
   setEl('let-applicant-name', app.name || (hi ? 'आवेदक' : 'Applicant'));
-  setEl('let-ref', `MERIDIAN-${appRef}`);
-  setEl('let-date', new Date().toLocaleDateString(hi ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'long', year: 'numeric' }));
+  setEl('let-contact', contactStr);
+  setEl('let-ref', formattedRef);
+  setEl('let-submitted-date', submittedStr);
+  setEl('let-date', decisionStr);
   setEl('let-loan-amount', `₹${loanAmtInr.toLocaleString('en-IN')}`);
   setEl('let-tenure', hi ? `${termMonths} माह (${years} वर्ष)` : `${termMonths} Months (${years} Years)`);
+  setEl('let-purpose', localizePurposeText(app.loan_purpose, hi));
   setEl('let-area', hi ? `${localizeArea(app.property_area || 'Urban', 'hi')} क्षेत्र` : `${localizeArea(app.property_area || 'Urban', 'en')} Territory`);
+  setEl('let-employment', `${empBase} • ${slipTag}`);
+  setEl(
+    'let-income',
+    `₹${totInc.toLocaleString('en-IN')}${hi ? '/माह' : '/mo'} (₹${appInc.toLocaleString('en-IN')} + ₹${coappInc.toLocaleString('en-IN')})`
+  );
+  setEl('let-cibil', `${cibilVal} / 900 (${cibilTier})`);
+  setEl('let-ai-score', hi ? `${pred.approvalPercent}% (मानक ≥ 65%)` : `${pred.approvalPercent}% (Benchmark ≥ 65%)`);
+  setEl('let-officer-status', offStatusText);
 
   setEl('kfs-loan-amt', `₹${loanAmtInr.toLocaleString('en-IN')}`);
-  setEl('kfs-apr', hi ? '9.25% वार्षिक (RBI मानकों के अनुसार स्थिर घटती दर)' : '9.25% p.a. (Fixed Reducing per RBI Guidelines)');
+  setEl('kfs-apr', hi ? `${aprPct.toFixed(2)}% वार्षिक (${aprTierNote})` : `${aprPct.toFixed(2)}% p.a. (${aprTierNote})`);
   setEl('kfs-tenure', hi ? `${termMonths} माह (${years} वर्ष)` : `${termMonths} Months (${years} Years)`);
   setEl('kfs-emi', hi ? `₹${emiVal.toLocaleString('en-IN')} / माह` : `₹${emiVal.toLocaleString('en-IN')} / month`);
+  setEl(
+    'kfs-foir-note',
+    hi
+      ? `@ ${aprPct.toFixed(2)}% ब्याज सहित (आय का ${effectiveFoirPct}% FOIR; मूलधन आधार किस्त = ₹${basePrincipalEmi.toLocaleString('en-IN')}/माह या ${baseDtiPct}% DTI)`
+      : `At ${aprPct.toFixed(2)}% p.a. reducing (${effectiveFoirPct}% FOIR of income; Base principal installment = ₹${basePrincipalEmi.toLocaleString('en-IN')}/mo or ${baseDtiPct}% DTI)`
+  );
   setEl('kfs-total-interest', `₹${totalInterest.toLocaleString('en-IN')}`);
   setEl('kfs-total-repayment', `₹${totalRepay.toLocaleString('en-IN')}`);
 
-  const offStatLow = String(app.officer_status || '').trim().toLowerCase();
-  const effectiveStatus = (offStatLow === 'approved' || offStatLow === 'conditional' || offStatLow === 'rejected')
-    ? offStatLow
-    : pred.status;
-
+  const docTypeEl = document.getElementById('let-doc-type');
   const statusBadge = document.getElementById('let-status-badge');
   const verdictText = document.getElementById('let-verdict-text');
-  if (statusBadge) {
-    if (effectiveStatus === 'approved') {
-      statusBadge.innerText = hi ? 'आधिकारिक सैद्धांतिक ऋण स्वीकृति' : 'OFFICIAL IN-PRINCIPLE APPROVAL';
-      statusBadge.className = 'badge badge-success';
-      if (verdictText) {
-        verdictText.innerHTML = hi
-          ? `हमें यह सूचित करते हुए प्रसन्नता हो रही है कि ऋण आवेदन <strong>${escapeHtml(appRef)}</strong> <strong>RBI फेयर प्रैक्टिसेज कोड</strong> के अंतर्गत सभी अंडरराइटिंग मानदंडों को सफलतापूर्वक पूरा करता है। नीचे आधिकारिक <strong>मुख्य तथ्य विवरण (KFS)</strong> और पारदर्शी कारक विश्लेषण प्रस्तुत है।`
-          : `We are pleased to inform you that application <strong>${escapeHtml(appRef)}</strong> has satisfied all underwriting benchmarks under the <strong>RBI Fair Practices Code</strong>. Below is the official <strong>Key Fact Statement (KFS)</strong> and explainable eligibility breakdown.`;
+  const kfsCard = document.getElementById('letter-kfs-card');
+  const adverseCard = document.getElementById('letter-adverse-card');
+  const kfsTitleEl = document.getElementById('kfs-title-text');
+  const kfsTagEl = document.getElementById('kfs-compliant-tag');
+  const kfsPrincipalLbl = document.getElementById('kfs-principal-lbl');
+
+  if (effectiveStatus === 'rejected') {
+    if (kfsCard) kfsCard.style.display = 'none';
+    if (adverseCard) adverseCard.style.display = 'block';
+    if (docTypeEl) docTypeEl.innerText = hi ? 'आधिकारिक प्रतिकूल निर्णय सूचना' : 'OFFICIAL ADVERSE ACTION NOTICE';
+    if (statusBadge) {
+      statusBadge.innerText = hi ? 'प्रतिकूल निर्णय (अस्वीकृत)' : 'ADVERSE ACTION NOTICE (DECLINED)';
+      statusBadge.className = 'badge badge-danger';
+    }
+    if (verdictText) {
+      verdictText.innerHTML = hi
+        ? `आवेदन <strong>${escapeHtml(rawId)}</strong> के मूल्यांकन के पश्चात वर्तमान में इस ऋण सुविधा को स्वीकृत नहीं किया जा सका है। <strong>भारतीय रिज़र्व बैंक फेयर प्रैक्टिसेज कोड</strong> के अनुपालन में नीचे अस्वीकृति के सटीक मापदंड एवं सुधार के उपाय प्रस्तुत हैं।`
+        : `Following underwriting evaluation of application <strong>${escapeHtml(rawId)}</strong>, no credit facility has been sanctioned at this stage. In compliance with the <strong>Reserve Bank of India Fair Practices Code</strong>, the exact assessment benchmarks and remediation criteria are disclosed below.`;
+    }
+    setEl('adv-requested-amt', `₹${loanAmtInr.toLocaleString('en-IN')} (${termMonths} ${hi ? 'माह' : 'Months'})`);
+    setEl('adv-sanctioned-amt', hi ? '₹0 (कोई ऋण स्वीकृत नहीं)' : '₹0 (No Facility Sanctioned)');
+    setEl(
+      'adv-cibil-check',
+      `${cibilVal} / 900 — ${cibilVal >= 650 ? (hi ? 'मानक पूर्ण (उत्तीर्ण)' : 'Meets Benchmark (Pass)') : (hi ? '650 सीमा से कम (जोखिम)' : 'Below 650 Threshold (Flagged)')}`
+    );
+    setEl(
+      'adv-dti-check',
+      hi
+        ? `${baseDtiPct}% आधार DTI (${effectiveFoirPct}% FOIR ब्याज सहित) — ${baseDtiPct <= 45 ? 'सीमा के भीतर' : '45% सीमा से अधिक (उच्च भार)'}`
+        : `${baseDtiPct}% Base DTI (${effectiveFoirPct}% FOIR incl. interest) — ${baseDtiPct <= 45 ? 'Within Ceiling' : 'Exceeds 45% Ceiling (High Leverage)'}`
+    );
+    setEl(
+      'adv-score-check',
+      hi
+        ? `${pred.approvalPercent}% AI स्कोर (${offStatLow === 'rejected' ? 'ऋण अधिकारी द्वारा अस्वीकृत' : '65% स्वीकृति मानक से कम'})`
+        : `${pred.approvalPercent}% AI Score (${offStatLow === 'rejected' ? 'Declined by Loan Officer' : 'Below 65% Approval Benchmark'})`
+    );
+    setEl(
+      'adv-reapply-note',
+      hi
+        ? 'नीचे दिए गए सुधार उपायों को पूरा करने या ऋण राशि/अवधि समायोजित करने के पश्चात आप तुरंत पुनः आवेदन कर सकते हैं।'
+        : 'Eligible for immediate re-evaluation after addressing the remediation steps below or adjusting facility amount / tenure.'
+    );
+  } else {
+    if (kfsCard) kfsCard.style.display = 'block';
+    if (adverseCard) adverseCard.style.display = 'none';
+
+    if (offStatLow === 'approved') {
+      if (docTypeEl) docTypeEl.innerText = hi ? 'आधिकारिक ऋण स्वीकृति पत्र एवं KFS' : 'OFFICIAL LOAN SANCTION LETTER & KFS';
+      if (statusBadge) {
+        statusBadge.innerText = hi ? 'अधिकारी द्वारा आधिकारिक स्वीकृति' : 'OFFICIAL OFFICER SANCTION';
+        statusBadge.className = 'badge badge-success';
       }
-    } else if (effectiveStatus === 'conditional') {
-      statusBadge.innerText = hi ? 'सशर्त सैद्धांतिक ऋण स्वीकृति' : 'CONDITIONAL IN-PRINCIPLE SANCTION';
-      statusBadge.className = 'badge badge-warning';
+      if (kfsTitleEl) kfsTitleEl.innerText = dict.kfs_title;
+      if (kfsTagEl) kfsTagEl.innerText = dict.kfs_compliant;
+      if (kfsPrincipalLbl) kfsPrincipalLbl.innerText = dict.kfs_row_principal;
       if (verdictText) {
         verdictText.innerHTML = hi
-          ? `आवेदन <strong>${escapeHtml(appRef)}</strong> <strong>RBI डिजिटल लेंडिंग दिशानिर्देशों</strong> के अंतर्गत प्राथमिक KYC सत्यापन अथवा सह-गारंटर समर्थन के अधीन सैद्धांतिक स्वीकृति के लिए पात्र है।`
-          : `Application <strong>${escapeHtml(appRef)}</strong> qualifies for in-principle sanction subject to primary KYC verification or co-guarantor endorsement under the <strong>RBI Digital Lending Guidelines</strong>.`;
+          ? `हमें यह सूचित करते हुए प्रसन्नता हो रही है कि आपका ऋण आवेदन <strong>${escapeHtml(rawId)}</strong> संस्थागत ऋण अधिकारी द्वारा <strong>RBI फेयर प्रैक्टिसेज कोड</strong> के अंतर्गत स्वीकृत कर दिया गया है। नीचे आधिकारिक <strong>मुख्य तथ्य विवरण (KFS)</strong> प्रस्तुत है।`
+          : `We are pleased to confirm that application <strong>${escapeHtml(rawId)}</strong> has been formally sanctioned by an authorized Loan Officer under the <strong>RBI Fair Practices Code</strong>. Your official <strong>Key Fact Statement (KFS)</strong> and pricing schedule follow below.`;
+      }
+    } else if (offStatLow === 'conditional') {
+      if (docTypeEl) docTypeEl.innerText = hi ? 'सशर्त ऋण स्वीकृति सूचना एवं KFS' : 'CONDITIONAL SANCTION NOTICE & KFS';
+      if (statusBadge) {
+        statusBadge.innerText = hi ? 'सशर्त स्वीकृति (अधिकारी समीक्षा)' : 'CONDITIONAL OFFICER APPROVAL';
+        statusBadge.className = 'badge badge-warning';
+      }
+      if (kfsTitleEl) kfsTitleEl.innerText = hi ? 'सशर्त RBI मुख्य तथ्य विवरण (KFS)' : 'CONDITIONAL RBI KEY FACT STATEMENT (KFS)';
+      if (kfsTagEl) kfsTagEl.innerText = hi ? 'KYC / शर्तों के अधीन' : 'Subject to KYC / Stipulations';
+      if (kfsPrincipalLbl) kfsPrincipalLbl.innerText = hi ? 'सशर्त स्वीकृत राशि (मूलधन)' : 'Conditional Facility Amount (Principal)';
+      if (verdictText) {
+        verdictText.innerHTML = hi
+          ? `आवेदन <strong>${escapeHtml(rawId)}</strong> को <strong>RBI डिजिटल लेंडिंग दिशानिर्देशों</strong> के अंतर्गत प्राथमिक KYC अथवा सह-गारंटर सत्यापन के अधीन सशर्त स्वीकृति प्राप्त हुई है।`
+          : `Application <strong>${escapeHtml(rawId)}</strong> holds a conditional sanction subject to primary KYC completion or stipulated officer conditions under <strong>RBI Digital Lending Guidelines</strong>.`;
+      }
+    } else if (effectiveStatus === 'approved') {
+      if (docTypeEl) docTypeEl.innerText = hi ? 'अनंतिम AI पात्रता पत्र एवं सांकेतिक KFS' : 'PROVISIONAL AI QUALIFICATION & INDICATIVE KFS';
+      if (statusBadge) {
+        statusBadge.innerText = hi ? 'अनंतिम सैद्धांतिक पात्रता (समीक्षा लंबित)' : 'PROVISIONAL AI QUALIFIED (PENDING OFFICER REVIEW)';
+        statusBadge.className = 'badge badge-info';
+      }
+      if (kfsTitleEl) kfsTitleEl.innerText = hi ? 'सांकेतिक RBI मुख्य तथ्य विवरण (अंतिम स्वीकृति के अधीन)' : 'INDICATIVE RBI KEY FACT STATEMENT (PENDING OFFICER SANCTION)';
+      if (kfsTagEl) kfsTagEl.innerText = hi ? 'सांकेतिक प्रस्ताव • अधिकारी समीक्षा शेष' : 'Indicative • Subject to Officer Sign-Off';
+      if (kfsPrincipalLbl) kfsPrincipalLbl.innerText = hi ? 'प्रस्तावित ऋण राशि (मूलधन)' : 'Proposed Facility Amount (Principal)';
+      if (verdictText) {
+        verdictText.innerHTML = hi
+          ? `आवेदन <strong>${escapeHtml(rawId)}</strong> मेरिडियन AI अंडरराइटिंग मानदंडों में सैद्धांतिक रूप से पात्र पाया गया है। संस्थागत अधिकारी की अंतिम स्वीकृति से पूर्व नीचे सांकेतिक <strong>मुख्य तथ्य विवरण (KFS)</strong> प्रस्तुत है।`
+          : `Application <strong>${escapeHtml(rawId)}</strong> satisfies automated AI underwriting benchmarks in principle. Below is your indicative <strong>Key Fact Statement (KFS)</strong> pending final verification and Loan Officer sign-off.`;
       }
     } else {
-      statusBadge.innerText = hi ? 'प्रतिकूल निर्णय सूचना (अस्वीकृत)' : 'ADVERSE ACTION NOTICE (DECLINED)';
-      statusBadge.className = 'badge badge-danger';
+      if (docTypeEl) docTypeEl.innerText = hi ? 'सीमांत समीक्षा सूचना एवं सांकेतिक KFS' : 'BORDERLINE REVIEW NOTICE & INDICATIVE KFS';
+      if (statusBadge) {
+        statusBadge.innerText = hi ? 'सीमांत स्थिति • समीक्षा लंबित' : 'BORDERLINE (PENDING KYC & OFFICER REVIEW)';
+        statusBadge.className = 'badge badge-warning';
+      }
+      if (kfsTitleEl) kfsTitleEl.innerText = hi ? 'सांकेतिक KFS (समीक्षा एवं सत्यापन के अधीन)' : 'INDICATIVE KEY FACT STATEMENT (SUBJECT TO REVIEW)';
+      if (kfsTagEl) kfsTagEl.innerText = hi ? 'समीक्षाधीन • अंतिम स्वीकृति शेष' : 'Pending Verification & Sign-Off';
+      if (kfsPrincipalLbl) kfsPrincipalLbl.innerText = hi ? 'प्रस्तावित सशर्त राशि (मूलधन)' : 'Proposed Conditional Facility (Principal)';
       if (verdictText) {
         verdictText.innerHTML = hi
-          ? `स्वचालित एवं संस्थागत ऋण निर्णयों पर <strong>भारतीय रिज़र्व बैंक फेयर प्रैक्टिसेज कोड</strong> के अनुपालन में, इस प्रतिकूल निर्णय के कारण बने विशिष्ट क्रेडिट मापदंडों का पारदर्शी विवरण नीचे दिया गया है।`
-          : `In compliance with the <strong>Reserve Bank of India Fair Practices Code</strong> on lending decisions, we provide below the transparent factor determination detailing the specific credit parameters that led to this adverse decision.`;
+          ? `आवेदन <strong>${escapeHtml(rawId)}</strong> स्वीकृति सीमा के निकट है। संस्थागत अधिकारी द्वारा KYC सत्यापन एवं सह-आवेदक/अवधि समीक्षा के उपरांत अंतिम निर्णय जारी किया जाएगा।`
+          : `Application <strong>${escapeHtml(rawId)}</strong> sits near the underwriting threshold and requires KYC verification and Loan Officer review prior to final sanction.`;
       }
     }
   }
 
   const factorsList = document.getElementById('let-factors-list');
   if (factorsList) {
-    const cibilVal = app.cibil_score || (app.credit_history === 1 ? 750 : 540);
-    const dtiVal = pred.ratios.dtiPct;
+    const c = pred.contributions || {};
+    const fmtImp = (raw) => {
+      const n = Number(raw || 0);
+      return `${n > 0 ? '+' : ''}${n}%`;
+    };
+    const creditImp = Number(c.credit_history?.impact || 0);
+    const dtiImp = Number(c.dti_ratio?.impact || 0);
+    const covImp = Number(c.income_coverage?.impact || 0);
+    const slipImp = Number(c.salary_slip?.impact || 0);
+    const empImp = Number(c.employment_type?.impact || 0);
+    const coappImp = Number(c.coapplicant?.impact || 0);
+    const areaImp = Number(c.property_area?.impact || 0);
+
     const items = [];
+    items.push(
+      hi
+        ? `<li><strong>गणितीय स्कोर ऑडिट:</strong> 50% संस्थागत आधार + नीचे दिए गए कारक = <strong>${pred.approvalPercent}% AI पात्रता स्कोर</strong> (स्वीकृति सीमा: ≥ 65%)।</li>`
+        : `<li><strong>Score Derivation Audit:</strong> 50% Institutional Baseline + Itemized Factors = <strong>${pred.approvalPercent}% AI Eligibility Score</strong> (Approval threshold: ≥ 65%).</li>`
+    );
+    items.push(
+      hi
+        ? `<li><strong>क्रेडिट ब्यूरो मूल्यांकन (सिबिल ${cibilVal} — ${cibilTier}):</strong> स्कोर पर प्रभाव <strong>${fmtImp(creditImp)}</strong>। ${cibilVal >= 650 ? 'स्वच्छ ब्यूरो रिकॉर्ड 650 के मानक को पार करता है।' : 'स्कोर 650 के न्यूनतम मानक से नीचे होने के कारण जोखिम कटौती लागू हुई।'}</li>`
+        : `<li><strong>Credit Bureau Assessment (CIBIL ${cibilVal} — ${cibilTier}):</strong> Model impact <strong>${fmtImp(creditImp)}</strong>. ${cibilVal >= 650 ? 'Clean bureau track satisfies the ≥ 650 credit threshold.' : 'Subprime score below the 650 qualifying threshold applied a risk discount.'}</li>`
+    );
+    items.push(
+      hi
+        ? `<li><strong>मासिक पुनर्भुगतान क्षमता एवं आय कवरेज:</strong> आधार मूलधन DTI <strong>${baseDtiPct}%</strong> (ब्याज सहित अनुबंधित FOIR ${effectiveFoirPct}%), LTI <strong>${pred.ratios?.ltiRatio ?? 0}x</strong> — प्रभाव <strong>${fmtImp(dtiImp)} DTI / ${fmtImp(covImp)} कवरेज</strong>।</li>`
+        : `<li><strong>Repayment Burden &amp; Income Coverage:</strong> Base principal DTI <strong>${baseDtiPct}%</strong> (Contractual FOIR ${effectiveFoirPct}% with interest), LTI <strong>${pred.ratios?.ltiRatio ?? 0}x</strong> — impact <strong>${fmtImp(dtiImp)} DTI / ${fmtImp(covImp)} Coverage</strong>.</li>`
+    );
+    items.push(
+      hi
+        ? `<li><strong>आजीविका एवं आय दस्तावेज़:</strong> ${escapeHtml(empBase)} (${slipTag}) — प्रभाव <strong>${fmtImp(slipImp)} दस्तावेज़ / ${fmtImp(empImp)} आजीविका</strong>।</li>`
+        : `<li><strong>Employment &amp; Income Verification:</strong> ${escapeHtml(empBase)} (${slipTag}) — impact <strong>${fmtImp(slipImp)} Docs / ${fmtImp(empImp)} Livelihood</strong>.</li>`
+    );
+    items.push(
+      hi
+        ? `<li><strong>सह-आवेदक एवं क्षेत्रीय समता:</strong> सह-आवेदक आय ₹${coappInc.toLocaleString('en-IN')}/माह, ${escapeHtml(localizeArea(app.property_area || 'Urban', 'hi'))} क्षेत्र — प्रभाव <strong>${fmtImp(coappImp)} सह-आवेदक / ${fmtImp(areaImp)} क्षेत्र</strong>।</li>`
+        : `<li><strong>Co-Applicant Support &amp; Regional Equity:</strong> Co-applicant ₹${coappInc.toLocaleString('en-IN')}/mo, ${escapeHtml(localizeArea(app.property_area || 'Urban', 'en'))} territory — impact <strong>${fmtImp(coappImp)} Co-Applicant / ${fmtImp(areaImp)} Territory</strong>.</li>`
+    );
 
-    if (cibilVal >= 650) {
+    const remText = String(app.officer_remarks || '').trim();
+    if (isOfficerFinal || remText) {
       items.push(
         hi
-          ? `<li><strong>क्रेडिट ब्यूरो विश्वसनीयता (सिबिल ${cibilVal}):</strong> स्वच्छ पुनर्भुगतान इतिहास ने अंडरराइटिंग स्कोर को उल्लेखनीय रूप से बढ़ाया (+28.4%)।</li>`
-          : `<li><strong>Credit Bureau Reliability (CIBIL ${cibilVal}):</strong> Clean bureau repayment record substantially elevated underwriting score (+28.4%).</li>`
-      );
-    } else {
-      items.push(
-        hi
-          ? `<li><strong>क्रेडिट ब्यूरो चेतावनी (सिबिल ${cibilVal}):</strong> पूर्व बकाया या सबप्राइम स्कोर न्यूनतम पात्रता मानक से नीचे है (-32.1%)।</li>`
-          : `<li><strong>Credit Bureau Alert (CIBIL ${cibilVal}):</strong> Historical default or subprime score below qualifying threshold (-32.1%).</li>`
-      );
-    }
-
-    if (dtiVal <= 35) {
-      items.push(
-        hi
-          ? `<li><strong>ऋण-से-आय अनुपात (DTI ${dtiVal}%):</strong> प्रस्तावित मासिक किस्त RBI की 45% विवेकपूर्ण सुरक्षित सीमा के पूर्णतः भीतर है।</li>`
-          : `<li><strong>Debt-to-Income (DTI ${dtiVal}%):</strong> Requested installment is well within RBI prudential comfort ceiling of 45%.</li>`
-      );
-    } else {
-      items.push(
-        hi
-          ? `<li><strong>मासिक ऋण भार (DTI ${dtiVal}%):</strong> मासिक किस्त पारिवारिक नकदी प्रवाह का बड़ा हिस्सा ले रही है, जिससे चुकौती जोखिम बढ़ता है।</li>`
-          : `<li><strong>Debt Burden (DTI ${dtiVal}%):</strong> Monthly installment consumes elevated percentage of household cashflow, presenting leverage risk.</li>`
-      );
-    }
-
-    if (app.salary_slip === 'Yes' || app.salary_slip === true) {
-      items.push(
-        hi
-          ? '<li><strong>आय सत्यापन योग्यता:</strong> औपचारिक वेतन पर्ची ने स्थिर एवं नियमित नकदी प्रवाह की पुष्टि की है।</li>'
-          : '<li><strong>Income Verifiability:</strong> Formal institutional salary slips validated stable disposable cashflow.</li>'
-      );
-    } else {
-      items.push(
-        hi
-          ? '<li><strong>अनौपचारिक / फ्रीलांस आय:</strong> मिशन भारत वित्तीय समावेशन के अंतर्गत वैकल्पिक बैंक विवरण और डिजिटल कैश-फ्लो से मूल्यांकित।</li>'
-          : '<li><strong>Informal / Freelance Earnings:</strong> Assessed via surrogate cashflow & bank metrics under Mission Bharat Financial Inclusion.</li>'
-      );
-    }
-
-    if (app.officer_remarks && String(app.officer_remarks).trim()) {
-      items.push(
-        hi
-          ? `<li><strong>संस्थागत अधिकारी टिप्पणी:</strong> ${escapeHtml(app.officer_remarks)}</li>`
-          : `<li><strong>Underwriter Decision Remarks:</strong> ${escapeHtml(app.officer_remarks)}</li>`
+          ? `<li><strong>संस्थागत अधिकारी निर्णय (${offStatusText}):</strong> ${remText ? escapeHtml(remText) : 'संस्थागत रिकॉर्ड में दर्ज।'}</li>`
+          : `<li><strong>Institutional Officer Adjudication (${offStatusText}):</strong> ${remText ? escapeHtml(remText) : 'Recorded in central institutional vault.'}</li>`
       );
     }
 
     const explanations = generatePlainLanguageExplanations(pred, app, state.currentLang);
-    if (explanations && explanations.actions && explanations.actions.length > 0) {
+    if (explanations && Array.isArray(explanations.actions) && explanations.actions.length > 0) {
       items.push(
         hi
-          ? `<li><strong>सुधार / मार्गदर्शन:</strong> ${explanations.actions[0]}</li>`
-          : `<li><strong>Remediation / Guidance:</strong> ${explanations.actions[0]}</li>`
+          ? `<li><strong>सुधार / पात्रता मार्गदर्शन:</strong> ${explanations.actions.join(' ')}</li>`
+          : `<li><strong>Remediation &amp; Eligibility Guidance:</strong> ${explanations.actions.join(' ')}</li>`
       );
     }
 
     factorsList.innerHTML = items.join('');
   }
 
+  const sigNameEl = document.getElementById('let-signatory-name');
+  if (sigNameEl) {
+    if (isOfficerFinal) {
+      const officerActor = currentAuthUser?.role === 'officer' && currentAuthUser?.full_name
+        ? `${currentAuthUser.full_name} (Loan Officer)`
+        : (hi ? 'अधिकृत ऋण अधिकारी • मेरिडियन वॉल्ट' : 'Authorized Loan Officer • Meridian Vault');
+      sigNameEl.innerText = `${officerActor} • ${decisionStr}`;
+    } else {
+      sigNameEl.innerText = hi
+        ? `मेरिडियन XAI इंजन • ${decisionStr} (अधिकारी हस्ताक्षर शेष)`
+        : `Meridian XAI Engine • ${decisionStr} (Awaiting Officer Sign-Off)`;
+    }
+  }
+
+  document.body.classList.add('letter-modal-open');
+  const modalContent = modal.querySelector('.modal-content');
+  if (modalContent) modalContent.scrollTop = 0;
   modal.style.display = 'flex';
 };
 
@@ -5626,6 +5925,8 @@ window.loadHistoricalCase = async function(caseId) {
   state.currentApplicant = {
     id: r.id,
     name: `Historical Borrower (${r.id})`,
+    phone: '',
+    applicant_email: '',
     gender: r.gender || 'Male',
     married: r.married || 'No',
     dependents: String(r.dependents || '0'),
@@ -5644,6 +5945,7 @@ window.loadHistoricalCase = async function(caseId) {
     status: (r.pred_status === 'Y' || r.actual_status === 'Y') ? 'Approved' : 'Rejected',
     officer_status: 'Pending',
     officer_remarks: '',
+    created_at: '',
     updated_at: ''
   };
 

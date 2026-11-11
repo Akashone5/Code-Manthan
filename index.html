@@ -1602,104 +1602,187 @@
 
       <div class="letter-header">
         <div>
-          <div style="font-size: 1.4rem; font-weight: 800; color: #064E3B;" data-i18n="let_bank_name">MERIDIAN FAIRLEND AI</div>
-          <div style="font-size: 0.8rem; color: #64748B;" data-i18n="let_division">Mission Bharat • Inclusive Retail Credit Division</div>
-          <div style="font-size: 0.75rem; color: #64748B; margin-top: 2px;" data-i18n="let_office">Reg. Office: Nariman Point, Mumbai 400021 • RBI Reg #N-13.01928</div>
+          <div style="font-size: 1.35rem; font-weight: 800; color: #064E3B;" data-i18n="let_bank_name">MERIDIAN FAIRLEND AI</div>
+          <div style="font-size: 0.78rem; color: #475569;" data-i18n="let_division">Mission Bharat • Inclusive Retail Credit Division</div>
+          <div style="font-size: 0.73rem; color: #64748B; margin-top: 2px;" data-i18n="let_office">Reg. Office: Nariman Point, Mumbai 400021 • RBI Reg #N-13.01928</div>
         </div>
-        <div style="text-align: right; font-size: 0.8rem; color: #64748B;">
-          <div><strong data-i18n="let_ref_lbl">Reference:</strong> <span id="let-ref">MERIDIAN-MB-9021</span></div>
-          <div><strong data-i18n="let_date_lbl">Date:</strong> <span id="let-date">28 October 2026</span></div>
+        <div style="text-align: right; font-size: 0.78rem; color: #475569;">
+          <div id="let-doc-type" style="font-size: 0.72rem; font-weight: 800; color: #064E3B; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 3px;">--</div>
+          <div><strong data-i18n="let_ref_lbl">Reference:</strong> <span id="let-ref" style="font-weight: 700; color: #0F172A;">--</span></div>
+          <div><strong data-i18n="let_submitted_lbl">Submitted Date:</strong> <span id="let-submitted-date">--</span></div>
+          <div><strong data-i18n="let_date_lbl">Decision Date:</strong> <span id="let-date">--</span></div>
         </div>
       </div>
 
       <div>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 0.6rem; margin-bottom: 0.85rem;">
           <div>
-            <div style="font-size: 0.8rem; color: #64748B;" data-i18n="let_app_name_lbl">Applicant Name:</div>
-            <div id="let-applicant-name" style="font-size: 1.1rem; font-weight: 700; color: #0F172A;">Ananya Rao</div>
+            <div style="font-size: 0.76rem; color: #64748B;" data-i18n="let_app_name_lbl">Applicant Name:</div>
+            <div id="let-applicant-name" style="font-size: 1.08rem; font-weight: 800; color: #0F172A;">--</div>
+            <div id="let-contact" style="font-size: 0.76rem; color: #475569; margin-top: 2px;">--</div>
           </div>
-          <div id="let-status-badge" class="badge badge-success">PRE-APPROVED</div>
+          <div id="let-status-badge" class="badge badge-info">--</div>
         </div>
 
-        <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1.25rem; font-size: 0.82rem; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;">
-          <div><strong data-i18n="let_fac_lbl">Requested Facility:</strong> <span id="let-loan-amount">₹1,10,000</span></div>
-          <div><strong data-i18n="let_tenure_lbl">Tenure:</strong> <span id="let-tenure">360 Months</span></div>
-          <div><strong data-i18n="let_area_lbl">Territory:</strong> <span id="let-area">Rural Bharat</span></div>
+        <div class="letter-profile-grid">
+          <div class="letter-profile-cell">
+            <div class="letter-cell-lbl" data-i18n="let_fac_lbl">Requested Facility:</div>
+            <div id="let-loan-amount" class="letter-cell-val">--</div>
+          </div>
+          <div class="letter-profile-cell">
+            <div class="letter-cell-lbl" data-i18n="let_tenure_lbl">Tenure:</div>
+            <div id="let-tenure" class="letter-cell-val">--</div>
+          </div>
+          <div class="letter-profile-cell">
+            <div class="letter-cell-lbl" data-i18n="let_purpose_lbl">Facility Purpose:</div>
+            <div id="let-purpose" class="letter-cell-val">--</div>
+          </div>
+          <div class="letter-profile-cell">
+            <div class="letter-cell-lbl" data-i18n="let_area_lbl">Territory:</div>
+            <div id="let-area" class="letter-cell-val">--</div>
+          </div>
+          <div class="letter-profile-cell">
+            <div class="letter-cell-lbl" data-i18n="let_emp_lbl">Employment &amp; Verification:</div>
+            <div id="let-employment" class="letter-cell-val">--</div>
+          </div>
+          <div class="letter-profile-cell">
+            <div class="letter-cell-lbl" data-i18n="let_income_lbl">Household Monthly Income:</div>
+            <div id="let-income" class="letter-cell-val">--</div>
+          </div>
+          <div class="letter-profile-cell">
+            <div class="letter-cell-lbl" data-i18n="let_cibil_lbl">CIBIL Bureau Score:</div>
+            <div id="let-cibil" class="letter-cell-val">--</div>
+          </div>
+          <div class="letter-profile-cell">
+            <div class="letter-cell-lbl" data-i18n="let_ai_score_lbl">AI Eligibility Score:</div>
+            <div id="let-ai-score" class="letter-cell-val">--</div>
+          </div>
+          <div class="letter-profile-cell">
+            <div class="letter-cell-lbl" data-i18n="let_officer_status_lbl">Officer Review Status:</div>
+            <div id="let-officer-status" class="letter-cell-val">--</div>
+          </div>
         </div>
 
-        <p id="let-verdict-text" style="font-size: 0.9rem; line-height: 1.6; color: #334155; margin-bottom: 1rem;">
-          We are pleased to inform you that your application for a retail loan facility has met Meridian automated underwriting standards.
-        </p>
+        <p id="let-verdict-text" style="font-size: 0.87rem; line-height: 1.56; color: #1E293B; margin-bottom: 0.9rem;">--</p>
 
-        <div style="margin: 1.25rem 0; background: #FFFFFF; border: 1.5px solid #064E3B; border-radius: 8px; overflow: hidden;">
-          <div style="background: #064E3B; color: #FFFFFF; padding: 0.6rem 1rem; font-size: 0.82rem; font-weight: 700; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
-            <span data-i18n="kfs_title">OFFICIAL RBI KEY FACT STATEMENT (KFS)</span>
-            <span style="font-size: 0.72rem; background: #F8E7C9; color: #064E3B; padding: 2px 8px; border-radius: 4px; font-weight: 800;" data-i18n="kfs_compliant">RBI Digital Lending Compliant</span>
+        <div id="letter-kfs-card" style="margin: 0.95rem 0; background: #FFFFFF; border: 1.5px solid #064E3B; border-radius: 8px; overflow: hidden;">
+          <div style="background: #064E3B; color: #FFFFFF; padding: 0.55rem 0.9rem; font-size: 0.8rem; font-weight: 700; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+            <span id="kfs-title-text" data-i18n="kfs_title">OFFICIAL RBI KEY FACT STATEMENT (KFS)</span>
+            <span id="kfs-compliant-tag" style="font-size: 0.7rem; background: #F8E7C9; color: #064E3B; padding: 2px 8px; border-radius: 4px; font-weight: 800;" data-i18n="kfs_compliant">RBI Digital Lending Compliant</span>
           </div>
-          <table style="width: 100%; border-collapse: collapse; font-size: 0.82rem;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
             <tbody>
               <tr style="border-bottom: 1px solid #E2E8F0;">
-                <td style="padding: 0.5rem 1rem; font-weight: 600; color: #475569; width: 48%;" data-i18n="kfs_row_principal">Sanctioned Facility Amount (Principal)</td>
-                <td id="kfs-loan-amt" style="padding: 0.5rem 1rem; font-weight: 700; color: #064E3B;">₹1,50,000</td>
+                <td id="kfs-principal-lbl" style="padding: 0.45rem 0.9rem; font-weight: 600; color: #475569; width: 48%;" data-i18n="kfs_row_principal">Sanctioned Facility Amount (Principal)</td>
+                <td id="kfs-loan-amt" style="padding: 0.45rem 0.9rem; font-weight: 700; color: #064E3B;">--</td>
               </tr>
               <tr style="border-bottom: 1px solid #E2E8F0; background: #F8FAFC;">
-                <td style="padding: 0.5rem 1rem; font-weight: 600; color: #475569;" data-i18n="kfs_row_apr">All-Inclusive Annual Percentage Rate (APR)</td>
-                <td id="kfs-apr" style="padding: 0.5rem 1rem; font-weight: 700; color: #0F172A;">9.25% p.a. (Fixed Reducing per RBI Directives)</td>
+                <td style="padding: 0.45rem 0.9rem; font-weight: 600; color: #475569;" data-i18n="kfs_row_apr">All-Inclusive Annual Percentage Rate (APR)</td>
+                <td id="kfs-apr" style="padding: 0.45rem 0.9rem; font-weight: 700; color: #0F172A;">--</td>
               </tr>
               <tr style="border-bottom: 1px solid #E2E8F0;">
-                <td style="padding: 0.5rem 1rem; font-weight: 600; color: #475569;" data-i18n="kfs_row_tenure">Loan Tenure / Repayment Installments</td>
-                <td id="kfs-tenure" style="padding: 0.5rem 1rem; font-weight: 700; color: #0F172A;">60 Months (5 Years)</td>
+                <td style="padding: 0.45rem 0.9rem; font-weight: 600; color: #475569;" data-i18n="kfs_row_tenure">Loan Tenure / Repayment Installments</td>
+                <td id="kfs-tenure" style="padding: 0.45rem 0.9rem; font-weight: 700; color: #0F172A;">--</td>
               </tr>
               <tr style="border-bottom: 1px solid #E2E8F0; background: #F8FAFC;">
-                <td style="padding: 0.5rem 1rem; font-weight: 600; color: #475569;" data-i18n="kfs_row_emi">Equated Monthly Installment (EMI)</td>
-                <td id="kfs-emi" style="padding: 0.5rem 1rem; font-weight: 700; color: #064E3B;">₹3,130 / month</td>
+                <td style="padding: 0.45rem 0.9rem; font-weight: 600; color: #475569;" data-i18n="kfs_row_emi">Equated Monthly Installment (EMI)</td>
+                <td style="padding: 0.45rem 0.9rem;">
+                  <div id="kfs-emi" style="font-weight: 700; color: #064E3B;">--</div>
+                  <div id="kfs-foir-note" style="font-size: 0.71rem; color: #475569; margin-top: 2px;">--</div>
+                </td>
               </tr>
               <tr style="border-bottom: 1px solid #E2E8F0;">
-                <td style="padding: 0.5rem 1rem; font-weight: 600; color: #475569;" data-i18n="kfs_row_interest">Total Interest Amount Payable</td>
-                <td id="kfs-total-interest" style="padding: 0.5rem 1rem; font-weight: 700; color: #0F172A;">₹37,800</td>
+                <td style="padding: 0.45rem 0.9rem; font-weight: 600; color: #475569;" data-i18n="kfs_row_interest">Total Interest Amount Payable</td>
+                <td id="kfs-total-interest" style="padding: 0.45rem 0.9rem; font-weight: 700; color: #0F172A;">--</td>
               </tr>
               <tr style="border-bottom: 1px solid #E2E8F0; background: #F8FAFC;">
-                <td style="padding: 0.5rem 1rem; font-weight: 600; color: #475569;" data-i18n="kfs_row_total">Total Repayment Amount (Principal + Interest)</td>
-                <td id="kfs-total-repayment" style="padding: 0.5rem 1rem; font-weight: 800; color: #064E3B;">₹1,87,800</td>
+                <td style="padding: 0.45rem 0.9rem; font-weight: 600; color: #475569;" data-i18n="kfs_row_total">Total Repayment Amount (Principal + Interest)</td>
+                <td id="kfs-total-repayment" style="padding: 0.45rem 0.9rem; font-weight: 800; color: #064E3B;">--</td>
               </tr>
               <tr style="border-bottom: 1px solid #E2E8F0;">
-                <td style="padding: 0.5rem 1rem; font-weight: 600; color: #475569;" data-i18n="kfs_row_proc">Upfront Processing &amp; Verification Fees</td>
-                <td id="kfs-proc-fee" style="padding: 0.5rem 1rem; font-weight: 700; color: #059669;" data-i18n="kfs_val_proc">₹0 (Nil - Mission Bharat Subsidy)</td>
+                <td style="padding: 0.45rem 0.9rem; font-weight: 600; color: #475569;" data-i18n="kfs_row_proc">Upfront Processing &amp; Verification Fees</td>
+                <td id="kfs-proc-fee" style="padding: 0.45rem 0.9rem; font-weight: 700; color: #059669;" data-i18n="kfs_val_proc">₹0 (Nil - Mission Bharat Subsidy)</td>
               </tr>
               <tr style="border-bottom: 1px solid #E2E8F0; background: #F8FAFC;">
-                <td style="padding: 0.5rem 1rem; font-weight: 600; color: #475569;" data-i18n="kfs_row_prepay">Prepayment / Foreclosure Charges</td>
-                <td id="kfs-prepay-fee" style="padding: 0.5rem 1rem; font-weight: 700; color: #059669;" data-i18n="kfs_val_prepay">₹0 (Nil per RBI Master Circular)</td>
+                <td style="padding: 0.45rem 0.9rem; font-weight: 600; color: #475569;" data-i18n="kfs_row_prepay">Prepayment / Foreclosure Charges</td>
+                <td id="kfs-prepay-fee" style="padding: 0.45rem 0.9rem; font-weight: 700; color: #059669;" data-i18n="kfs_val_prepay">₹0 (Nil per RBI Master Circular)</td>
               </tr>
               <tr>
-                <td style="padding: 0.5rem 1rem; font-weight: 600; color: #475569;" data-i18n="kfs_row_cooling">Statutory Cooling-Off / Look-Up Period</td>
-                <td id="kfs-cooling" style="padding: 0.5rem 1rem; font-weight: 700; color: #064E3B;" data-i18n="kfs_val_cooling">3 Business Days (Full exit without penalty)</td>
+                <td style="padding: 0.45rem 0.9rem; font-weight: 600; color: #475569;" data-i18n="kfs_row_cooling">Statutory Cooling-Off / Look-Up Period</td>
+                <td id="kfs-cooling" style="padding: 0.45rem 0.9rem; font-weight: 700; color: #064E3B;" data-i18n="kfs_val_cooling">3 Business Days (Full exit without penalty)</td>
               </tr>
             </tbody>
           </table>
         </div>
 
-        <h4 style="font-size: 0.85rem; font-weight: 700; color: #0F172A; text-transform: uppercase; margin-bottom: 0.5rem; letter-spacing: 0.05em;" data-i18n="let_factors_heading">
+        <div id="letter-adverse-card" class="letter-adverse-box" style="display: none;">
+          <div style="background: #991B1B; color: #FFFFFF; padding: 0.55rem 0.9rem; font-size: 0.8rem; font-weight: 700; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+            <span data-i18n="adv_title">APPLICATION UNDERWRITING SUMMARY (NO FACILITY SANCTIONED)</span>
+            <span style="font-size: 0.7rem; background: #FEE2E2; color: #991B1B; padding: 2px 8px; border-radius: 4px; font-weight: 800;" data-i18n="adv_badge">RBI Fair Lending Disclosure</span>
+          </div>
+          <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
+            <tbody>
+              <tr style="border-bottom: 1px solid #FECACA;">
+                <td style="padding: 0.45rem 0.9rem; font-weight: 600; color: #7F1D1D; width: 48%;" data-i18n="adv_row_requested">Requested Loan Facility</td>
+                <td id="adv-requested-amt" style="padding: 0.45rem 0.9rem; font-weight: 700; color: #0F172A;">--</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #FECACA; background: #FEF2F2;">
+                <td style="padding: 0.45rem 0.9rem; font-weight: 600; color: #7F1D1D;" data-i18n="adv_row_sanctioned">Sanctioned Principal Amount</td>
+                <td id="adv-sanctioned-amt" style="padding: 0.45rem 0.9rem; font-weight: 800; color: #991B1B;">--</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #FECACA;">
+                <td style="padding: 0.45rem 0.9rem; font-weight: 600; color: #7F1D1D;" data-i18n="adv_row_cibil">CIBIL Bureau Assessment (Benchmark &ge; 650)</td>
+                <td id="adv-cibil-check" style="padding: 0.45rem 0.9rem; font-weight: 700; color: #0F172A;">--</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #FECACA; background: #FEF2F2;">
+                <td style="padding: 0.45rem 0.9rem; font-weight: 600; color: #7F1D1D;" data-i18n="adv_row_dti">Obligation Ratio (Prudential Ceiling &le; 45%)</td>
+                <td id="adv-dti-check" style="padding: 0.45rem 0.9rem; font-weight: 700; color: #0F172A;">--</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #FECACA;">
+                <td style="padding: 0.45rem 0.9rem; font-weight: 600; color: #7F1D1D;" data-i18n="adv_row_score">Composite AI Eligibility Score (Pass &ge; 65%)</td>
+                <td id="adv-score-check" style="padding: 0.45rem 0.9rem; font-weight: 700; color: #0F172A;">--</td>
+              </tr>
+              <tr style="background: #FEF2F2;">
+                <td style="padding: 0.45rem 0.9rem; font-weight: 600; color: #7F1D1D;" data-i18n="adv_row_reapply">Re-Application &amp; Review Window</td>
+                <td id="adv-reapply-note" style="padding: 0.45rem 0.9rem; font-weight: 600; color: #334155;">--</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4 style="font-size: 0.8rem; font-weight: 700; color: #0F172A; text-transform: uppercase; margin-bottom: 0.4rem; letter-spacing: 0.04em;" data-i18n="let_factors_heading">
           Transparent Factor Determination (Under RBI Fair Lending Code):
         </h4>
 
-        <ul id="let-factors-list" style="padding-left: 1.25rem; margin-bottom: 1.5rem;"></ul>
+        <ul id="let-factors-list" class="letter-factors-list"></ul>
 
-        <div style="border-top: 1.5px solid #E2E8F0; padding-top: 1rem; font-size: 0.76rem; color: #475569; line-height: 1.55;" data-i18n-html="let_ombudsman_html">
+        <div class="letter-signatory-bar">
+          <div>
+            <div style="font-weight: 700; color: #064E3B;" data-i18n="let_sig_verify_title">Electronic Underwriting Record • Tamper-Evident Audit</div>
+            <div style="font-size: 0.72rem; color: #475569;" data-i18n="let_sig_verify_sub">Valid digital statement generated directly from the Meridian Central Application Vault.</div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 0.7rem; color: #64748B; text-transform: uppercase; font-weight: 700;" data-i18n="let_sig_auth_lbl">Issuing Authority</div>
+            <div id="let-signatory-name" style="font-size: 0.78rem; font-weight: 700; color: #0F172A;">--</div>
+          </div>
+        </div>
+
+        <div style="border-top: 1.5px solid #E2E8F0; padding-top: 0.75rem; font-size: 0.74rem; color: #475569; line-height: 1.5;" data-i18n-html="let_ombudsman_html">
           <strong>RBI Fair Practices Code &amp; Statutory Redressal Mechanism:</strong><br>
           • <strong>Principal Grievance Redressal Officer:</strong> Smt. Shalini Verma, Nodal Grievance Officer, Meridian FairLend AI, Nariman Point, Mumbai 400021. Toll-Free: <code>1800-209-4000</code> | Email: <code>grievance.bharat@meridian.fin</code> (Resolution SLA: within 15 working days).<br>
           • <strong>RBI Integrated Ombudsman Scheme:</strong> If your grievance is not redressed within 30 days, you have the statutory right under the Reserve Bank of India Integrated Ombudsman Scheme, 2021 to lodge a complaint online at <strong><a href="https://cms.rbi.org.in" target="_blank" style="color: #064E3B; font-weight: 700; text-decoration: underline;">https://cms.rbi.org.in</a></strong> or dial toll-free <code>14448</code>.
         </div>
       </div>
 
-      <div class="no-print" style="margin-top: 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+      <div class="no-print" style="margin-top: 1.15rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
         <button id="lang-toggle-btn-letter" type="button" class="btn btn-outline" onclick="toggleLanguage()" style="border-color: #064E3B; color: #064E3B;">
           🇮🇳 हिन्दी (Hindi)
         </button>
         <div style="display: flex; gap: 0.75rem;">
-          <button id="btn-print-letter" class="btn btn-primary">
+          <button id="btn-print-letter" type="button" class="btn btn-primary">
             <span>🖨️</span> <span data-i18n="btn_print_pdf">Print / Save PDF</span>
           </button>
-          <button id="btn-close-letter" class="btn btn-outline" data-i18n="btn_close">
+          <button id="btn-close-letter" type="button" class="btn btn-outline" data-i18n="btn_close">
             Close
           </button>
         </div>
