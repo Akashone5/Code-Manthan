@@ -823,6 +823,55 @@ def run_tests():
     assert client.get("/downloads/unauthorized.txt").status_code == 404
     print("[PASS] 38. PWA Manifest, Service Worker, Icons, AssetLinks & Windows/Android/Mac App Downloads verified")
 
+    res_html_settings = client.get("/")
+    assert res_html_settings.status_code == 200
+    html_src = res_html_settings.text
+    assert 'id="btn-settings-main"' in html_src
+    assert 'onclick="openSettingsModal()"' in html_src
+    assert 'id="settings-modal"' in html_src
+    assert 'id="settings-applicant-section"' in html_src
+    assert 'id="settings-officer-section"' in html_src
+    assert 'id="applicant-roadmap-card"' in html_src
+    app_shell_start = html_src.index('id="app-shell"')
+    app_shell_end = html_src.index('<div id="forgot-password-modal"')
+    app_shell_block = html_src[app_shell_start:app_shell_end]
+    assert 'id="btn-settings-main"' in app_shell_block
+    settings_start = html_src.index('<div id="settings-modal"')
+    settings_end = html_src.index('<div id="meridian-toast-container"')
+    settings_block = html_src[settings_start:settings_end]
+    for forbidden in ("toggleLanguage", "lang-toggle", "meridian_lang", "हिन्दी", "Language"):
+        assert forbidden.lower() not in settings_block.lower(), f"Forbidden language control {forbidden!r} found inside settings modal"
+
+    res_js_settings = client.get("/app.js")
+    assert res_js_settings.status_code == 200
+    js_src = res_js_settings.text
+    for sym in (
+        "openSettingsModal",
+        "closeSettingsModal",
+        "saveAndCloseSettingsModal",
+        "resetUserSettingsToDefaults",
+        "applyUserSettingsToApp",
+        "getUserSettingsStorageKey",
+        "maskPrivacyName",
+        "openForgotPasswordFromSettings",
+        "clearUserOfflineQueue"
+    ):
+        assert sym in js_src, f"Missing settings symbol {sym} in /app.js"
+
+    res_css_settings = client.get("/styles.css")
+    assert res_css_settings.status_code == 200
+    css_src = res_css_settings.text
+    for cls in (
+        ".settings-trigger-btn",
+        ".settings-modal-content",
+        ".theme-midnight",
+        ".pref-high-contrast",
+        ".pref-compact",
+        ".pref-reduced-motion"
+    ):
+        assert cls in css_src, f"Missing settings CSS selector {cls} in /styles.css"
+    print("[PASS] 39. Role-Adaptive Settings Button & Modal (Applicant + Officer, Zero Language Option) verified")
+
     print("=" * 70)
     print("ALL FASTAPI ENDPOINTS & POLICIES VALIDATED SUCCESSFULLY (100% PASS)")
     print("=" * 70)

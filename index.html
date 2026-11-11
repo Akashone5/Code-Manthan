@@ -462,6 +462,10 @@
           </button>
         </div>
 
+        <button id="btn-settings-main" type="button" class="app-install-pill settings-trigger-btn" onclick="openSettingsModal()" title="Customize Website &amp; Workspace Settings" data-i18n-title="title_settings_btn">
+          <span>⚙️</span> <span data-i18n="btn_settings">Settings</span>
+        </button>
+
         <button id="btn-get-app-main" type="button" class="app-install-pill" onclick="openDownloadAppModal()" title="Download App for Laptop &amp; Phone" data-i18n-title="title_get_app">
           <span>📲</span> <span data-i18n="btn_get_app">Get App</span>
         </button>
@@ -772,7 +776,7 @@
         </div>
       </div>
 
-      <div class="card" style="margin-top: 1.5rem;">
+      <div id="applicant-roadmap-card" class="card" style="margin-top: 1.5rem;">
         <div class="card-header">
           <div>
             <div class="card-title">
@@ -1967,6 +1971,337 @@
 
     <div style="display: flex; justify-content: flex-end; margin-top: 0.9rem;">
       <button type="button" class="btn btn-outline" onclick="closeDownloadAppModal()" data-i18n="btn_close">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="settings-modal" class="modal-overlay" style="display: none;">
+  <div class="modal-content settings-modal-content">
+    <div class="settings-modal-header">
+      <div>
+        <h3 class="settings-modal-heading">
+          <span>⚙️</span> <span data-i18n="settings_modal_title">Website &amp; Workspace Settings</span>
+        </h3>
+        <div class="settings-modal-subrow">
+          <span id="settings-role-pill" class="badge badge-info" data-i18n="role_badge_applicant">APPLICANT</span>
+          <span class="settings-header-note" data-i18n="settings_modal_sub">Tailored to your account profile, readability, and workflow</span>
+        </div>
+      </div>
+      <button type="button" class="btn btn-outline" style="padding: 3px 10px; font-size: 0.88rem;" onclick="closeSettingsModal()">✕</button>
+    </div>
+
+    <div class="settings-scroll-body">
+      <div class="settings-section-card settings-profile-card">
+        <div class="settings-profile-left">
+          <div id="settings-prof-avatar" class="settings-prof-avatar">👤</div>
+          <div>
+            <div class="settings-prof-name-row">
+              <strong id="settings-prof-name">-</strong>
+              <span id="settings-prof-role-tag" class="badge badge-success" data-i18n="role_badge_applicant">APPLICANT</span>
+            </div>
+            <div id="settings-prof-email" class="settings-prof-meta">-</div>
+            <div class="settings-prof-meta-row">
+              <span id="settings-prof-phone">-</span>
+              <span>•</span>
+              <span id="settings-cloud-pill" class="badge badge-info" data-i18n="settings_cloud_checking">Checking Sync...</span>
+            </div>
+          </div>
+        </div>
+        <div class="settings-profile-actions">
+          <button type="button" class="btn btn-outline settings-mini-btn" onclick="openForgotPasswordFromSettings()">
+            <span>🔐</span> <span data-i18n="settings_btn_reset_pwd">Reset Password (OTP)</span>
+          </button>
+          <button type="button" class="btn btn-outline settings-mini-btn" onclick="closeSettingsModal(); openDownloadAppModal()">
+            <span>📲</span> <span data-i18n="btn_get_app">Get App</span>
+          </button>
+          <button type="button" class="btn btn-outline settings-mini-btn settings-danger-outline" onclick="closeSettingsModal(); handleLogout()">
+            <span>🚪</span> <span data-i18n="btn_signout">Sign Out</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="settings-section-card">
+        <div class="settings-section-head">
+          <div>
+            <div class="settings-section-title"><span>🎨</span> <span data-i18n="settings_sec_appearance">Website Appearance, Display &amp; Notifications</span></div>
+            <div class="settings-section-desc" data-i18n="settings_sec_appearance_desc">Customize visual theme, typography size, layout spacing, and alert behavior.</div>
+          </div>
+        </div>
+
+        <label class="form-label" data-i18n="settings_lbl_theme">Color Theme Palette</label>
+        <div class="settings-theme-grid" id="settings-theme-grid">
+          <button type="button" class="settings-theme-card active" data-theme-choice="classic" onclick="previewSettingTheme('classic')">
+            <span class="settings-swatch swatch-classic"></span>
+            <span class="settings-theme-name" data-i18n="theme_classic">Bharat Emerald</span>
+          </button>
+          <button type="button" class="settings-theme-card" data-theme-choice="mint" onclick="previewSettingTheme('mint')">
+            <span class="settings-swatch swatch-mint"></span>
+            <span class="settings-theme-name" data-i18n="theme_mint">Clean White Mint</span>
+          </button>
+          <button type="button" class="settings-theme-card" data-theme-choice="slate" onclick="previewSettingTheme('slate')">
+            <span class="settings-swatch swatch-slate"></span>
+            <span class="settings-theme-name" data-i18n="theme_slate">Banking Slate</span>
+          </button>
+          <button type="button" class="settings-theme-card" data-theme-choice="midnight" onclick="previewSettingTheme('midnight')">
+            <span class="settings-swatch swatch-midnight"></span>
+            <span class="settings-theme-name" data-i18n="theme_midnight">Midnight Dark</span>
+          </button>
+        </div>
+
+        <div class="form-row" style="margin-top: 1rem;">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label" for="setting-font-size" data-i18n="settings_lbl_font">Text Readability Scale</label>
+            <select id="setting-font-size" class="form-control" onchange="previewSettingDropdowns()">
+              <option value="compact" data-i18n="font_opt_compact">Compact (92%)</option>
+              <option value="normal" selected data-i18n="font_opt_normal">Standard (100%)</option>
+              <option value="large" data-i18n="font_opt_large">Large Comfort (110%)</option>
+              <option value="xl" data-i18n="font_opt_xl">Extra Large (118%)</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label" for="setting-density" data-i18n="settings_lbl_density">Interface Layout Density</label>
+            <select id="setting-density" class="form-control" onchange="previewSettingDropdowns()">
+              <option value="comfortable" selected data-i18n="density_comfortable">Comfortable Spacing</option>
+              <option value="compact" data-i18n="density_compact">Compact Dense View</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="settings-switches-list">
+          <label class="settings-switch-row" for="setting-high-contrast">
+            <div>
+              <div class="settings-switch-title" data-i18n="settings_sw_contrast">High-Contrast Borders &amp; Focus Rings</div>
+              <div class="settings-switch-sub" data-i18n="settings_sw_contrast_sub">Enhances input outlines, table borders, and button edges for clarity</div>
+            </div>
+            <input type="checkbox" id="setting-high-contrast" class="settings-checkbox" onchange="previewSettingToggles()">
+          </label>
+
+          <label class="settings-switch-row" for="setting-reduced-motion">
+            <div>
+              <div class="settings-switch-title" data-i18n="settings_sw_motion">Reduce Motion &amp; Transitions</div>
+              <div class="settings-switch-sub" data-i18n="settings_sw_motion_sub">Disables subtle animations across tabs, cards, and progress gauges</div>
+            </div>
+            <input type="checkbox" id="setting-reduced-motion" class="settings-checkbox" onchange="previewSettingToggles()">
+          </label>
+
+          <label class="settings-switch-row" for="setting-show-toasts">
+            <div>
+              <div class="settings-switch-title" data-i18n="settings_sw_toasts">Pop-Up Notification Banners</div>
+              <div class="settings-switch-sub" data-i18n="settings_sw_toasts_sub">Show informational toast banners (critical error alerts remain active)</div>
+            </div>
+            <input type="checkbox" id="setting-show-toasts" class="settings-checkbox" checked onchange="previewSettingToggles()">
+          </label>
+
+          <label class="settings-switch-row" for="setting-privacy-mask">
+            <div>
+              <div class="settings-switch-title" data-i18n="settings_sw_privacy">Vault Privacy Mask Mode</div>
+              <div class="settings-switch-sub" data-i18n="settings_sw_privacy_sub">Masks full borrower names inside Application Vault tables on shared screens</div>
+            </div>
+            <input type="checkbox" id="setting-privacy-mask" class="settings-checkbox" onchange="previewSettingToggles()">
+          </label>
+        </div>
+      </div>
+
+      <div id="settings-applicant-section" class="settings-section-card" style="display: none;">
+        <div class="settings-section-head">
+          <div>
+            <div class="settings-section-title"><span>👤</span> <span data-i18n="settings_sec_applicant">Applicant Preferences &amp; Application Defaults</span></div>
+            <div class="settings-section-desc" data-i18n="settings_sec_applicant_desc">Pre-configure your default portal screen, loan form presets, and report widgets.</div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="setting-app-start-tab" data-i18n="settings_lbl_app_tab">Default Page After Sign-In</label>
+            <select id="setting-app-start-tab" class="form-control">
+              <option value="apply-view" data-i18n="settings_opt_tab_apply">1. Apply for a Loan</option>
+              <option value="applicant-view" data-i18n="settings_opt_tab_report">2. My Decision Report</option>
+              <option value="database-view" data-i18n="settings_opt_tab_app_vault">3. My Applications Vault</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="setting-default-area" data-i18n="settings_lbl_def_area">Preferred Residence Territory</label>
+            <select id="setting-default-area" class="form-control">
+              <option value="Rural" data-i18n="opt_area_rural_short">Rural Bharat</option>
+              <option value="Semiurban" data-i18n="opt_area_semi_short">Semi-Urban</option>
+              <option value="Urban" data-i18n="opt_area_urban_short">Urban Metro</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="setting-default-tenure" data-i18n="settings_lbl_def_tenure">Default Loan Form Tenure</label>
+            <select id="setting-default-tenure" class="form-control">
+              <option value="5" data-i18n="settings_ten_5">5 Years (60 Months)</option>
+              <option value="10" data-i18n="settings_ten_10">10 Years (120 Months)</option>
+              <option value="15" data-i18n="settings_ten_15">15 Years (180 Months)</option>
+              <option value="20" data-i18n="settings_ten_20">20 Years (240 Months)</option>
+              <option value="30" data-i18n="settings_ten_30">30 Years (360 Months)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="setting-default-purpose" data-i18n="settings_lbl_def_purpose">Preferred Loan Purpose</label>
+            <select id="setting-default-purpose" class="form-control">
+              <option value="Home Improvement / Construction" data-i18n="opt_purp_home">Home Construction / Renovation / Purchase</option>
+              <option value="Small Business Working Capital" data-i18n="opt_purp_msme">Small Business / MSME Working Capital</option>
+              <option value="Agricultural Equipment & Inputs" data-i18n="opt_purp_agri">Agricultural Equipment / Irrigation / Solar</option>
+              <option value="Education & Professional Skills" data-i18n="opt_purp_edu">Higher Education / Skill Training</option>
+              <option value="Vehicle / Commercial Transport" data-i18n="opt_purp_veh">Vehicle / Two-Wheeler / Commercial Transport</option>
+              <option value="Personal / Medical Facility" data-i18n="opt_purp_med">Personal / Family Health Facility</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="settings-switches-list">
+          <label class="settings-switch-row" for="setting-show-simulator">
+            <div>
+              <div class="settings-switch-title" data-i18n="settings_sw_sim">Show "What-If" Counterfactual Simulator</div>
+              <div class="settings-switch-sub" data-i18n="settings_sw_sim_sub">Interactive sliders to test tenure, CIBIL, and co-applicant scenarios</div>
+            </div>
+            <input type="checkbox" id="setting-show-simulator" class="settings-checkbox" checked>
+          </label>
+
+          <label class="settings-switch-row" for="setting-show-roadmap">
+            <div>
+              <div class="settings-switch-title" data-i18n="settings_sw_roadmap">Show Personalized Eligibility Roadmap</div>
+              <div class="settings-switch-sub" data-i18n="settings_sw_roadmap_sub">Actionable improvement steps rendered beneath your underwriting decision</div>
+            </div>
+            <input type="checkbox" id="setting-show-roadmap" class="settings-checkbox" checked>
+          </label>
+
+          <label class="settings-switch-row" for="setting-auto-sync-offline">
+            <div>
+              <div class="settings-switch-title" data-i18n="settings_sw_autosync">Auto-Sync Offline Queued Drafts</div>
+              <div class="settings-switch-sub" data-i18n="settings_sw_autosync_sub">Automatically upload locally saved offline applications when back online</div>
+            </div>
+            <input type="checkbox" id="setting-auto-sync-offline" class="settings-checkbox" checked>
+          </label>
+        </div>
+
+        <div class="settings-utility-bar">
+          <div style="font-size: 0.8rem; font-weight: 700;">
+            <span data-i18n="settings_offline_q_lbl">Offline Pending Drafts:</span>
+            <span id="settings-offline-queue-count" class="badge badge-info" style="margin-left: 4px;">0</span>
+          </div>
+          <button type="button" class="btn btn-outline settings-mini-btn" onclick="clearUserOfflineQueue()">
+            <span>🧹</span> <span data-i18n="settings_btn_clear_queue">Clear Local Offline Queue</span>
+          </button>
+        </div>
+      </div>
+
+      <div id="settings-officer-section" class="settings-section-card" style="display: none;">
+        <div class="settings-section-head">
+          <div>
+            <div class="settings-section-title"><span>🛡️</span> <span data-i18n="settings_sec_officer">Officer Underwriting &amp; Website Controls</span></div>
+            <div class="settings-section-desc" data-i18n="settings_sec_officer_desc">Configure cockpit workflow defaults, portfolio pagination, and site operations.</div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="setting-off-start-tab" data-i18n="settings_lbl_off_tab">Default Officer Landing Tab</label>
+            <select id="setting-off-start-tab" class="form-control">
+              <option value="officer-view" data-i18n="settings_opt_tab_cockpit">1. Underwriting Cockpit &amp; SHAP Waterfall</option>
+              <option value="database-view" data-i18n="settings_opt_tab_central_vault">2. Central Application Vault</option>
+              <option value="portfolio-view" data-i18n="settings_opt_tab_portfolio">3. Historical Portfolio</option>
+              <option value="model-view" data-i18n="settings_opt_tab_model">4. Model Accuracy Report</option>
+              <option value="fairness-view" data-i18n="settings_opt_tab_fairness">5. Fairness Across Groups</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="setting-portfolio-page-size" data-i18n="settings_lbl_page_size">Historical Portfolio Rows Per Page</label>
+            <select id="setting-portfolio-page-size" class="form-control">
+              <option value="10" data-i18n="settings_rows_10">10 Rows / Page</option>
+              <option value="20" data-i18n="settings_rows_20">20 Rows / Page</option>
+              <option value="50" data-i18n="settings_rows_50">50 Rows / Page</option>
+              <option value="100" data-i18n="settings_rows_100">100 Rows / Page</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="settings-switches-list">
+          <label class="settings-switch-row" for="setting-default-affirmative">
+            <div>
+              <div class="settings-switch-title" data-i18n="settings_sw_affirmative">Enable Mission Bharat Fairness Calibration</div>
+              <div class="settings-switch-sub" data-i18n="settings_sw_affirmative_sub">Applies affirmative rural financial inclusion weighting in Fairness Audits</div>
+            </div>
+            <input type="checkbox" id="setting-default-affirmative" class="settings-checkbox">
+          </label>
+
+          <label class="settings-switch-row" for="setting-show-officer-site-card">
+            <div>
+              <div class="settings-switch-title" data-i18n="settings_sw_site_banner">Show Public Website Control Card in Cockpit</div>
+              <div class="settings-switch-sub" data-i18n="settings_sw_site_banner_sub">Displays quick Online / Offline banner at top of Underwriting Cockpit</div>
+            </div>
+            <input type="checkbox" id="setting-show-officer-site-card" class="settings-checkbox" checked>
+          </label>
+        </div>
+
+        <div class="settings-utility-bar" style="flex-wrap: wrap;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 0.8rem; font-weight: 700;" data-i18n="settings_public_status_lbl">Public Portal:</span>
+            <span id="settings-site-status-badge" class="badge badge-success" data-i18n="badge_online">ONLINE</span>
+          </div>
+          <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <button type="button" class="btn btn-saffron settings-mini-btn" onclick="quickToggleWebsiteAvailabilityFromSettings()">
+              <span>🌐</span> <span data-i18n="settings_btn_toggle_site">Toggle Online / Offline</span>
+            </button>
+            <button type="button" class="btn btn-outline settings-mini-btn" onclick="closeSettingsModal(); openSiteAvailabilityModal()">
+              <span>📝</span> <span data-i18n="btn_customize_offline">Customize Offline Page</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="settings-utility-bar" style="flex-wrap: wrap; margin-top: 0.6rem;">
+          <span style="font-size: 0.8rem; font-weight: 700;" data-i18n="settings_admin_tools_lbl">Institutional Tools:</span>
+          <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <button type="button" class="btn btn-outline settings-mini-btn" onclick="closeSettingsModal(); toggleBackendInfoModal()">
+              <span>🔌</span> <span data-i18n="settings_btn_api_hub">FastAPI Connection Hub</span>
+            </button>
+            <button type="button" class="btn btn-outline settings-mini-btn" onclick="downloadSqliteBackup()">
+              <span>💽</span> <span data-i18n="btn_download_db_backup">Download Vault Backup (.db)</span>
+            </button>
+            <button type="button" class="btn btn-outline settings-mini-btn" onclick="exportVaultToCSV()">
+              <span>📥</span> <span data-i18n="btn_export_csv">Export to Excel / CSV</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-section-card">
+        <div class="settings-section-head">
+          <div>
+            <div class="settings-section-title"><span>📡</span> <span data-i18n="settings_sec_sync">Live Cloud Sync &amp; Background Refresh</span></div>
+            <div class="settings-section-desc" data-i18n="settings_sec_sync_desc">Control how frequently portal availability and cloud connection health refresh automatically.</div>
+          </div>
+        </div>
+        <div class="settings-utility-bar" style="margin-top: 0.5rem; flex-wrap: wrap;">
+          <div style="flex: 1; min-width: 220px;">
+            <label class="form-label" for="setting-sync-interval" style="margin-bottom: 0.25rem;" data-i18n="settings_lbl_sync_freq">Background Refresh Cadence</label>
+            <select id="setting-sync-interval" class="form-control">
+              <option value="20" selected data-i18n="settings_sync_20">Standard (Every 20 Seconds)</option>
+              <option value="45" data-i18n="settings_sync_45">Battery Saver (Every 45 Seconds)</option>
+              <option value="0" data-i18n="settings_sync_0">Manual Refresh Only</option>
+            </select>
+          </div>
+          <button type="button" class="btn btn-outline settings-mini-btn" onclick="refreshConnectionFromSettings()" style="align-self: flex-end;">
+            <span>🔄</span> <span data-i18n="settings_btn_check_sync">Test Connection Now</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-modal-footer">
+      <button type="button" class="btn btn-outline" onclick="resetUserSettingsToDefaults()">
+        <span>↺</span> <span data-i18n="settings_btn_reset">Reset to Defaults</span>
+      </button>
+      <div style="display: flex; gap: 0.65rem; flex-wrap: wrap;">
+        <button type="button" class="btn btn-outline" onclick="closeSettingsModal()" data-i18n="btn_close">Close</button>
+        <button type="button" class="btn btn-primary" onclick="saveAndCloseSettingsModal()">
+          <span>✓</span> <span data-i18n="settings_btn_save">Save &amp; Apply Settings</span>
+        </button>
+      </div>
     </div>
   </div>
 </div>

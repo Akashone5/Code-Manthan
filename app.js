@@ -101,6 +101,101 @@ const state = {
 let currentAuthUser = null;
 let currentAuthToken = null;
 let forgotPasswordTargetRole = 'applicant';
+let availabilityPollTimerId = null;
+
+function getDefaultUserSettings(role = 'applicant') {
+  return {
+    theme: 'classic',
+    fontSize: 'normal',
+    density: 'comfortable',
+    highContrast: false,
+    reducedMotion: false,
+    showToasts: true,
+    privacyMaskVault: false,
+    syncIntervalSec: 20,
+    applicantStartTab: 'apply-view',
+    defaultPropertyArea: 'Rural',
+    defaultLoanYears: 5,
+    defaultLoanPurpose: 'Home Improvement / Construction',
+    showSimulatorSection: true,
+    showRoadmapSection: true,
+    autoSyncOffline: true,
+    officerStartTab: 'officer-view',
+    portfolioPageSize: 10,
+    defaultAffirmativeMode: false,
+    showOfficerSiteCard: true,
+    roleContext: role === 'officer' ? 'officer' : 'applicant'
+  };
+}
+
+let activeUserSettings = getDefaultUserSettings('applicant');
+let draftUserSettings = getDefaultUserSettings('applicant');
+
+function getUserSettingsStorageKey(user = currentAuthUser) {
+  if (user && (user.id || user.email)) {
+    const role = user.role === 'officer' ? 'officer' : 'applicant';
+    const uid = String(user.id || user.email).trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+    return `meridian_user_settings_${role}_${uid}`;
+  }
+  return 'meridian_user_settings_guest';
+}
+
+function loadUserSettings(user = currentAuthUser) {
+  const role = user?.role === 'officer' ? 'officer' : 'applicant';
+  const defaults = getDefaultUserSettings(role);
+  try {
+    const raw = localStorage.getItem(getUserSettingsStorageKey(user));
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        return { ...defaults, ...parsed, roleContext: role };
+      }
+    }
+  } catch (e) {}
+  return defaults;
+}
+
+function saveUserSettingsToStorage(settingsObj, user = currentAuthUser) {
+  try {
+    localStorage.setItem(getUserSettingsStorageKey(user), JSON.stringify(settingsObj));
+  } catch (e) {}
+}
+
+function applyVisualSettingsToDOM(settingsObj) {
+  const s = settingsObj || activeUserSettings || getDefaultUserSettings('applicant');
+  const body = document.body;
+  const html = document.documentElement;
+  if (body) {
+    body.classList.remove('theme-classic', 'theme-mint', 'theme-slate', 'theme-midnight');
+    const chosenTheme = ['classic', 'mint', 'slate', 'midnight'].includes(s.theme) ? s.theme : 'classic';
+    if (chosenTheme !== 'classic') {
+      body.classList.add(`theme-${chosenTheme}`);
+    }
+    body.classList.toggle('pref-compact', s.density === 'compact');
+    body.classList.toggle('pref-high-contrast', Boolean(s.highContrast));
+    body.classList.toggle('pref-reduced-motion', Boolean(s.reducedMotion));
+  }
+  if (html) {
+    html.classList.remove('font-compact', 'font-large', 'font-xl');
+    if (['compact', 'large', 'xl'].includes(s.fontSize)) {
+      html.classList.add(`font-${s.fontSize}`);
+    }
+  }
+}
+
+function maskPrivacyName(rawName) {
+  const str = String(rawName || '').trim();
+  if (!str) return str;
+  if (!activeUserSettings || !activeUserSettings.privacyMaskVault) return str;
+  return str
+    .split(/\s+/)
+    .map(part => {
+      const chars = Array.from(part);
+      if (chars.length <= 1) return '*';
+      return chars[0] + '*'.repeat(Math.min(4, chars.length - 1));
+    })
+    .join(' ');
+}
 
 const OTP_SCOPE_CONFIG = {
   signup_app: {
@@ -933,7 +1028,7 @@ function resetWorkspaceState() {
     localStorage.removeItem('meridian_saved_apps');
   } catch (e) {}
 
-  ['letter-modal', 'backend-info-modal', 'site-availability-modal', 'forgot-password-modal'].forEach(mid => {
+  ['letter-modal', 'backend-info-modal', 'site-availability-modal', 'forgot-password-modal', 'download-app-modal', 'settings-modal'].forEach(mid => {
     const modal = document.getElementById(mid);
     if (modal) modal.style.display = 'none';
   });
@@ -978,6 +1073,10 @@ window.handleLogout = function() {
   } catch (e) {}
 
   resetWorkspaceState();
+  activeUserSettings = getDefaultUserSettings('applicant');
+  draftUserSettings = { ...activeUserSettings };
+  applyVisualSettingsToDOM(activeUserSettings);
+  restartAvailabilityPolling(20);
   syncSiteAvailabilityUI();
   if (state.siteAvailability && state.siteAvailability.online === false) {
     return;
@@ -1078,6 +1177,9 @@ window.handleForgotPasswordSubmit = async function(e) {
       invalidateOtpScope('forgot_password', true);
       window.closeForgotPasswordModal();
       const targetPortal = (data.role === 'officer' || forgotPasswordTargetRole === 'officer') ? 'officer' : 'applicant';
+      if (currentAuthUser) {
+        window.handleLogout();
+      }
       window.switchPortalGateway(targetPortal);
       window.switchAuthTab(targetPortal);
       window.showAuthAlert(
@@ -1223,6 +1325,9 @@ window.applyAuthenticatedSession = async function(user, token) {
   } catch (e) {}
 
   resetWorkspaceState();
+  activeUserSettings = loadUserSettings(user);
+  draftUserSettings = { ...activeUserSettings };
+  applyUserSettingsToApp(activeUserSettings, { renderTables: false });
 
   const nameEl = document.getElementById('user-display-name');
   if (nameEl) nameEl.innerText = user.full_name || user.email;
@@ -1256,13 +1361,19 @@ window.applyAuthenticatedSession = async function(user, token) {
     const backupBtn = document.getElementById('btn-download-sqlite-backup');
     if (backupBtn) backupBtn.style.display = 'none';
 
+    applyApplicationFormDefaultsFromSettings(activeUserSettings);
     updateAuthRoleUI();
     updateBackendStatusUI();
     applyTranslations();
     syncSiteAvailabilityUI();
-    window.activateWorkspaceTab('apply-view');
+    const preferredAppTab = APPLICANT_TABS.has(activeUserSettings.applicantStartTab)
+      ? activeUserSettings.applicantStartTab
+      : 'apply-view';
+    window.activateWorkspaceTab(preferredAppTab);
 
-    await syncPendingOfflineApplications();
+    if (activeUserSettings.autoSyncOffline !== false) {
+      await syncPendingOfflineApplications();
+    }
     await window.refreshDatabaseTable();
     if (state.savedDatabaseApps.length > 0) {
       applyRecordToCurrentState(state.savedDatabaseApps[0]);
@@ -1271,6 +1382,7 @@ window.applyAuthenticatedSession = async function(user, token) {
       updateUI();
       updateSimulationUI();
     }
+    applyUserSettingsToApp(activeUserSettings, { renderTables: false });
   } else {
     document.querySelectorAll('.nav-applicant-item').forEach(el => { el.style.display = 'none'; });
     document.querySelectorAll('.nav-officer-item').forEach(el => { el.style.display = 'flex'; });
@@ -1278,11 +1390,20 @@ window.applyAuthenticatedSession = async function(user, token) {
     const backupBtn = document.getElementById('btn-download-sqlite-backup');
     if (backupBtn) backupBtn.style.display = 'inline-flex';
 
+    state.portfolioPageSize = Number(activeUserSettings.portfolioPageSize || 10);
+    state.affirmativeMode = Boolean(activeUserSettings.defaultAffirmativeMode);
+    const affToggle = document.getElementById('affirmative-toggle');
+    if (affToggle) affToggle.checked = state.affirmativeMode;
+
     updateAuthRoleUI();
     updateBackendStatusUI();
     applyTranslations();
     syncSiteAvailabilityUI();
-    window.activateWorkspaceTab('officer-view');
+    applyUserSettingsToApp(activeUserSettings, { renderTables: false });
+    const preferredOfficerTab = OFFICER_TABS.has(activeUserSettings.officerStartTab)
+      ? activeUserSettings.officerStartTab
+      : 'officer-view';
+    window.activateWorkspaceTab(preferredOfficerTab);
 
     await window.refreshDatabaseTable();
     if (state.savedDatabaseApps.length > 0) {
@@ -1317,6 +1438,9 @@ window.checkExistingSession = async function() {
               localStorage.removeItem('meridian_auth_token');
               currentAuthUser = null;
               currentAuthToken = null;
+              activeUserSettings = getDefaultUserSettings('applicant');
+              draftUserSettings = { ...activeUserSettings };
+              applyVisualSettingsToDOM(activeUserSettings);
               syncSiteAvailabilityUI();
               return;
             }
@@ -1339,6 +1463,7 @@ window.checkExistingSession = async function() {
 };
 
 window.showMeridianToast = function(msg, isError = false) {
+  if (!isError && activeUserSettings && activeUserSettings.showToasts === false) return;
   const container = document.getElementById('meridian-toast-container');
   if (!container) return;
   const toast = document.createElement('div');
@@ -1347,6 +1472,10 @@ window.showMeridianToast = function(msg, isError = false) {
   container.appendChild(toast);
   setTimeout(() => { toast.remove(); }, 4200);
 };
+
+function showToast(msg, isError = false) {
+  window.showMeridianToast(msg, isError);
+}
 
 function syncSiteAvailabilityUI() {
   const avail = state.siteAvailability || { online: true };
@@ -1449,6 +1578,9 @@ function syncSiteAvailabilityUI() {
     if (shell) shell.style.display = 'none';
     if (portal) portal.style.display = 'flex';
   }
+  if (typeof updateSettingsModalStatusUI === 'function') {
+    updateSettingsModalStatusUI();
+  }
 }
 
 window.checkSiteAvailability = async function(isManual = false) {
@@ -1501,7 +1633,7 @@ window.closeSiteAvailabilityModal = function() {
 
 window.quickToggleWebsiteAvailability = function() {
   const currentlyOnline = state.siteAvailability?.online !== false;
-  window.setWebsiteOnlineState(!currentlyOnline);
+  return window.setWebsiteOnlineState(!currentlyOnline);
 };
 
 window.setWebsiteOnlineState = async function(targetOnline, customTitle = null, customMsg = null, officerKey = null) {
@@ -2086,7 +2218,88 @@ const I18N = {
     dl_ios_badge: "SAFARI",
     dl_ios_desc: '1. Open in <strong>Safari</strong> on iPhone/iPad.<br>2. Tap <strong>Share</strong> icon &rarr; <strong>Add to Home Screen</strong> &rarr; <strong>Add</strong>.',
     dl_ios_btn: "Copy Link for Safari",
-    dl_footer_note: "Installed apps connect live to Meridian FairLend Cloud API so Email OTP verification, password recovery, and sanction vault sync work identically everywhere."
+    dl_footer_note: "Installed apps connect live to Meridian FairLend Cloud API so Email OTP verification, password recovery, and sanction vault sync work identically everywhere.",
+    btn_settings: "Settings",
+    title_settings_btn: "Customize Website & Workspace Settings",
+    settings_modal_title: "Website & Workspace Settings",
+    settings_modal_sub: "Tailored to your account profile, readability, and workflow",
+    settings_cloud_checking: "Checking Sync...",
+    settings_btn_reset_pwd: "Reset Password (OTP)",
+    settings_sec_appearance: "Website Appearance, Display & Notifications",
+    settings_sec_appearance_desc: "Customize visual theme, typography size, layout spacing, and alert behavior.",
+    settings_lbl_theme: "Color Theme Palette",
+    theme_classic: "Bharat Emerald",
+    theme_mint: "Clean White Mint",
+    theme_slate: "Banking Slate",
+    theme_midnight: "Midnight Dark",
+    settings_lbl_font: "Text Readability Scale",
+    font_opt_compact: "Compact (92%)",
+    font_opt_normal: "Standard (100%)",
+    font_opt_large: "Large Comfort (110%)",
+    font_opt_xl: "Extra Large (118%)",
+    settings_lbl_density: "Interface Layout Density",
+    density_comfortable: "Comfortable Spacing",
+    density_compact: "Compact Dense View",
+    settings_sw_contrast: "High-Contrast Borders & Focus Rings",
+    settings_sw_contrast_sub: "Enhances input outlines, table borders, and button edges for clarity",
+    settings_sw_motion: "Reduce Motion & Transitions",
+    settings_sw_motion_sub: "Disables subtle animations across tabs, cards, and progress gauges",
+    settings_sw_toasts: "Pop-Up Notification Banners",
+    settings_sw_toasts_sub: "Show informational toast banners (critical error alerts remain active)",
+    settings_sw_privacy: "Vault Privacy Mask Mode",
+    settings_sw_privacy_sub: "Masks full borrower names inside Application Vault tables on shared screens",
+    settings_sec_applicant: "Applicant Preferences & Application Defaults",
+    settings_sec_applicant_desc: "Pre-configure your default portal screen, loan form presets, and report widgets.",
+    settings_lbl_app_tab: "Default Page After Sign-In",
+    settings_opt_tab_apply: "1. Apply for a Loan",
+    settings_opt_tab_report: "2. My Decision Report",
+    settings_opt_tab_app_vault: "3. My Applications Vault",
+    settings_lbl_def_area: "Preferred Residence Territory",
+    settings_lbl_def_tenure: "Default Loan Form Tenure",
+    settings_ten_5: "5 Years (60 Months)",
+    settings_ten_10: "10 Years (120 Months)",
+    settings_ten_15: "15 Years (180 Months)",
+    settings_ten_20: "20 Years (240 Months)",
+    settings_ten_30: "30 Years (360 Months)",
+    settings_lbl_def_purpose: "Preferred Loan Purpose",
+    settings_sw_sim: 'Show "What-If" Counterfactual Simulator',
+    settings_sw_sim_sub: "Interactive sliders to test tenure, CIBIL, and co-applicant scenarios",
+    settings_sw_roadmap: "Show Personalized Eligibility Roadmap",
+    settings_sw_roadmap_sub: "Actionable improvement steps rendered beneath your underwriting decision",
+    settings_sw_autosync: "Auto-Sync Offline Queued Drafts",
+    settings_sw_autosync_sub: "Automatically upload locally saved offline applications when back online",
+    settings_offline_q_lbl: "Offline Pending Drafts:",
+    settings_btn_clear_queue: "Clear Local Offline Queue",
+    settings_sec_officer: "Officer Underwriting & Website Controls",
+    settings_sec_officer_desc: "Configure cockpit workflow defaults, portfolio pagination, and site operations.",
+    settings_lbl_off_tab: "Default Officer Landing Tab",
+    settings_opt_tab_cockpit: "1. Underwriting Cockpit & SHAP Waterfall",
+    settings_opt_tab_central_vault: "2. Central Application Vault",
+    settings_opt_tab_portfolio: "3. Historical Portfolio",
+    settings_opt_tab_model: "4. Model Accuracy Report",
+    settings_opt_tab_fairness: "5. Fairness Across Groups",
+    settings_lbl_page_size: "Historical Portfolio Rows Per Page",
+    settings_rows_10: "10 Rows / Page",
+    settings_rows_20: "20 Rows / Page",
+    settings_rows_50: "50 Rows / Page",
+    settings_rows_100: "100 Rows / Page",
+    settings_sw_affirmative: "Enable Mission Bharat Fairness Calibration",
+    settings_sw_affirmative_sub: "Applies affirmative rural financial inclusion weighting in Fairness Audits",
+    settings_sw_site_banner: "Show Public Website Control Card in Cockpit",
+    settings_sw_site_banner_sub: "Displays quick Online / Offline banner at top of Underwriting Cockpit",
+    settings_public_status_lbl: "Public Portal:",
+    settings_btn_toggle_site: "Toggle Online / Offline",
+    settings_admin_tools_lbl: "Institutional Tools:",
+    settings_btn_api_hub: "FastAPI Connection Hub",
+    settings_sec_sync: "Live Cloud Sync & Background Refresh",
+    settings_sec_sync_desc: "Control how frequently portal availability and cloud connection health refresh automatically.",
+    settings_lbl_sync_freq: "Background Refresh Cadence",
+    settings_sync_20: "Standard (Every 20 Seconds)",
+    settings_sync_45: "Battery Saver (Every 45 Seconds)",
+    settings_sync_0: "Manual Refresh Only",
+    settings_btn_check_sync: "Test Connection Now",
+    settings_btn_reset: "Reset to Defaults",
+    settings_btn_save: "Save & Apply Settings"
   },
   hi: {
     page_title: "मेरिडियन फेयरलेंड एआई • मिशन भारत | पारदर्शी ऋण निर्णय प्रणाली",
@@ -2558,7 +2771,88 @@ const I18N = {
     dl_ios_badge: "SAFARI",
     dl_ios_desc: '1. iPhone/iPad पर <strong>Safari</strong> में खोलें।<br>2. <strong>Share</strong> बटन दबाएं &rarr; <strong>Add to Home Screen</strong> &rarr; <strong>Add</strong> चुनें।',
     dl_ios_btn: "Safari के लिए लिंक कॉपी करें",
-    dl_footer_note: "इंस्टॉल किए गए ऐप सीधे मेरिडियन फेयरलेंड क्लाउड सर्वर से जुड़े रहते हैं ताकि ईमेल OTP, पासवर्ड रीसेट और ऋण रिकॉर्ड हर जगह एक साथ अपडेट रहें।"
+    dl_footer_note: "इंस्टॉल किए गए ऐप सीधे मेरिडियन फेयरलेंड क्लाउड सर्वर से जुड़े रहते हैं ताकि ईमेल OTP, पासवर्ड रीसेट और ऋण रिकॉर्ड हर जगह एक साथ अपडेट रहें।",
+    btn_settings: "सेटिंग्स",
+    title_settings_btn: "वेबसाइट और कार्यक्षेत्र सेटिंग्स अनुकूलित करें",
+    settings_modal_title: "वेबसाइट एवं उपयोगकर्ता सेटिंग्स",
+    settings_modal_sub: "आपकी भूमिका, पठनीयता और कार्यप्रणाली के अनुसार वैयक्तिकृत",
+    settings_cloud_checking: "सिंक जांच जारी...",
+    settings_btn_reset_pwd: "पासवर्ड रीसेट (OTP)",
+    settings_sec_appearance: "वेबसाइट रूप, फ़ॉन्ट आकार एवं सूचनाएं",
+    settings_sec_appearance_desc: "रंग थीम, टेक्स्ट आकार, लेआउट घनत्व और अलर्ट व्यवहार चुनें।",
+    settings_lbl_theme: "वेबसाइट रंग थीम",
+    theme_classic: "भारत एमराल्ड",
+    theme_mint: "स्वच्छ व्हाइट मिंट",
+    theme_slate: "बैंकिंग स्लेट",
+    theme_midnight: "नाइट डार्क मोड",
+    settings_lbl_font: "टेक्स्ट पठनीयता आकार",
+    font_opt_compact: "सघन (92%)",
+    font_opt_normal: "मानक (100%)",
+    font_opt_large: "बड़ा और स्पष्ट (110%)",
+    font_opt_xl: "अति विशाल (118%)",
+    settings_lbl_density: "इंटरफ़ेस स्पेसिंग घनत्व",
+    density_comfortable: "आरामदायक स्पेसिंग",
+    density_compact: "कॉम्पैक्ट सघन दृश्य",
+    settings_sw_contrast: "उच्च-कंट्रास्ट बॉर्डर और फ़ोकस रिंग",
+    settings_sw_contrast_sub: "स्पष्टता के लिए इनपुट, तालिका और बटन की रूपरेखा गहरी करता है",
+    settings_sw_motion: "कम एनीमेशन (रिड्यूस्ड मोशन)",
+    settings_sw_motion_sub: "टैब, कार्ड और प्रोग्रेस बार के ट्रांज़िशन को शांत रखता है",
+    settings_sw_toasts: "पॉप-अप सूचना बैनर दिखाएं",
+    settings_sw_toasts_sub: "सामान्य जानकारी बैनर दिखाएं (त्रुटि अलर्ट हमेशा सक्रिय रहेंगे)",
+    settings_sw_privacy: "वॉल्ट गोपनीयता मास्क मोड",
+    settings_sw_privacy_sub: "साझा स्क्रीन पर वॉल्ट तालिका में आवेदक का पूरा नाम छुपाता है",
+    settings_sec_applicant: "आवेदक प्राथमिकताएं एवं डिफ़ॉल्ट विकल्प",
+    settings_sec_applicant_desc: "लॉगिन के बाद शुरुआती पेज, फ़ॉर्म प्रीसेट और रिपोर्ट कार्ड नियंत्रित करें।",
+    settings_lbl_app_tab: "लॉगिन के बाद डिफ़ॉल्ट पृष्ठ",
+    settings_opt_tab_apply: "1. ऋण के लिए आवेदन करें",
+    settings_opt_tab_report: "2. मेरी निर्णय रिपोर्ट",
+    settings_opt_tab_app_vault: "3. मेरा आवेदन वॉल्ट",
+    settings_lbl_def_area: "पसंदीदा निवास क्षेत्र",
+    settings_lbl_def_tenure: "डिफ़ॉल्ट ऋण अवधि (वर्ष)",
+    settings_ten_5: "5 वर्ष (60 माह)",
+    settings_ten_10: "10 वर्ष (120 माह)",
+    settings_ten_15: "15 वर्ष (180 माह)",
+    settings_ten_20: "20 वर्ष (240 माह)",
+    settings_ten_30: "30 वर्ष (360 माह)",
+    settings_lbl_def_purpose: "पसंदीदा ऋण उद्देश्य",
+    settings_sw_sim: '"व्हाट-इफ" सिम्युलेटर कार्ड दिखाएं',
+    settings_sw_sim_sub: "अवधि, सिबिल और सह-आवेदक आय जांचने के लिए इंटरैक्टिव स्लाइडर",
+    settings_sw_roadmap: "व्यक्तिगत पात्रता रोडमैप दिखाएं",
+    settings_sw_roadmap_sub: "निर्णय रिपोर्ट के नीचे सुधार के स्पष्ट सुझाव दिखाता है",
+    settings_sw_autosync: "ऑफ़लाइन ड्राफ्ट स्वतः सिंक करें",
+    settings_sw_autosync_sub: "इंटरनेट जुड़ते ही स्थानीय ऑफ़लाइन आवेदन सर्वर पर अपलोड करें",
+    settings_offline_q_lbl: "ऑफ़लाइन लंबित ड्राफ्ट:",
+    settings_btn_clear_queue: "स्थानीय ऑफ़लाइन कतार साफ़ करें",
+    settings_sec_officer: "अधिकारी कॉकपिट एवं वेबसाइट नियंत्रण",
+    settings_sec_officer_desc: "अधिकारी कार्यक्षेत्र, पोर्टफ़ोलियो पृष्ठ आकार और सार्वजनिक वेबसाइट नियंत्रित करें।",
+    settings_lbl_off_tab: "लॉगिन पर डिफ़ॉल्ट अधिकारी टैब",
+    settings_opt_tab_cockpit: "1. अंडरराइटिंग कॉकपिट एवं SHAP",
+    settings_opt_tab_central_vault: "2. केंद्रीय आवेदन वॉल्ट",
+    settings_opt_tab_portfolio: "3. ऐतिहासिक पोर्टफ़ोलियो",
+    settings_opt_tab_model: "4. मॉडल सटीकता रिपोर्ट",
+    settings_opt_tab_fairness: "5. समूह-आधारित निष्पक्षता",
+    settings_lbl_page_size: "पोर्टफ़ोलियो तालिका पंक्तियां (प्रति पृष्ठ)",
+    settings_rows_10: "10 पंक्तियां / पृष्ठ",
+    settings_rows_20: "20 पंक्तियां / पृष्ठ",
+    settings_rows_50: "50 पंक्तियां / पृष्ठ",
+    settings_rows_100: "100 पंक्तियां / पृष्ठ",
+    settings_sw_affirmative: "मिशन भारत निष्पक्षता कैलिब्रेशन चालू करें",
+    settings_sw_affirmative_sub: "निष्पक्षता ऑडिट में ग्रामीण समावेशन संतुलन लागू करता है",
+    settings_sw_site_banner: "कॉकपिट में वेबसाइट स्थिति नियंत्रण कार्ड दिखाएं",
+    settings_sw_site_banner_sub: "कॉकपिट के शीर्ष पर त्वरित ऑनलाइन / ऑफ़लाइन नियंत्रण दिखाता है",
+    settings_public_status_lbl: "सार्वजनिक पोर्टल:",
+    settings_btn_toggle_site: "ऑनलाइन / ऑफ़लाइन बदलें",
+    settings_admin_tools_lbl: "संस्थागत उपकरण:",
+    settings_btn_api_hub: "FastAPI कनेक्शन हब",
+    settings_sec_sync: "लाइव क्लाउड सिंक एवं पृष्ठभूमि रिफ्रेश",
+    settings_sec_sync_desc: "पोर्टल स्थिति और सर्वर कनेक्शन जांचने का समय अंतराल चुनें।",
+    settings_lbl_sync_freq: "स्वतः रिफ्रेश अंतराल",
+    settings_sync_20: "मानक (हर 20 सेकंड)",
+    settings_sync_45: "बैटरी सेवर (हर 45 सेकंड)",
+    settings_sync_0: "केवल मैन्युअल रिफ्रेश",
+    settings_btn_check_sync: "अभी कनेक्शन जांचें",
+    settings_btn_reset: "डिफ़ॉल्ट रीसेट करें",
+    settings_btn_save: "सेटिंग्स सहेजें व लागू करें"
   }
 };
 
@@ -2631,6 +2925,9 @@ function updateBackendStatusUI() {
         ? `${state.apiBase} पर FastAPI बैकएंड से संपर्क नहीं हो सका। स्थानीय गणना मोड में सुचारू रूप से संचालित।`
         : `Unable to reach FastAPI backend at ${state.apiBase}. Running cleanly via local calculation fallback.`;
     }
+  }
+  if (typeof updateSettingsModalStatusUI === 'function') {
+    updateSettingsModalStatusUI();
   }
 }
 
@@ -2877,6 +3174,9 @@ function applyTranslations() {
   syncFormHelperDisplays();
   syncBackendModalUI();
   syncOtpUIStates();
+  if (typeof updateSettingsModalStatusUI === 'function') {
+    updateSettingsModalStatusUI();
+  }
 }
 
 function syncFormHelperDisplays() {
@@ -3967,7 +4267,7 @@ function renderDatabaseTableRows(allApps) {
       <tr>
         <td style="font-weight: 800; color: #064E3B;">${escapeHtml(app.application_no)}</td>
         <td style="font-size: 0.8rem; color: #4B6359;">${app.created_at ? escapeHtml(String(app.created_at).substring(0, 16)) : (hi ? 'आज' : 'Today')}</td>
-        <td style="font-weight: 700; color: #0B2920;">${escapeHtml(app.full_name || (hi ? 'आवेदक' : 'Applicant'))}</td>
+        <td style="font-weight: 700; color: #0B2920;">${escapeHtml(maskPrivacyName(app.full_name || (hi ? 'आवेदक' : 'Applicant')))}</td>
         <td><span class="badge ${cibilClass}">${escapeHtml(cibilVal)}</span></td>
         <td style="font-size: 0.8rem;">${slipTag}</td>
         <td>₹${totInc.toLocaleString('en-IN')}${hi ? '/माह' : '/mo'}</td>
@@ -4530,6 +4830,7 @@ function setupEventListeners() {
 
   document.getElementById('loan-fillup-form')?.addEventListener('reset', () => {
     setTimeout(() => {
+      applyApplicationFormDefaultsFromSettings(activeUserSettings);
       syncFormHelperDisplays();
       clearPersonalFormInputs();
     }, 0);
@@ -4553,6 +4854,21 @@ function setupEventListeners() {
     if (!el) return;
     el.addEventListener('focus', () => el.removeAttribute('readonly'));
     el.addEventListener('pointerdown', () => el.removeAttribute('readonly'));
+  });
+
+  document.getElementById('settings-modal')?.addEventListener('click', (e) => {
+    if (e.target && e.target.id === 'settings-modal') {
+      window.closeSettingsModal(true);
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      const settingsEl = document.getElementById('settings-modal');
+      if (settingsEl && settingsEl.style.display === 'flex') {
+        window.closeSettingsModal(true);
+      }
+    }
   });
 
   document.getElementById('sim-slider-coapp')?.addEventListener('input', (e) => {
@@ -5663,7 +5979,335 @@ function registerAppServiceWorker() {
   }
 }
 
+function restartAvailabilityPolling(intervalSec = 20) {
+  if (availabilityPollTimerId) {
+    clearInterval(availabilityPollTimerId);
+    availabilityPollTimerId = null;
+  }
+  const sec = Number(intervalSec);
+  if (!isNaN(sec) && sec > 0) {
+    availabilityPollTimerId = setInterval(() => {
+      window.checkSiteAvailability();
+    }, sec * 1000);
+  }
+}
+
+function applyApplicationFormDefaultsFromSettings(settingsObj) {
+  const s = settingsObj || activeUserSettings || getDefaultUserSettings('applicant');
+  const areaEl = document.getElementById('fill-property-area');
+  if (areaEl && s.defaultPropertyArea) {
+    areaEl.value = s.defaultPropertyArea;
+  }
+  const purpEl = document.getElementById('fill-loan-purpose');
+  if (purpEl && s.defaultLoanPurpose) {
+    purpEl.value = s.defaultLoanPurpose;
+  }
+  const years = Math.max(1, Math.min(30, parseInt(s.defaultLoanYears || 5, 10) || 5));
+  const yearsSlider = document.getElementById('fill-loan-years');
+  const yearsNum = document.getElementById('fill-exact-years');
+  if (yearsSlider) yearsSlider.value = String(years);
+  if (yearsNum) yearsNum.value = String(years);
+  if (typeof window.updateFillTenureDisplay === 'function') {
+    window.updateFillTenureDisplay(years);
+  }
+}
+
+function applyUserSettingsToApp(settingsObj, options = { renderTables: true }) {
+  const s = settingsObj || activeUserSettings || getDefaultUserSettings(currentAuthUser?.role || state.currentRole);
+  const isOfficer = currentAuthUser?.role === 'officer' || state.currentRole === 'officer';
+  applyVisualSettingsToDOM(s);
+
+  const whatIfCard = document.getElementById('what-if-card');
+  if (whatIfCard) {
+    whatIfCard.style.display = s.showSimulatorSection === false ? 'none' : '';
+  }
+  const roadmapCard = document.getElementById('applicant-roadmap-card');
+  if (roadmapCard) {
+    roadmapCard.style.display = s.showRoadmapSection === false ? 'none' : '';
+  }
+  const offSiteCard = document.getElementById('officer-site-control-card');
+  if (offSiteCard) {
+    offSiteCard.style.display = s.showOfficerSiteCard === false ? 'none' : '';
+  }
+
+  if (isOfficer) {
+    const newPageSize = Number(s.portfolioPageSize || 10);
+    if (state.portfolioPageSize !== newPageSize) {
+      state.portfolioPageSize = newPageSize;
+      state.portfolioPage = 1;
+    }
+    state.affirmativeMode = Boolean(s.defaultAffirmativeMode);
+    const affToggle = document.getElementById('affirmative-toggle');
+    if (affToggle) affToggle.checked = state.affirmativeMode;
+    if (options && options.renderTables) {
+      renderPortfolioTable();
+      renderFairnessCharts();
+    }
+  }
+
+  if (options && options.renderTables && currentAuthUser) {
+    renderDatabaseTableRows(state.savedDatabaseApps || []);
+  }
+
+  restartAvailabilityPolling(s.syncIntervalSec !== undefined ? s.syncIntervalSec : 20);
+  updateSettingsModalStatusUI();
+}
+
+function updateSettingsModalStatusUI() {
+  const hi = state.currentLang === 'hi';
+  const dict = getLangDict();
+  const isOfficer = currentAuthUser?.role === 'officer' || state.currentRole === 'officer';
+
+  const rolePill = document.getElementById('settings-role-pill');
+  const profRoleTag = document.getElementById('settings-prof-role-tag');
+  const roleText = isOfficer ? dict.role_badge_officer : dict.role_badge_applicant;
+  if (rolePill) {
+    rolePill.innerText = roleText;
+    rolePill.className = `badge ${isOfficer ? 'badge-warning' : 'badge-info'}`;
+  }
+  if (profRoleTag) {
+    profRoleTag.innerText = roleText;
+    profRoleTag.className = `badge ${isOfficer ? 'badge-warning' : 'badge-success'}`;
+  }
+
+  const cloudPill = document.getElementById('settings-cloud-pill');
+  if (cloudPill) {
+    if (state.backendConnected) {
+      cloudPill.className = 'badge badge-success';
+      cloudPill.innerText = hi ? 'क्लाउड सिंक सक्रिय' : 'Cloud Sync Active';
+    } else {
+      cloudPill.className = 'badge badge-warning';
+      cloudPill.innerText = hi ? 'लोकल फ़ॉलबैक मोड' : 'Local Fallback Mode';
+    }
+  }
+
+  const siteBadge = document.getElementById('settings-site-status-badge');
+  if (siteBadge) {
+    const isOnline = state.siteAvailability?.online !== false;
+    siteBadge.className = `badge ${isOnline ? 'badge-success' : 'badge-danger'}`;
+    siteBadge.innerText = isOnline ? dict.badge_online : dict.badge_offline;
+  }
+
+  const queueCountEl = document.getElementById('settings-offline-queue-count');
+  if (queueCountEl) {
+    const qLen = typeof readOfflineQueue === 'function' ? readOfflineQueue().length : 0;
+    queueCountEl.innerText = String(qLen);
+  }
+}
+
+function syncSettingsModalFields(settingsObj) {
+  const s = settingsObj || activeUserSettings || getDefaultUserSettings(currentAuthUser?.role);
+  const chosenTheme = s.theme || 'classic';
+  document.querySelectorAll('#settings-theme-grid .settings-theme-card').forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('data-theme-choice') === chosenTheme);
+  });
+
+  setValue('setting-font-size', s.fontSize || 'normal');
+  setValue('setting-density', s.density || 'comfortable');
+  const hcEl = document.getElementById('setting-high-contrast');
+  if (hcEl) hcEl.checked = Boolean(s.highContrast);
+  const rmEl = document.getElementById('setting-reduced-motion');
+  if (rmEl) rmEl.checked = Boolean(s.reducedMotion);
+  const toastEl = document.getElementById('setting-show-toasts');
+  if (toastEl) toastEl.checked = s.showToasts !== false;
+  const privEl = document.getElementById('setting-privacy-mask');
+  if (privEl) privEl.checked = Boolean(s.privacyMaskVault);
+
+  setValue('setting-app-start-tab', s.applicantStartTab || 'apply-view');
+  setValue('setting-default-area', s.defaultPropertyArea || 'Rural');
+  setValue('setting-default-tenure', String(s.defaultLoanYears || 5));
+  setValue('setting-default-purpose', s.defaultLoanPurpose || 'Home Improvement / Construction');
+  const simEl = document.getElementById('setting-show-simulator');
+  if (simEl) simEl.checked = s.showSimulatorSection !== false;
+  const roadEl = document.getElementById('setting-show-roadmap');
+  if (roadEl) roadEl.checked = s.showRoadmapSection !== false;
+  const autoSyncEl = document.getElementById('setting-auto-sync-offline');
+  if (autoSyncEl) autoSyncEl.checked = s.autoSyncOffline !== false;
+
+  setValue('setting-off-start-tab', s.officerStartTab || 'officer-view');
+  setValue('setting-portfolio-page-size', String(s.portfolioPageSize || 10));
+  const affEl = document.getElementById('setting-default-affirmative');
+  if (affEl) affEl.checked = Boolean(s.defaultAffirmativeMode);
+  const siteCardEl = document.getElementById('setting-show-officer-site-card');
+  if (siteCardEl) siteCardEl.checked = s.showOfficerSiteCard !== false;
+
+  setValue('setting-sync-interval', String(s.syncIntervalSec !== undefined ? s.syncIntervalSec : 20));
+}
+
+function readSettingsModalIntoObject() {
+  const role = currentAuthUser?.role === 'officer' ? 'officer' : 'applicant';
+  const activeThemeBtn = document.querySelector('#settings-theme-grid .settings-theme-card.active');
+  const theme = activeThemeBtn?.getAttribute('data-theme-choice') || draftUserSettings.theme || 'classic';
+  const syncVal = parseInt(document.getElementById('setting-sync-interval')?.value ?? '20', 10);
+
+  return {
+    theme,
+    fontSize: document.getElementById('setting-font-size')?.value || 'normal',
+    density: document.getElementById('setting-density')?.value || 'comfortable',
+    highContrast: Boolean(document.getElementById('setting-high-contrast')?.checked),
+    reducedMotion: Boolean(document.getElementById('setting-reduced-motion')?.checked),
+    showToasts: Boolean(document.getElementById('setting-show-toasts')?.checked),
+    privacyMaskVault: Boolean(document.getElementById('setting-privacy-mask')?.checked),
+    syncIntervalSec: isNaN(syncVal) ? 20 : syncVal,
+    applicantStartTab: document.getElementById('setting-app-start-tab')?.value || 'apply-view',
+    defaultPropertyArea: document.getElementById('setting-default-area')?.value || 'Rural',
+    defaultLoanYears: parseInt(document.getElementById('setting-default-tenure')?.value || '5', 10) || 5,
+    defaultLoanPurpose: document.getElementById('setting-default-purpose')?.value || 'Home Improvement / Construction',
+    showSimulatorSection: Boolean(document.getElementById('setting-show-simulator')?.checked),
+    showRoadmapSection: Boolean(document.getElementById('setting-show-roadmap')?.checked),
+    autoSyncOffline: Boolean(document.getElementById('setting-auto-sync-offline')?.checked),
+    officerStartTab: document.getElementById('setting-off-start-tab')?.value || 'officer-view',
+    portfolioPageSize: parseInt(document.getElementById('setting-portfolio-page-size')?.value || '10', 10) || 10,
+    defaultAffirmativeMode: Boolean(document.getElementById('setting-default-affirmative')?.checked),
+    showOfficerSiteCard: Boolean(document.getElementById('setting-show-officer-site-card')?.checked),
+    roleContext: role
+  };
+}
+
+window.openSettingsModal = function() {
+  const modal = document.getElementById('settings-modal');
+  if (!modal) return;
+  const hi = state.currentLang === 'hi';
+  const isOfficer = currentAuthUser?.role === 'officer' || state.currentRole === 'officer';
+
+  draftUserSettings = { ...activeUserSettings };
+
+  const rawName = (currentAuthUser?.full_name || currentAuthUser?.email || '-').trim();
+  const initialChar = rawName && rawName !== '-' ? Array.from(rawName)[0].toUpperCase() : '👤';
+  const avatarEl = document.getElementById('settings-prof-avatar');
+  if (avatarEl) avatarEl.innerText = initialChar;
+
+  const nameEl = document.getElementById('settings-prof-name');
+  if (nameEl) nameEl.innerText = rawName;
+  const emailEl = document.getElementById('settings-prof-email');
+  if (emailEl) emailEl.innerText = currentAuthUser?.email || '-';
+  const phoneEl = document.getElementById('settings-prof-phone');
+  if (phoneEl) phoneEl.innerText = currentAuthUser?.phone || (hi ? 'फ़ोन दर्ज नहीं' : 'Phone not listed');
+
+  const appSection = document.getElementById('settings-applicant-section');
+  const offSection = document.getElementById('settings-officer-section');
+  if (appSection) appSection.style.display = isOfficer ? 'none' : 'block';
+  if (offSection) offSection.style.display = isOfficer ? 'block' : 'none';
+
+  syncSettingsModalFields(draftUserSettings);
+  updateSettingsModalStatusUI();
+  modal.style.display = 'flex';
+};
+
+window.closeSettingsModal = function(revertPreview = true) {
+  if (revertPreview) {
+    applyVisualSettingsToDOM(activeUserSettings);
+  }
+  const modal = document.getElementById('settings-modal');
+  if (modal) modal.style.display = 'none';
+};
+
+window.previewSettingTheme = function(themeKey) {
+  draftUserSettings.theme = themeKey || 'classic';
+  document.querySelectorAll('#settings-theme-grid .settings-theme-card').forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('data-theme-choice') === draftUserSettings.theme);
+  });
+  applyVisualSettingsToDOM(draftUserSettings);
+};
+
+window.previewSettingDropdowns = function() {
+  draftUserSettings.fontSize = document.getElementById('setting-font-size')?.value || 'normal';
+  draftUserSettings.density = document.getElementById('setting-density')?.value || 'comfortable';
+  applyVisualSettingsToDOM(draftUserSettings);
+};
+
+window.previewSettingToggles = function() {
+  draftUserSettings.highContrast = Boolean(document.getElementById('setting-high-contrast')?.checked);
+  draftUserSettings.reducedMotion = Boolean(document.getElementById('setting-reduced-motion')?.checked);
+  applyVisualSettingsToDOM(draftUserSettings);
+};
+
+window.saveAndCloseSettingsModal = function() {
+  const hi = state.currentLang === 'hi';
+  const nextSettings = readSettingsModalIntoObject();
+  activeUserSettings = nextSettings;
+  draftUserSettings = { ...nextSettings };
+  saveUserSettingsToStorage(activeUserSettings);
+  applyUserSettingsToApp(activeUserSettings, { renderTables: true });
+  if (!state.hasApplied && currentAuthUser?.role !== 'officer') {
+    applyApplicationFormDefaultsFromSettings(activeUserSettings);
+  }
+  window.closeSettingsModal(false);
+  window.showMeridianToast(
+    hi
+      ? '✅ आपकी वेबसाइट और खाता सेटिंग्स सहेजी व लागू की गईं।'
+      : '✅ Your website & workspace settings have been saved and applied.'
+  );
+};
+
+window.resetUserSettingsToDefaults = function() {
+  const hi = state.currentLang === 'hi';
+  const role = currentAuthUser?.role === 'officer' ? 'officer' : 'applicant';
+  const defaults = getDefaultUserSettings(role);
+  activeUserSettings = defaults;
+  draftUserSettings = { ...defaults };
+  saveUserSettingsToStorage(defaults);
+  syncSettingsModalFields(defaults);
+  applyUserSettingsToApp(defaults, { renderTables: true });
+  if (!state.hasApplied && role !== 'officer') {
+    applyApplicationFormDefaultsFromSettings(defaults);
+  }
+  window.showMeridianToast(
+    hi
+      ? '↺ सभी सेटिंग्स डिफ़ॉल्ट मानकों पर रीसेट हो गई हैं।'
+      : '↺ All settings restored to default configuration.'
+  );
+};
+
+window.openForgotPasswordFromSettings = function() {
+  const userEmail = (currentAuthUser?.email || '').trim();
+  const role = currentAuthUser?.role === 'officer' ? 'officer' : 'applicant';
+  window.closeSettingsModal(true);
+  window.openForgotPassword(role);
+  if (userEmail) {
+    const fpEmailEl = document.getElementById('fp-email');
+    if (fpEmailEl) {
+      fpEmailEl.removeAttribute('readonly');
+      fpEmailEl.value = userEmail;
+    }
+  }
+};
+
+window.clearUserOfflineQueue = async function() {
+  const hi = state.currentLang === 'hi';
+  const count = readOfflineQueue().length;
+  writeOfflineQueue([]);
+  updateSettingsModalStatusUI();
+  await window.refreshDatabaseTable();
+  window.showMeridianToast(
+    count > 0
+      ? (hi ? `🧹 ${count} ऑफ़लाइन ड्राफ्ट स्थानीय कतार से साफ़ किए गए।` : `🧹 Cleared ${count} pending draft(s) from local offline queue.`)
+      : (hi ? 'ऑफ़लाइन कतार पहले से ही खाली है।' : 'Local offline queue is already empty.')
+  );
+};
+
+window.quickToggleWebsiteAvailabilityFromSettings = async function() {
+  await window.quickToggleWebsiteAvailability();
+  updateSettingsModalStatusUI();
+};
+
+window.refreshConnectionFromSettings = async function() {
+  await checkBackendConnection(true);
+  await window.checkSiteAvailability(true);
+  updateSettingsModalStatusUI();
+};
+
 document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const rawUser = localStorage.getItem('meridian_auth_user');
+    if (rawUser) {
+      const parsedUser = JSON.parse(rawUser);
+      if (parsedUser && parsedUser.email) {
+        activeUserSettings = loadUserSettings(parsedUser);
+        applyVisualSettingsToDOM(activeUserSettings);
+      }
+    }
+  } catch (e) {}
   registerAppServiceWorker();
   initPortalGatewayFromUrl();
   clearPersonalFormInputs();
@@ -5677,7 +6321,5 @@ document.addEventListener('DOMContentLoaded', async () => {
   checkBackendConnection();
   applyTranslations();
   window.fetchDownloadsInfo();
-  setInterval(() => {
-    window.checkSiteAvailability();
-  }, 20000);
+  restartAvailabilityPolling(activeUserSettings.syncIntervalSec !== undefined ? activeUserSettings.syncIntervalSec : 20);
 });
