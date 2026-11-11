@@ -465,6 +465,7 @@ def run_tests():
 
     otp_env_keys = [
         "EMAIL_PROVIDER", "BREVO_API_KEY", "RESEND_API_KEY",
+        "EMAIL_WEBHOOK_URL", "EMAIL_WEBHOOK_SECRET",
         "SMTP_HOST", "SMTP_USER", "SMTP_PASSWORD",
         "EMAIL_FROM", "REQUIRE_EMAIL_OTP", "OTP_ALLOW_DEV_PREVIEW"
     ]
@@ -710,7 +711,7 @@ def run_tests():
         assert r_apply_replay.status_code == 400
 
         os.environ["REQUIRE_EMAIL_OTP"] = "false"
-        for k in ("EMAIL_PROVIDER", "BREVO_API_KEY", "RESEND_API_KEY", "SMTP_HOST", "SMTP_USER", "SMTP_PASSWORD"):
+        for k in ("EMAIL_PROVIDER", "BREVO_API_KEY", "RESEND_API_KEY", "EMAIL_WEBHOOK_URL", "EMAIL_WEBHOOK_SECRET", "SMTP_HOST", "SMTP_USER", "SMTP_PASSWORD"):
             os.environ.pop(k, None)
         r_forge = client.post(
             "/api/apply",
@@ -720,6 +721,50 @@ def run_tests():
         assert r_forge.status_code == 201
         assert r_forge.json()["application"]["applicant_email"] == su_email
         print("[PASS] 36. Application Check Real Email OTP -> verified submit (201), replay block (400) & cross-account email forgery blocked")
+
+        orig_requests_post = email_service.requests.post
+        try:
+            webhook_calls = []
+
+            class _FakeWebhookResp:
+                def __init__(self, code, body, is_json=True):
+                    self.status_code = code
+                    self.text = body
+                    self._is_json = is_json
+
+                def json(self):
+                    if not self._is_json:
+                        raise ValueError("not json")
+                    return __import__("json").loads(self.text)
+
+            def _fake_wh_post(url, headers=None, json=None, timeout=15):
+                webhook_calls.append({"url": url, "json": json})
+                return _FakeWebhookResp(200, '{"status":"success"}')
+
+            os.environ["RESEND_API_KEY"] = "re_dummy_123"
+            os.environ["EMAIL_WEBHOOK_URL"] = "https://script.google.com/macros/s/dummy-id/exec"
+            os.environ["EMAIL_WEBHOOK_SECRET"] = "sec-xyz-99"
+            email_service.send_otp_email = orig_send_otp
+            email_service.requests.post = _fake_wh_post
+
+            assert email_service.get_configured_provider() == "webhook"
+            wh_ok, _ = email_service.send_otp_email("anyone@yahoo.com", "654321", "signup", "en")
+            assert wh_ok is True
+            assert len(webhook_calls) == 1
+            assert webhook_calls[0]["json"]["to"] == "anyone@yahoo.com"
+            assert webhook_calls[0]["json"]["secret"] == "sec-xyz-99"
+            assert "654321" in webhook_calls[0]["json"]["htmlBody"]
+
+            email_service.requests.post = lambda *a, **kw: _FakeWebhookResp(200, "<!doctype html><html>Sign in</html>", False)
+            wh_html_ok, wh_html_msg = email_service.send_otp_email("anyone@yahoo.com", "654321", "signup", "en")
+            assert wh_html_ok is False and "Anyone" in wh_html_msg
+
+            email_service.requests.post = lambda *a, **kw: _FakeWebhookResp(200, '{"status":"error","message":"Bad secret"}')
+            wh_err_ok, wh_err_msg = email_service.send_otp_email("anyone@yahoo.com", "654321", "signup", "en")
+            assert wh_err_ok is False and "Bad secret" in wh_err_msg
+            print("[PASS] 37. Global Email Webhook Relay (Apps Script) -> priority, payload secret, HTML guard & error handling verified")
+        finally:
+            email_service.requests.post = orig_requests_post
     finally:
         _restore_otp_env()
 

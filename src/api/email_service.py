@@ -24,25 +24,32 @@ def _resolve_sender(provider: Optional[str]) -> Tuple[str, str]:
     )
     if provider == "resend" and not raw:
         raw = "Meridian FairLend AI <onboarding@resend.dev>"
+    if provider == "webhook" and not raw:
+        raw = "Meridian FairLend AI <webhook-relay@meridian.local>"
     return _parse_sender(raw)
 
 def get_configured_provider() -> Optional[str]:
     override = _env("EMAIL_PROVIDER").lower()
     has_brevo = bool(_env("BREVO_API_KEY"))
+    has_webhook = bool(_env("EMAIL_WEBHOOK_URL"))
     has_resend = bool(_env("RESEND_API_KEY"))
     has_smtp = bool(_env("SMTP_HOST") and _env("SMTP_USER") and _env("SMTP_PASSWORD"))
 
     if override == "brevo" and has_brevo:
         return "brevo"
+    if override == "webhook" and has_webhook:
+        return "webhook"
     if override == "resend" and has_resend:
         return "resend"
     if override == "smtp" and has_smtp:
         return "smtp"
-    if override in ("brevo", "resend", "smtp"):
+    if override in ("brevo", "webhook", "resend", "smtp"):
         return None
 
     if has_brevo:
         return "brevo"
+    if has_webhook:
+        return "webhook"
     if has_resend:
         return "resend"
     if has_smtp:
@@ -252,6 +259,43 @@ def _send_via_smtp(to_email: str, subject: str, text_body: str, html_body: str, 
     except Exception as exc:
         return False, f"SMTP delivery failed: {str(exc)}"
 
+def _send_via_webhook(to_email: str, subject: str, text_body: str, html_body: str, sender_name: str, sender_email: str) -> Tuple[bool, str]:
+    webhook_url = _env("EMAIL_WEBHOOK_URL")
+    webhook_secret = _env("EMAIL_WEBHOOK_SECRET")
+    if not webhook_url or not (webhook_url.startswith("https://") or webhook_url.startswith("http://")):
+        return False, "EMAIL_WEBHOOK_URL must be a valid http(s) URL."
+    payload = {
+        "to": to_email,
+        "subject": subject,
+        "textBody": text_body,
+        "htmlBody": html_body,
+        "senderName": sender_name
+    }
+    if webhook_secret:
+        payload["secret"] = webhook_secret
+    try:
+        resp = requests.post(
+            webhook_url,
+            headers={"Content-Type": "application/json", "Accept": "application/json"},
+            json=payload,
+            timeout=15
+        )
+        text_preview = (resp.text or "").strip()
+        if text_preview.lower().startswith("<!doctype") or text_preview.lower().startswith("<html"):
+            return False, "Webhook returned HTML instead of JSON. Deploy Google Apps Script as Web App with access set to Anyone."
+        if 200 <= resp.status_code < 300:
+            try:
+                res_json = resp.json()
+                if isinstance(res_json, dict):
+                    if res_json.get("success") is False or str(res_json.get("status", "")).lower() == "error":
+                        return False, str(res_json.get("error") or res_json.get("message") or "Webhook rejected email send.")
+            except ValueError:
+                pass
+            return True, "sent"
+        return False, f"Webhook error ({resp.status_code}): {text_preview[:240]}"
+    except Exception as exc:
+        return False, f"Webhook delivery failed: {str(exc)}"
+
 def send_otp_email(to_email: str, otp_code: str, purpose: str, lang: str = "en") -> Tuple[bool, str]:
     provider = get_configured_provider()
     if not provider:
@@ -266,6 +310,8 @@ def send_otp_email(to_email: str, otp_code: str, purpose: str, lang: str = "en")
 
     if provider == "brevo":
         return _send_via_brevo(clean_to, subject, text_body, html_body, sender_name, sender_email)
+    if provider == "webhook":
+        return _send_via_webhook(clean_to, subject, text_body, html_body, sender_name, sender_email)
     if provider == "resend":
         return _send_via_resend(clean_to, subject, text_body, html_body, sender_name, sender_email)
     if provider == "smtp":
