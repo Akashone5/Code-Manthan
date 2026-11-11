@@ -792,12 +792,14 @@ def run_tests():
 
     res_al = client.get("/.well-known/assetlinks.json")
     assert res_al.status_code == 200 and isinstance(res_al.json(), list)
+    assert len(res_al.json()[0]["target"]["sha256_cert_fingerprints"]) >= 1
 
     res_dl_info = client.get("/api/downloads/info")
     assert res_dl_info.status_code == 200
     dl_meta = res_dl_info.json()
     assert dl_meta["pwa_ready"] is True
     assert dl_meta["platforms"]["windows"]["available"] is True
+    assert dl_meta["platforms"]["android"]["available"] is True
     assert dl_meta["platforms"]["mac"]["available"] is True
     assert dl_meta["platforms"]["ios"]["available"] is True
 
@@ -811,8 +813,15 @@ def run_tests():
         assert "Meridian FairLend AI.app/Contents/Info.plist" in names
         assert "Meridian FairLend AI.app/Contents/MacOS/MeridianFairLend" in names
 
+    res_apk = client.get("/downloads/MeridianFairLend-Android.apk")
+    assert res_apk.status_code == 200 and res_apk.content[:2] == b"PK" and len(res_apk.content) > 100000
+    with zipfile.ZipFile(io.BytesIO(res_apk.content), "r") as azf:
+        anames = set(azf.namelist())
+        assert "AndroidManifest.xml" in anames
+        assert any(n.startswith("META-INF/") and (n.endswith(".RSA") or n.endswith(".EC") or n.endswith(".DSA")) for n in anames)
+
     assert client.get("/downloads/unauthorized.txt").status_code == 404
-    print("[PASS] 38. PWA Manifest, Service Worker, Icons & Cross-Platform App Downloads verified")
+    print("[PASS] 38. PWA Manifest, Service Worker, Icons, AssetLinks & Windows/Android/Mac App Downloads verified")
 
     print("=" * 70)
     print("ALL FASTAPI ENDPOINTS & POLICIES VALIDATED SUCCESSFULLY (100% PASS)")
