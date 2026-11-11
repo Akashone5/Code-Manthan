@@ -1,6 +1,8 @@
+import io
 import os
 import sys
 import uuid
+import zipfile
 from fastapi.testclient import TestClient
 from main import app
 from src.api import email_service
@@ -44,9 +46,11 @@ def run_tests():
     assert res.status_code == 200
     print("[PASS] 7. GET /dataset_data.js -> 200 Dataset bundle served")
 
+    res_svg = client.get("/favicon.svg")
+    assert res_svg.status_code == 200 and "<svg" in res_svg.text
     res = client.get("/favicon.ico")
-    assert res.status_code == 200 and "<svg" in res.text
-    print("[PASS] 7b. GET /favicon.ico -> 200 SVG icon served")
+    assert res.status_code == 200 and (res.content[:4] == b"\x00\x00\x01\x00" or "<svg" in res.text)
+    print("[PASS] 7b. GET /favicon.svg & /favicon.ico -> 200 Icons served")
 
     res = client.get("/robots.txt")
     assert res.status_code == 200 and "User-agent:" in res.text
@@ -767,6 +771,48 @@ def run_tests():
             email_service.requests.post = orig_requests_post
     finally:
         _restore_otp_env()
+
+    res_man = client.get("/manifest.webmanifest")
+    assert res_man.status_code == 200
+    man_json = res_man.json()
+    assert man_json["display"] == "standalone"
+    assert any(ic.get("sizes") == "192x192" for ic in man_json.get("icons", []))
+    assert any(ic.get("sizes") == "512x512" for ic in man_json.get("icons", []))
+
+    res_sw = client.get("/sw.js")
+    assert res_sw.status_code == 200
+    assert res_sw.headers.get("service-worker-allowed") == "/"
+    assert "/api/" in res_sw.text
+
+    for png_name in ["icon-192.png", "icon-512.png", "icon-maskable-512.png", "apple-touch-icon.png"]:
+        ri = client.get(f"/icons/{png_name}")
+        assert ri.status_code == 200 and ri.content.startswith(b"\x89PNG"), f"Invalid PNG {png_name}"
+    rico = client.get("/icons/app-icon.ico")
+    assert rico.status_code == 200 and rico.content[:4] == b"\x00\x00\x01\x00"
+
+    res_al = client.get("/.well-known/assetlinks.json")
+    assert res_al.status_code == 200 and isinstance(res_al.json(), list)
+
+    res_dl_info = client.get("/api/downloads/info")
+    assert res_dl_info.status_code == 200
+    dl_meta = res_dl_info.json()
+    assert dl_meta["pwa_ready"] is True
+    assert dl_meta["platforms"]["windows"]["available"] is True
+    assert dl_meta["platforms"]["mac"]["available"] is True
+    assert dl_meta["platforms"]["ios"]["available"] is True
+
+    res_win = client.get("/downloads/MeridianFairLend-Windows.exe")
+    assert res_win.status_code == 200 and res_win.content[:2] == b"MZ" and len(res_win.content) > 4096
+
+    res_mac = client.get("/downloads/MeridianFairLend-Mac.zip")
+    assert res_mac.status_code == 200
+    with zipfile.ZipFile(io.BytesIO(res_mac.content), "r") as zf:
+        names = set(zf.namelist())
+        assert "Meridian FairLend AI.app/Contents/Info.plist" in names
+        assert "Meridian FairLend AI.app/Contents/MacOS/MeridianFairLend" in names
+
+    assert client.get("/downloads/unauthorized.txt").status_code == 404
+    print("[PASS] 38. PWA Manifest, Service Worker, Icons & Cross-Platform App Downloads verified")
 
     print("=" * 70)
     print("ALL FASTAPI ENDPOINTS & POLICIES VALIDATED SUCCESSFULLY (100% PASS)")

@@ -139,9 +139,157 @@ async def serve_dataset_js():
         content={"error": "dataset_data.js not found"}
     )
 
+@app.get("/manifest.webmanifest", include_in_schema=False)
+async def serve_manifest():
+    manifest_file = os.path.join(BASE_DIR, "manifest.webmanifest")
+    if os.path.exists(manifest_file):
+        return FileResponse(
+            manifest_file,
+            media_type="application/manifest+json",
+            headers={"Cache-Control": "public, max-age=3600"}
+        )
+    return JSONResponse(
+        status_code=status.HTTP_404_NOT_FOUND,
+        content={"error": "manifest.webmanifest not found"}
+    )
+
+@app.get("/sw.js", include_in_schema=False)
+async def serve_service_worker():
+    sw_file = os.path.join(BASE_DIR, "sw.js")
+    if os.path.exists(sw_file):
+        return FileResponse(
+            sw_file,
+            media_type="application/javascript",
+            headers={"Service-Worker-Allowed": "/", "Cache-Control": "no-cache"}
+        )
+    return JSONResponse(
+        status_code=status.HTTP_404_NOT_FOUND,
+        content={"error": "sw.js not found"}
+    )
+
+ALLOWED_ICONS = {
+    "icon-192.png": "image/png",
+    "icon-512.png": "image/png",
+    "icon-maskable-512.png": "image/png",
+    "apple-touch-icon.png": "image/png",
+    "app-icon.ico": "image/x-icon",
+}
+
+@app.get("/icons/{icon_name}", include_in_schema=False)
+async def serve_icon(icon_name: str):
+    clean_name = os.path.basename(icon_name or "")
+    mime = ALLOWED_ICONS.get(clean_name)
+    if not mime or clean_name != icon_name:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={"error": "Icon not found"}
+        )
+    icon_path = os.path.join(BASE_DIR, "icons", clean_name)
+    if os.path.exists(icon_path):
+        return FileResponse(
+            icon_path,
+            media_type=mime,
+            headers={"Cache-Control": "public, max-age=86400"}
+        )
+    return JSONResponse(
+        status_code=status.HTTP_404_NOT_FOUND,
+        content={"error": "Icon file missing"}
+    )
+
+@app.get("/.well-known/assetlinks.json", include_in_schema=False)
+async def serve_assetlinks():
+    asset_file = os.path.join(BASE_DIR, ".well-known", "assetlinks.json")
+    if os.path.exists(asset_file):
+        return FileResponse(
+            asset_file,
+            media_type="application/json",
+            headers={"Cache-Control": "public, max-age=3600"}
+        )
+    return JSONResponse(status_code=status.HTTP_200_OK, content=[])
+
+ALLOWED_DOWNLOADS = {
+    "MeridianFairLend-Windows.exe": "application/vnd.microsoft.portable-executable",
+    "MeridianFairLend-Mac.zip": "application/zip",
+    "MeridianFairLend-Android.apk": "application/vnd.android.package-archive",
+}
+
+@app.get("/api/downloads/info", tags=["System & Diagnostics"], summary="Check available downloadable app installers across Laptop and Phone")
+async def get_downloads_info():
+    dl_dir = os.path.join(BASE_DIR, "downloads")
+    def _file_meta(fname: str):
+        fpath = os.path.join(dl_dir, fname)
+        exists = os.path.isfile(fpath)
+        return {
+            "available": exists,
+            "filename": fname,
+            "url": f"/downloads/{fname}",
+            "size_bytes": os.path.getsize(fpath) if exists else 0
+        }
+
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content={
+            "success": True,
+            "app_name": "Meridian FairLend AI",
+            "version": "2.0.0",
+            "pwa_ready": (
+                os.path.isfile(os.path.join(BASE_DIR, "manifest.webmanifest"))
+                and os.path.isfile(os.path.join(BASE_DIR, "sw.js"))
+            ),
+            "platforms": {
+                "windows": _file_meta("MeridianFairLend-Windows.exe"),
+                "android": _file_meta("MeridianFairLend-Android.apk"),
+                "mac": _file_meta("MeridianFairLend-Mac.zip"),
+                "ios": {
+                    "available": True,
+                    "mode": "safari-home-screen",
+                    "apple_touch_icon": "/icons/apple-touch-icon.png"
+                }
+            }
+        }
+    )
+
+@app.get("/downloads/{file_name}", include_in_schema=False)
+async def serve_download_binary(file_name: str):
+    clean_name = os.path.basename(file_name or "")
+    mime = ALLOWED_DOWNLOADS.get(clean_name)
+    if not mime or clean_name != file_name:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={"success": False, "error": "Requested installer not found"}
+        )
+    file_path = os.path.join(BASE_DIR, "downloads", clean_name)
+    if not os.path.isfile(file_path):
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={"success": False, "error": f"{clean_name} is not built yet"}
+        )
+    return FileResponse(
+        file_path,
+        media_type=mime,
+        filename=clean_name,
+        headers={"Content-Disposition": f'attachment; filename="{clean_name}"'}
+    )
+
 @app.get("/favicon.svg", include_in_schema=False)
+async def serve_favicon_svg():
+    svg_icon = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">'
+        '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">'
+        '<stop offset="0%" stop-color="#064E3B"/><stop offset="100%" stop-color="#032C21"/>'
+        '</linearGradient></defs>'
+        '<rect width="64" height="64" rx="14" fill="url(#g)" stroke="#F8E7C9" stroke-width="3"/>'
+        '<text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" '
+        'font-family="Arial,sans-serif" font-weight="900" font-size="36" fill="#F8E7C9">M</text>'
+        '</svg>'
+    )
+    return Response(content=svg_icon, media_type="image/svg+xml", status_code=status.HTTP_200_OK)
+
 @app.get("/favicon.ico", include_in_schema=False)
 async def serve_favicon():
+    ico_path = os.path.join(BASE_DIR, "icons", "app-icon.ico")
+    if os.path.isfile(ico_path):
+        return FileResponse(ico_path, media_type="image/x-icon", headers={"Cache-Control": "public, max-age=86400"})
     svg_icon = (
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">'
         '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">'

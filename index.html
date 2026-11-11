@@ -2,13 +2,22 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Meridian FairLend AI • MISSION BHARAT | Explainable Loan Decision System</title>
   <meta name="description" content="Meridian FairLend Mission Bharat: Transparent credit underwriting, SHAP explainability, counterfactual scenario simulation, and algorithmic equity portal.">
   <meta name="theme-color" content="#064E3B">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="FairLend AI">
+  <meta name="application-name" content="Meridian FairLend AI">
+  <meta name="msapplication-TileColor" content="#064E3B">
   <meta property="og:title" content="Meridian FairLend AI • Explainable Loan Decision System">
   <meta property="og:description" content="Mission Bharat Digital Lending Portal with automated underwriting, transparent SHAP factor breakdowns, and RBI fair lending compliance.">
   <meta property="og:type" content="website">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="alternate icon" href="/favicon.ico">
   <link rel="stylesheet" href="styles.css">
@@ -120,6 +129,9 @@
           <span id="auth-gateway-badge" class="live-badge" style="background: rgba(248, 231, 201, 0.18); border: 1px solid var(--warm-cream); color: var(--warm-cream);">
             <span class="pulse-dot"></span> <span id="auth-gateway-badge-text" data-i18n="gw_applicant_badge">Applicant Application Portal</span>
           </span>
+          <button id="btn-get-app-auth" type="button" class="app-install-pill" onclick="openDownloadAppModal()" title="Download App for Laptop &amp; Phone" data-i18n-title="title_get_app">
+            <span>📲</span> <span data-i18n="btn_get_app">Get App</span>
+          </button>
           <button id="lang-toggle-btn-auth" type="button" class="lang-btn" onclick="toggleLanguage()" title="Bilingual Language Switcher" data-i18n-title="title_lang_btn">🇮🇳 हिन्दी (Hindi)</button>
         </div>
       </div>
@@ -449,6 +461,10 @@
             <span>🚪</span> <span data-i18n="btn_signout">Sign Out</span>
           </button>
         </div>
+
+        <button id="btn-get-app-main" type="button" class="app-install-pill" onclick="openDownloadAppModal()" title="Download App for Laptop &amp; Phone" data-i18n-title="title_get_app">
+          <span>📲</span> <span data-i18n="btn_get_app">Get App</span>
+        </button>
 
         <button id="lang-toggle-btn" class="lang-btn" onclick="toggleLanguage()" title="Bilingual Language Switcher" data-i18n-title="title_lang_btn">🇮🇳 हिन्दी (Hindi)</button>
       </div>
@@ -1851,6 +1867,107 @@
         <button type="submit" id="btn-fp-submit" class="btn btn-primary" data-i18n="fp_btn_submit">Verify &amp; Reset Password</button>
       </div>
     </form>
+  </div>
+</div>
+<div id="download-app-modal" class="modal-overlay" style="display: none;">
+  <div class="modal-content" style="max-width: 760px; padding: 1.5rem 1.65rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #064E3B; padding-bottom: 0.75rem; margin-bottom: 1rem;">
+      <h3 style="color: #064E3B; font-size: 1.18rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+        <span>📲</span> <span data-i18n="dl_modal_title">Download App for Laptop &amp; Phone</span>
+      </h3>
+      <button type="button" class="btn btn-outline" style="padding: 2px 9px; font-size: 0.85rem;" onclick="closeDownloadAppModal()">✕</button>
+    </div>
+
+    <div id="pwa-install-banner" class="dl-hero-banner">
+      <div class="dl-hero-info">
+        <div id="dl-device-badge" class="dl-device-pill" data-i18n="dl_detecting">Detecting Device...</div>
+        <div id="dl-hero-title" class="dl-hero-heading" data-i18n="dl_hero_heading">1-Click Install App on This Device</div>
+        <div id="dl-hero-sub" class="dl-hero-sub" data-i18n="dl_hero_sub">Install Meridian FairLend AI natively with full Email OTP, dark-free readability, and live Railway sync.</div>
+      </div>
+      <div class="dl-hero-actions">
+        <button type="button" id="btn-pwa-direct-install" class="btn btn-saffron" onclick="triggerPwaInstall()">
+          <span>⚡</span> <span id="btn-pwa-direct-install-label" data-i18n="dl_btn_install_now">Install App Now</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="grid-2 dl-platform-grid" style="gap: 0.9rem; margin-top: 1rem;">
+      <div id="dl-card-windows" class="dl-platform-card">
+        <div class="dl-card-top">
+          <span class="dl-card-icon">💻</span>
+          <div>
+            <div class="dl-card-title" data-i18n="dl_win_title">Windows Laptop</div>
+            <div class="dl-card-sub" data-i18n="dl_win_sub">Windows 10 / 11 Desktop Window</div>
+          </div>
+          <span id="dl-win-size" class="badge badge-info">EXE</span>
+        </div>
+        <p class="dl-card-desc" data-i18n="dl_win_desc">Download the lightweight Windows desktop launcher (.exe) or click Install App in Chrome / Edge for a pinned taskbar app.</p>
+        <div class="dl-card-actions">
+          <a id="dl-win-link" href="/downloads/MeridianFairLend-Windows.exe" download="MeridianFairLend-Windows.exe" class="btn btn-primary dl-full-btn">
+            <span>⬇️</span> <span data-i18n="dl_win_btn">Download Windows .EXE</span>
+          </a>
+        </div>
+      </div>
+
+      <div id="dl-card-android" class="dl-platform-card">
+        <div class="dl-card-top">
+          <span class="dl-card-icon">🤖</span>
+          <div>
+            <div class="dl-card-title" data-i18n="dl_and_title">Android Phone</div>
+            <div class="dl-card-sub" data-i18n="dl_and_sub">Android APK + 1-Tap Chrome Install</div>
+          </div>
+          <span id="dl-and-size" class="badge badge-success">APK</span>
+        </div>
+        <p class="dl-card-desc" data-i18n="dl_and_desc">Tap Install App Now in Chrome/Edge (zero sideload warnings), or download the signed Android .apk package below.</p>
+        <div class="dl-card-actions">
+          <a id="dl-and-link" href="/downloads/MeridianFairLend-Android.apk" download="MeridianFairLend-Android.apk" class="btn btn-primary dl-full-btn">
+            <span>⬇️</span> <span data-i18n="dl_and_btn">Download Android .APK</span>
+          </a>
+        </div>
+      </div>
+
+      <div id="dl-card-mac" class="dl-platform-card">
+        <div class="dl-card-top">
+          <span class="dl-card-icon">🍏</span>
+          <div>
+            <div class="dl-card-title" data-i18n="dl_mac_title">Mac Laptop</div>
+            <div class="dl-card-sub" data-i18n="dl_mac_sub">macOS App Bundle + Safari Dock</div>
+          </div>
+          <span id="dl-mac-size" class="badge badge-info">ZIP</span>
+        </div>
+        <p class="dl-card-desc" data-i18n-html="dl_mac_desc">On macOS Safari use <strong>File &rarr; Add to Dock</strong>, or download the <strong>.app</strong> launcher bundle (Right-click &rarr; Open first time).</p>
+        <div class="dl-card-actions">
+          <a id="dl-mac-link" href="/downloads/MeridianFairLend-Mac.zip" download="MeridianFairLend-Mac.zip" class="btn btn-outline dl-full-btn">
+            <span>⬇️</span> <span data-i18n="dl_mac_btn">Download Mac .ZIP (.app)</span>
+          </a>
+        </div>
+      </div>
+
+      <div id="dl-card-ios" class="dl-platform-card">
+        <div class="dl-card-top">
+          <span class="dl-card-icon">📱</span>
+          <div>
+            <div class="dl-card-title" data-i18n="dl_ios_title">iPhone / iPad (iOS)</div>
+            <div class="dl-card-sub" data-i18n="dl_ios_sub">Native Fullscreen Home Screen App</div>
+          </div>
+          <span class="badge badge-warning" data-i18n="dl_ios_badge">SAFARI</span>
+        </div>
+        <p class="dl-card-desc" data-i18n-html="dl_ios_desc">1. Open in <strong>Safari</strong> on iPhone/iPad.<br>2. Tap <strong>Share</strong> icon &rarr; <strong>Add to Home Screen</strong> &rarr; <strong>Add</strong>.</p>
+        <div class="dl-card-actions">
+          <button type="button" class="btn btn-outline dl-full-btn" onclick="copyCurrentPortalUrl()">
+            <span>🔗</span> <span data-i18n="dl_ios_btn">Copy Link for Safari</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="dl-guide-note" class="dl-footer-note" data-i18n="dl_footer_note">
+      Installed apps connect live to Meridian FairLend Cloud API so Email OTP verification, password recovery, and sanction vault sync work identically everywhere.
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; margin-top: 0.9rem;">
+      <button type="button" class="btn btn-outline" onclick="closeDownloadAppModal()" data-i18n="btn_close">Close</button>
+    </div>
   </div>
 </div>
 <div id="meridian-toast-container" class="toast-container"></div>
