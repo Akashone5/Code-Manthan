@@ -89,7 +89,6 @@ const state = {
     email_otp_configured: false,
     provider: null,
     require_otp_on_signup: false,
-    require_otp_on_application: false,
     require_otp_on_forgot_password: true
   },
   portfolioPage: 1,
@@ -220,17 +219,6 @@ const OTP_SCOPE_CONFIG = {
     boxId: 'otp-box-signup-off',
     defaultHintKey: 'otp_hint_signup'
   },
-  application: {
-    purpose: 'application',
-    emailId: 'fill-email',
-    otpId: 'fill-app-otp',
-    sendBtnId: 'btn-send-otp-apply',
-    verifyBtnId: 'btn-verify-otp-apply',
-    badgeId: 'otp-badge-apply',
-    statusId: 'otp-status-apply',
-    boxId: 'otp-box-apply',
-    defaultHintKey: 'otp_hint_apply'
-  },
   forgot_password: {
     purpose: 'forgot_password',
     emailId: 'fp-email',
@@ -247,7 +235,6 @@ const OTP_SCOPE_CONFIG = {
 const otpState = {
   signup_app: { email: '', verified: false, verificationToken: '', cooldown: 0, timerId: null, sentOnce: false, statusKind: 'default', rawError: '' },
   signup_off: { email: '', verified: false, verificationToken: '', cooldown: 0, timerId: null, sentOnce: false, statusKind: 'default', rawError: '' },
-  application: { email: '', verified: false, verificationToken: '', cooldown: 0, timerId: null, sentOnce: false, statusKind: 'default', rawError: '' },
   forgot_password: { email: '', verified: false, verificationToken: '', cooldown: 0, timerId: null, sentOnce: false, statusKind: 'default', rawError: '' }
 };
 
@@ -365,7 +352,6 @@ window.fetchOtpStatus = async function() {
           email_otp_configured: Boolean(data.email_otp_configured),
           provider: data.provider || null,
           require_otp_on_signup: Boolean(data.require_otp_on_signup),
-          require_otp_on_application: Boolean(data.require_otp_on_application),
           require_otp_on_forgot_password: data.require_otp_on_forgot_password !== false
         };
         syncOtpUIStates();
@@ -986,8 +972,6 @@ function clearPersonalFormInputs() {
   [
     'fill-full-name',
     'fill-phone',
-    'fill-email',
-    'fill-app-otp',
     'signup-app-fullname',
     'signup-app-email',
     'signup-app-otp',
@@ -1349,11 +1333,8 @@ window.applyAuthenticatedSession = async function(user, token) {
     }
     const nameInput = document.getElementById('fill-full-name') || document.getElementById('fill-name');
     const phoneInput = document.getElementById('fill-phone');
-    const emailInput = document.getElementById('fill-email');
     if (nameInput) nameInput.value = '';
     if (phoneInput) phoneInput.value = '';
-    if (emailInput) emailInput.value = '';
-    invalidateOtpScope('application', true);
 
     document.querySelectorAll('.nav-officer-item').forEach(el => { el.style.display = 'none'; });
     document.querySelectorAll('.nav-applicant-item').forEach(el => { el.style.display = 'flex'; });
@@ -2174,7 +2155,6 @@ const I18N = {
     modal_site_how: "<strong>How Offline Mode Works:</strong> Taking the website offline shows public visitors and applicants a branded <em>Maintenance Page</em> and returns HTTP <code>503</code> on public routes. Loan Officers can still log in at any time to restore Online access.",
     btn_go_online: "Go Online (Live)",
     otp_box_title: "Email OTP Verification",
-    otp_app_title: "Application Email OTP Check",
     otp_badge_pending: "Not Verified",
     otp_badge_verified: "✓ Verified",
     btn_send_otp: "Send OTP",
@@ -2182,11 +2162,8 @@ const I18N = {
     btn_verify_otp: "Verify OTP",
     ph_otp_code: "6-digit OTP",
     otp_hint_signup: "Click Send OTP to receive a 6-digit verification code in your inbox.",
-    otp_hint_apply: "Verify your email via 6-digit OTP before submitting your loan application.",
     otp_hint_forgot: "Enter your registered email and click Send OTP to receive a recovery code.",
     otp_hint_unconfigured: "Real Email OTP is not active yet: add BREVO_API_KEY + EMAIL_FROM in Railway Variables (free HTTPS API) to deliver inbox codes.",
-    lbl_fill_email: "Applicant Email for Verification *",
-    ph_fill_email: "Enter your email for OTP verification",
     fp_modal_title: "Reset Password via Email OTP",
     fp_lbl_email: "Registered Email Address",
     ph_fp_email: "name@domain.com",
@@ -2709,7 +2686,6 @@ const I18N = {
     modal_site_how: "<strong>ऑफ़लाइन मोड कैसे काम करता है:</strong> वेबसाइट को ऑफ़लाइन करने पर सामान्य आगंतुकों और आवेदकों को एक ब्रांडेड <em>रखरखाव पृष्ठ</em> दिखाई देता है और सार्वजनिक मार्ग HTTP <code>503</code> लौटाते हैं। ऋण अधिकारी किसी भी समय लॉग इन करके ऑनलाइन सेवा बहाल कर सकते हैं।",
     btn_go_online: "ऑनलाइन करें (लाइव)",
     otp_box_title: "ईमेल OTP सत्यापन",
-    otp_app_title: "आवेदन ईमेल OTP जांच",
     otp_badge_pending: "असत्यापित",
     otp_badge_verified: "✓ सत्यापित",
     btn_send_otp: "OTP भेजें",
@@ -2717,11 +2693,8 @@ const I18N = {
     btn_verify_otp: "OTP सत्यापित करें",
     ph_otp_code: "6-अंकीय OTP",
     otp_hint_signup: "इनबॉक्स में 6-अंकीय सत्यापन कोड प्राप्त करने के लिए 'OTP भेजें' पर क्लिक करें।",
-    otp_hint_apply: "ऋण आवेदन जमा करने से पहले 6-अंकीय OTP से अपना ईमेल सत्यापित करें।",
     otp_hint_forgot: "रिकवरी कोड प्राप्त करने के लिए अपना पंजीकृत ईमेल दर्ज करें और 'OTP भेजें' दबाएं।",
     otp_hint_unconfigured: "लाइव ईमेल OTP अभी सक्रिय नहीं है: इनबॉक्स कोड भेजने के लिए Railway Variables में BREVO_API_KEY + EMAIL_FROM (मुफ़्त HTTPS API) जोड़ें।",
-    lbl_fill_email: "सत्यापन हेतु आवेदक ईमेल *",
-    ph_fill_email: "OTP सत्यापन के लिए अपना ईमेल दर्ज करें",
     fp_modal_title: "ईमेल OTP द्वारा पासवर्ड रीसेट करें",
     fp_lbl_email: "पंजीकृत ईमेल पता",
     ph_fp_email: "name@domain.com",
@@ -3567,33 +3540,6 @@ window.handleLoanApplicationSubmit = async function(event) {
     return;
   }
 
-  const typedEmail = (document.getElementById('fill-email')?.value || '').trim().toLowerCase();
-  const appOtpCfg = OTP_SCOPE_CONFIG.application;
-  const appOtpState = otpState.application;
-  const appOtpRaw = (document.getElementById(appOtpCfg.otpId)?.value || '').replace(/\s+/g, '');
-  const appSameEmailVerified = appOtpState && appOtpState.verified && appOtpState.email === typedEmail && appOtpState.verificationToken;
-  const otpToken = appSameEmailVerified ? appOtpState.verificationToken : null;
-  const otpCode = (!otpToken && /^\d{6}$/.test(appOtpRaw) && typedEmail) ? appOtpRaw : null;
-
-  if (state.otpStatus.require_otp_on_application) {
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(typedEmail)) {
-      window.showMeridianToast(
-        hi ? 'कृपया OTP सत्यापन के लिए अपना वैध ईमेल पता दर्ज करें।' : 'Please enter a valid email address for Application OTP check.',
-        true
-      );
-      document.getElementById('fill-email')?.focus();
-      return;
-    }
-    if (!otpToken && !otpCode) {
-      window.showMeridianToast(
-        hi ? 'कृपया आवेदन जमा करने से पहले ईमेल OTP सत्यापन पूरा करें।' : 'Please complete the 6-digit Email OTP verification before submitting.',
-        true
-      );
-      document.getElementById(appOtpCfg.otpId)?.focus();
-      return;
-    }
-  }
-
   const submitBtn = document.getElementById('btn-submit-app');
   if (submitBtn) {
     submitBtn.disabled = true;
@@ -3606,7 +3552,7 @@ window.handleLoanApplicationSubmit = async function(event) {
   const formData = {
     full_name: (document.getElementById('fill-full-name')?.value || '').trim(),
     phone: (document.getElementById('fill-phone')?.value || '').trim(),
-    email: typedEmail || null,
+    email: currentAuthUser ? currentAuthUser.email : null,
     gender: document.getElementById('fill-gender')?.value || 'Female',
     marital_status: document.getElementById('fill-married')?.value || 'No',
     dependents: document.getElementById('fill-dependents')?.value || '0',
@@ -3622,9 +3568,7 @@ window.handleLoanApplicationSubmit = async function(event) {
     property_area: document.getElementById('fill-property-area')?.value || 'Rural',
     user_id: currentAuthUser ? currentAuthUser.id : null,
     applicant_id: currentAuthUser ? currentAuthUser.id : null,
-    applicant_email: typedEmail || (currentAuthUser ? currentAuthUser.email : null),
-    otp_verification_token: otpToken,
-    otp_code: otpCode
+    applicant_email: currentAuthUser ? currentAuthUser.email : null
   };
 
   let savedRecord = null;
@@ -3650,12 +3594,6 @@ window.handleLoanApplicationSubmit = async function(event) {
 
     if (response.status === 401 || response.status === 403 || response.status === 400) {
       const errData = await response.json().catch(() => ({}));
-      if (errData.code === 'EMAIL_OTP_REQUIRED' || errData.code === 'EMAIL_OTP_INVALID') {
-        window.fetchOtpStatus();
-        appOtpState.statusKind = 'error';
-        appOtpState.rawError = errData.error || '';
-        syncOtpUIStates();
-      }
       window.showMeridianToast(errData.error || (hi ? 'आवेदन जमा करने में अवरोध आया।' : 'Unable to submit loan application.'), true);
       if (submitBtn) {
         submitBtn.disabled = false;
@@ -3670,7 +3608,6 @@ window.handleLoanApplicationSubmit = async function(event) {
       savedRecord = resData.application;
       prediction = resData.prediction;
       explanation = resData.explanation;
-      invalidateOtpScope('application', true);
     }
   } catch (err) {
     state.backendConnected = false;

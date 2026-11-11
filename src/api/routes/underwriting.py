@@ -4,7 +4,6 @@ from fastapi.responses import JSONResponse
 
 from backend import predict_loan, explain_decision, simulate_what_if
 import database
-from src.api import email_service
 from src.api.schemas import (
     WhatIfRequest,
     OfficerSanctionRequest,
@@ -97,68 +96,24 @@ async def submit_application(
             content={"success": False, "error": f"Invalid JSON payload: {str(e)}"}
         )
 
-    otp_token = str(payload.get("otp_verification_token") or "").strip()
-    otp_code = str(payload.get("otp_code") or "").strip()
     submitted_email = str(payload.get("email") or payload.get("applicant_email") or "").strip().lower()
-    check_email = submitted_email or (caller_email or "")
-    otp_enforced = email_service.is_otp_enforced_for_actions()
-    email_otp_verified = False
-
-    if otp_enforced or otp_token or otp_code:
-        if not check_email or not database.validate_email_format(check_email):
-            return JSONResponse(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                content={
-                    "success": False,
-                    "code": "EMAIL_OTP_REQUIRED",
-                    "error": "A valid applicant email address and 6-digit email OTP verification are required before submitting."
-                }
-            )
-        try:
-            if otp_token:
-                database.validate_otp_verification_token(check_email, "application", otp_token)
-            elif otp_code:
-                verified = database.verify_email_otp(check_email, "application", otp_code)
-                otp_token = verified["verification_token"]
-            else:
-                return JSONResponse(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    content={
-                        "success": False,
-                        "code": "EMAIL_OTP_REQUIRED",
-                        "error": "Please verify your email address via 6-digit OTP before submitting your loan application."
-                    }
-                )
-            email_otp_verified = True
-        except ValueError as val_err:
-            return JSONResponse(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                content={"success": False, "code": "EMAIL_OTP_INVALID", "error": str(val_err)}
-            )
 
     try:
         if caller_uid:
             user_id = caller_uid
-            if email_otp_verified and submitted_email:
-                payload["applicant_email"] = submitted_email
-            elif caller_email:
+            if caller_email:
                 payload["applicant_email"] = caller_email
             else:
                 payload.pop("applicant_email", None)
                 payload.pop("email", None)
         else:
             user_id = payload.get("user_id") or payload.get("applicant_id")
-            if not email_otp_verified and submitted_email:
+            if submitted_email:
                 payload["applicant_email"] = submitted_email
 
         prediction = predict_loan(payload)
         explanation = explain_decision(payload, prediction)
-
-        if email_otp_verified and otp_token:
-            database.consume_otp_verification_token(check_email, "application", otp_token)
-            payload["email_otp_verified"] = True
-        else:
-            payload["email_otp_verified"] = False
+        payload["email_otp_verified"] = False
 
         saved_record = database.save_loan_application(
             payload,
@@ -171,7 +126,7 @@ async def submit_application(
             status_code=status.HTTP_201_CREATED,
             content={
                 "success": True,
-                "email_otp_verified": bool(payload.get("email_otp_verified")),
+                "email_otp_verified": False,
                 "message": "Loan application successfully submitted and recorded in Meridian Vault.",
                 "application": saved_record,
                 "prediction": prediction,

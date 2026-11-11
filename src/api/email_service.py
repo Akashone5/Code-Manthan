@@ -85,7 +85,7 @@ def get_email_otp_status() -> Dict[str, Any]:
         "sender_configured": bool(sender_email),
         "dev_preview_enabled": is_dev_preview_enabled(),
         "require_otp_on_signup": enforced,
-        "require_otp_on_application": enforced,
+        "require_otp_on_application": False,
         "require_otp_on_forgot_password": True
     }
 
@@ -93,13 +93,11 @@ def _build_otp_email(otp_code: str, purpose: str, lang: str = "en") -> Tuple[str
     is_hi = str(lang or "en").strip().lower() == "hi"
     labels_en = {
         "signup": "Account Registration Verification",
-        "forgot_password": "Password Reset Verification",
-        "application": "Loan Application Verification"
+        "forgot_password": "Password Reset Verification"
     }
     labels_hi = {
         "signup": "खाता पंजीकरण सत्यापन",
-        "forgot_password": "पासवर्ड रीसेट सत्यापन",
-        "application": "ऋण आवेदन सत्यापन"
+        "forgot_password": "पासवर्ड रीसेट सत्यापन"
     }
     clean_purpose = str(purpose or "signup").strip().lower()
     purpose_label = (labels_hi if is_hi else labels_en).get(clean_purpose, labels_en["signup"])

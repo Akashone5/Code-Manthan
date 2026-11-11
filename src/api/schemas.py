@@ -23,12 +23,12 @@ class ForgotPasswordRequest(BaseModel):
 
 class SendOtpRequest(BaseModel):
     email: str = Field(..., description="Recipient email address for 6-digit OTP delivery")
-    purpose: str = Field(default="signup", description="Verification scope: signup, forgot_password, or application")
+    purpose: str = Field(default="signup", description="Verification scope: signup or forgot_password")
     lang: str = Field(default="en", description="Preferred email language: en or hi")
 
 class VerifyOtpRequest(BaseModel):
     email: str = Field(..., description="Email address receiving the OTP")
-    purpose: str = Field(default="signup", description="Verification scope: signup, forgot_password, or application")
+    purpose: str = Field(default="signup", description="Verification scope: signup or forgot_password")
     otp: str = Field(..., description="6-digit OTP verification code")
 
 class ResetPasswordRequest(BaseModel):

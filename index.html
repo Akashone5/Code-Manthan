@@ -1329,23 +1329,6 @@
                 </div>
               </div>
 
-              <div class="form-group">
-                <label class="form-label" id="lbl-fill-email" for="fill-email" data-i18n="lbl_fill_email">Applicant Email for Verification *</label>
-                <input type="email" id="fill-email" class="form-control" autocomplete="off" placeholder="Enter your email for OTP verification" data-i18n-placeholder="ph_fill_email">
-                <div class="otp-verify-box" id="otp-box-apply">
-                  <div class="otp-header-row">
-                    <span class="otp-label" data-i18n="otp_app_title">Application Email OTP Check</span>
-                    <span id="otp-badge-apply" class="otp-status-badge otp-badge-pending" data-i18n="otp_badge_pending">Not Verified</span>
-                  </div>
-                  <div class="otp-controls-row">
-                    <button type="button" id="btn-send-otp-apply" class="otp-btn" onclick="sendEmailOtp('application')" data-i18n="btn_send_otp">Send OTP</button>
-                    <input type="text" id="fill-app-otp" class="otp-code-input" maxlength="6" inputmode="numeric" pattern="[0-9]*" placeholder="6-digit OTP" data-i18n-placeholder="ph_otp_code" autocomplete="one-time-code">
-                    <button type="button" id="btn-verify-otp-apply" class="otp-btn primary" onclick="verifyEmailOtp('application')" data-i18n="btn_verify_otp">Verify OTP</button>
-                  </div>
-                  <div id="otp-status-apply" class="otp-feedback-text" data-i18n="otp_hint_apply">Verify your email via 6-digit OTP before submitting your loan application.</div>
-                </div>
-              </div>
-
               <div class="form-row">
                 <div class="form-group">
                   <label class="form-label" id="lbl-fill-married">Marital Status *</label>

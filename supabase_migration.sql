@@ -55,7 +55,7 @@ ALTER TABLE public.loan_applications ADD COLUMN IF NOT EXISTS email_otp_verified
 CREATE TABLE IF NOT EXISTS public.email_otps (
     id TEXT PRIMARY KEY,
     email TEXT NOT NULL,
-    purpose TEXT NOT NULL CHECK (purpose IN ('signup', 'forgot_password', 'application')),
+    purpose TEXT NOT NULL CHECK (purpose IN ('signup', 'forgot_password')),
     otp_hash TEXT NOT NULL,
     salt TEXT NOT NULL,
     attempts_left INTEGER NOT NULL DEFAULT 5,

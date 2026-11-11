@@ -253,19 +253,24 @@ def run_tests():
             except ValueError as err:
                 assert "Maximum verification attempts reached" in str(err)
 
-            otp2 = database.create_email_otp('otp.verify@example.com', 'application', ttl_seconds=600, cooldown_seconds=60)
-            ver2 = database.verify_email_otp('otp.verify@example.com', 'application', otp2['otp_code'])
+            otp2 = database.create_email_otp('otp.verify@example.com', 'forgot_password', ttl_seconds=600, cooldown_seconds=60)
+            ver2 = database.verify_email_otp('otp.verify@example.com', 'forgot_password', otp2['otp_code'])
             assert ver2['verified'] is True and ver2['verification_token'].startswith('vtok-')
-            assert database.validate_otp_verification_token('otp.verify@example.com', 'application', ver2['verification_token']) is True
+            assert database.validate_otp_verification_token('otp.verify@example.com', 'forgot_password', ver2['verification_token']) is True
             try:
                 database.validate_otp_verification_token('otp.verify@example.com', 'signup', ver2['verification_token'])
                 assert False, "Token purpose mismatch should fail"
             except ValueError:
                 pass
-            assert database.consume_otp_verification_token('otp.verify@example.com', 'application', ver2['verification_token']) is True
+            assert database.consume_otp_verification_token('otp.verify@example.com', 'forgot_password', ver2['verification_token']) is True
             try:
-                database.consume_otp_verification_token('otp.verify@example.com', 'application', ver2['verification_token'])
+                database.consume_otp_verification_token('otp.verify@example.com', 'forgot_password', ver2['verification_token'])
                 assert False, "Single-use verification token replay must be rejected"
+            except ValueError:
+                pass
+            try:
+                database.create_email_otp('otp.apply@example.com', 'application', ttl_seconds=600, cooldown_seconds=60)
+                assert False, "Application OTP purpose must be rejected"
             except ValueError:
                 pass
 

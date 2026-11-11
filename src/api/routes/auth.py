@@ -39,7 +39,7 @@ async def send_otp(payload: SendOtpRequest, request: Request):
     purpose = (payload.purpose or "signup").strip().lower()
     lang = (payload.lang or "en").strip().lower()
 
-    if purpose not in ("signup", "forgot_password", "application"):
+    if purpose not in ("signup", "forgot_password"):
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={"success": False, "error": "Invalid OTP verification purpose."}
@@ -50,19 +50,6 @@ async def send_otp(payload: SendOtpRequest, request: Request):
             status_code=status.HTTP_400_BAD_REQUEST,
             content={"success": False, "error": "Please enter a valid email address."}
         )
-
-    if purpose == "application":
-        avail = database.get_site_availability()
-        if not avail["online"]:
-            return JSONResponse(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                content={
-                    "success": False,
-                    "offline": True,
-                    "error": avail["maintenance_message"],
-                    "maintenance_message": avail["maintenance_message"]
-                }
-            )
 
     scope = f"send_otp:{purpose}"
     blocked, retry_after = otp_send_rate_limiter.is_blocked(client_ip, scope)

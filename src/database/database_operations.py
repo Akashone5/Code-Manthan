@@ -16,7 +16,7 @@ from typing import List, Dict, Any, Optional, Tuple, Iterator
 
 from .supabase_client import get_supabase_client
 
-VALID_OTP_PURPOSES = ('signup', 'forgot_password', 'application')
+VALID_OTP_PURPOSES = ('signup', 'forgot_password')
 
 def _utc_now_dt() -> datetime.datetime:
     return datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
@@ -270,7 +270,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS email_otps (
                 id TEXT PRIMARY KEY,
                 email TEXT NOT NULL,
-                purpose TEXT NOT NULL CHECK(purpose IN ('signup', 'forgot_password', 'application')),
+                purpose TEXT NOT NULL CHECK(purpose IN ('signup', 'forgot_password')),
                 otp_hash TEXT NOT NULL,
                 salt TEXT NOT NULL,
                 attempts_left INTEGER NOT NULL DEFAULT 5,

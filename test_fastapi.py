@@ -526,7 +526,7 @@ def run_tests():
         assert st_on["email_otp_configured"] is True
         assert st_on["provider"] == "brevo"
         assert st_on["require_otp_on_signup"] is True
-        assert st_on["require_otp_on_application"] is True
+        assert st_on["require_otp_on_application"] is False
 
         r_dup = client.post(
             "/api/auth/send-otp",
@@ -678,53 +678,35 @@ def run_tests():
         su_new_headers = {"Authorization": f"Bearer {r_new_si.json()['token']}"}
         print("[PASS] 35. Forgot Password Real Email OTP -> anti-enumeration, password updated & prior Bearer sessions revoked")
 
-        r_app_no_otp = client.post("/api/apply", json={**sample_app, "email": su_email}, headers=su_new_headers)
-        assert r_app_no_otp.status_code == 400 and r_app_no_otp.json().get("code") == "EMAIL_OTP_REQUIRED"
+        r_apply_no_otp_needed = client.post(
+            "/api/apply",
+            json={**sample_app, "email": "applicant@meridianbank.in", "applicant_email": "applicant@meridianbank.in", "email_otp_verified": True},
+            headers=su_new_headers
+        )
+        assert r_apply_no_otp_needed.status_code == 201
+        apply_body = r_apply_no_otp_needed.json()
+        assert apply_body["email_otp_verified"] is False
+        assert int(apply_body["application"].get("email_otp_verified") or 0) == 0
+        assert apply_body["application"]["applicant_email"] == su_email
 
         r_send_app_otp = client.post(
             "/api/auth/send-otp",
             json={"email": su_email, "purpose": "application", "lang": "en"},
             headers={"X-Forwarded-For": "198.51.100.39"}
         )
-        assert r_send_app_otp.status_code == 200
-        app_otp_code = dispatched_emails[-1]["otp_code"]
+        assert r_send_app_otp.status_code == 400
 
         r_ver_app_otp = client.post(
             "/api/auth/verify-otp",
-            json={"email": su_email, "purpose": "application", "otp": app_otp_code},
+            json={"email": su_email, "purpose": "application", "otp": "123456"},
             headers={"X-Forwarded-For": "198.51.100.39"}
         )
-        assert r_ver_app_otp.status_code == 200
-        app_vtok = r_ver_app_otp.json()["verification_token"]
-
-        r_apply_ok = client.post(
-            "/api/apply",
-            json={**sample_app, "email": su_email, "otp_verification_token": app_vtok},
-            headers=su_new_headers
-        )
-        assert r_apply_ok.status_code == 201
-        apply_body = r_apply_ok.json()
-        assert apply_body["email_otp_verified"] is True
-        assert int(apply_body["application"].get("email_otp_verified") or 0) == 1
-
-        r_apply_replay = client.post(
-            "/api/apply",
-            json={**sample_app, "email": su_email, "otp_verification_token": app_vtok},
-            headers=su_new_headers
-        )
-        assert r_apply_replay.status_code == 400
+        assert r_ver_app_otp.status_code == 400
+        print("[PASS] 36. Loan Application skips OTP even when email OTP is active (201) + purpose=application rejected (400) + email forgery blocked")
 
         os.environ["REQUIRE_EMAIL_OTP"] = "false"
         for k in ("EMAIL_PROVIDER", "BREVO_API_KEY", "RESEND_API_KEY", "EMAIL_WEBHOOK_URL", "EMAIL_WEBHOOK_SECRET", "SMTP_HOST", "SMTP_USER", "SMTP_PASSWORD"):
             os.environ.pop(k, None)
-        r_forge = client.post(
-            "/api/apply",
-            json={**sample_app, "email": "applicant@meridianbank.in", "applicant_email": "applicant@meridianbank.in"},
-            headers=su_new_headers
-        )
-        assert r_forge.status_code == 201
-        assert r_forge.json()["application"]["applicant_email"] == su_email
-        print("[PASS] 36. Application Check Real Email OTP -> verified submit (201), replay block (400) & cross-account email forgery blocked")
 
         orig_requests_post = email_service.requests.post
         try:
@@ -831,8 +813,19 @@ def run_tests():
     res_html_settings = client.get("/")
     assert res_html_settings.status_code == 200
     html_src = res_html_settings.text
-    for removed_id in ('id="btn-get-app-auth"', 'id="btn-get-app-main"', 'id="download-app-modal"', 'openDownloadAppModal()'):
-        assert removed_id not in html_src, f"Download app UI artifact {removed_id!r} should be removed from HTML"
+    for removed_id in (
+        'id="btn-get-app-auth"',
+        'id="btn-get-app-main"',
+        'id="download-app-modal"',
+        'openDownloadAppModal()',
+        'id="otp-box-apply"',
+        'id="fill-app-otp"',
+        'id="btn-send-otp-apply"',
+        'id="btn-verify-otp-apply"',
+        'id="fill-email"'
+    ):
+        assert removed_id not in html_src, f"Removed UI artifact {removed_id!r} should not be present in HTML"
+    assert 'id="otp-box-signup-app"' in html_src and 'id="otp-box-signup-off"' in html_src and 'id="btn-send-otp-forgot"' in html_src
     assert 'id="btn-settings-main"' in html_src
     assert 'onclick="openSettingsModal()"' in html_src
     assert 'id="settings-modal"' in html_src
@@ -871,8 +864,16 @@ def run_tests():
         "clearUserOfflineQueue"
     ):
         assert sym in js_src, f"Missing settings symbol {sym} in /app.js"
-    for dead_sym in ("openDownloadAppModal", "refreshDownloadAppModalUI", "fetchDownloadsInfo"):
-        assert dead_sym not in js_src, f"Dead download modal helper {dead_sym} still present in /app.js"
+    for dead_sym in (
+        "openDownloadAppModal",
+        "refreshDownloadAppModalUI",
+        "fetchDownloadsInfo",
+        "require_otp_on_application",
+        "otp_hint_apply",
+        "otp_app_title",
+        "lbl_fill_email"
+    ):
+        assert dead_sym not in js_src, f"Removed helper/key {dead_sym} still present in /app.js"
 
     res_css_settings = client.get("/styles.css")
     assert res_css_settings.status_code == 200
