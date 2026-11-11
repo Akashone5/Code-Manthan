@@ -12,31 +12,43 @@
   <meta name="apple-mobile-web-app-title" content="FairLend AI">
   <meta name="application-name" content="Meridian FairLend AI">
   <meta name="msapplication-TileColor" content="#064E3B">
+  <link rel="canonical" href="https://meridian-fairlend-production.up.railway.app/">
   <meta property="og:title" content="Meridian FairLend AI • Explainable Loan Decision System">
   <meta property="og:description" content="Mission Bharat Digital Lending Portal with automated underwriting, transparent SHAP factor breakdowns, and RBI fair lending compliance.">
   <meta property="og:type" content="website">
+  <meta property="og:url" content="https://meridian-fairlend-production.up.railway.app/">
+  <meta property="og:site_name" content="Meridian FairLend AI">
+  <meta property="og:image" content="https://meridian-fairlend-production.up.railway.app/icons/og-share.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Meridian FairLend AI Mission Bharat — Explainable Retail Lending Portal">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Meridian FairLend AI • Explainable Loan Decision System">
+  <meta name="twitter:description" content="Mission Bharat Digital Lending Portal with automated underwriting, transparent SHAP factor breakdowns, and RBI fair lending compliance.">
+  <meta name="twitter:image" content="https://meridian-fairlend-production.up.railway.app/icons/og-share.png">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  <link rel="alternate icon" href="/favicon.ico">
-  <link rel="stylesheet" href="styles.css">
-  <script src="dataset_data.js"></script>
+  <link rel="shortcut icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/styles.css">
+  <script id="structured-data-jsonld" type="application/ld+json">{}</script>
 </head>
 <body>
   <div id="maintenance-overlay" class="maintenance-overlay" style="display: none;">
     <header class="app-header">
       <div class="header-container">
-        <div class="brand-wrapper">
-          <div class="brand-logo">M</div>
+        <a href="/" class="brand-wrapper" onclick="handleBrandLogoClick(event)" aria-label="Meridian FairLend AI Home">
+          <img src="/icons/icon-192.png" alt="Meridian FairLend AI Mission Bharat Logo" width="44" height="44" class="brand-logo-img">
           <div class="brand-info">
-            <h1>
+            <div class="brand-name-heading">
               <span data-i18n="brand_title">Meridian FairLend AI</span>
               <span class="brand-badge" data-i18n="brand_badge">Mission Bharat</span>
-            </h1>
+            </div>
             <div class="brand-tagline" data-i18n="brand_sub">AI-Powered Explainable Lending &amp; Demographic Equity Platform</div>
           </div>
-        </div>
+        </a>
         <div class="header-controls">
           <span class="site-status-pill offline">
             <span class="status-dot"></span> <span data-i18n="maint_header_pill">WEBSITE OFFLINE</span>
@@ -82,7 +94,7 @@
             <div class="form-row">
               <div class="form-group" style="margin-bottom: 0.65rem;">
                 <label class="form-label" data-i18n="lbl_officer_email">Institutional Officer Email</label>
-                <input type="email" id="maint-officer-email" class="form-control" placeholder="officer@meridianbank.in" data-i18n-placeholder="ph_off_email" required>
+                <input type="email" id="maint-officer-email" class="form-control" placeholder="officer@domain.in" data-i18n-placeholder="ph_off_email" required>
               </div>
               <div class="form-group" style="margin-bottom: 0.65rem;">
                 <label class="form-label" data-i18n="lbl_officer_pwd">Officer Password</label>
@@ -104,6 +116,10 @@
             </div>
           </div>
         </div>
+
+        <div style="margin-top: 1.35rem; padding-top: 0.85rem; border-top: 1px solid var(--border-subtle); font-size: 0.8rem; color: var(--text-muted);" data-i18n-html="maint_help_html">
+          Support Helpline: <a href="tel:18002094000" class="contact-link">1800-209-4000</a> &bull; Email: <a href="mailto:grievance.bharat@meridian.fin" class="contact-link">grievance.bharat@meridian.fin</a>
+        </div>
       </div>
     </div>
   </div>
@@ -111,16 +127,23 @@
   <div id="auth-portal" class="auth-overlay">
     <header class="app-header">
       <div class="header-container">
-        <div class="brand-wrapper">
-          <div class="brand-logo">M</div>
+        <a href="/" class="brand-wrapper" onclick="handleBrandLogoClick(event)" aria-label="Meridian FairLend AI Home">
+          <img src="/icons/icon-192.png" alt="Meridian FairLend AI Mission Bharat Logo" width="44" height="44" class="brand-logo-img">
           <div class="brand-info">
-            <h1>
+            <div class="brand-name-heading">
               <span data-i18n="brand_title">Meridian FairLend AI</span>
               <span class="brand-badge" data-i18n="brand_badge">Mission Bharat</span>
-            </h1>
+            </div>
             <div class="brand-tagline" data-i18n="brand_sub">AI-Powered Explainable Lending &amp; Demographic Equity Platform</div>
           </div>
-        </div>
+        </a>
+
+        <nav class="public-header-links" aria-label="Primary Navigation">
+          <a href="/" class="header-nav-link" onclick="handleSlugLinkClick(event, '/')" data-i18n="nav_pub_home">Home</a>
+          <a href="/applicant" class="header-nav-link" onclick="handleSlugLinkClick(event, '/applicant')" data-i18n="nav_pub_applicant">Applicant Portal</a>
+          <a href="/officer" class="header-nav-link" onclick="handleSlugLinkClick(event, '/officer')" data-i18n="nav_pub_officer">Officer Portal</a>
+          <a href="/grievance" class="header-nav-link" onclick="handleSlugLinkClick(event, '/grievance')" data-i18n="nav_pub_support">Support</a>
+        </nav>
 
         <div class="header-controls">
           <span id="auth-site-status-pill" class="site-status-pill online">
@@ -130,8 +153,21 @@
             <span class="pulse-dot"></span> <span id="auth-gateway-badge-text" data-i18n="gw_applicant_badge">Applicant Application Portal</span>
           </span>
           <button id="lang-toggle-btn-auth" type="button" class="lang-btn" onclick="toggleLanguage()" title="Bilingual Language Switcher" data-i18n-title="title_lang_btn">🇮🇳 हिन्दी (Hindi)</button>
+          <button type="button" id="mobile-menu-toggle-auth" class="mobile-menu-btn" aria-expanded="false" aria-controls="mobile-nav-drawer-auth" aria-label="Open Navigation Menu" onclick="toggleMobileMenu('auth')">☰</button>
         </div>
       </div>
+
+      <nav id="mobile-nav-drawer-auth" class="mobile-nav-drawer" aria-label="Mobile Navigation">
+        <a href="/" class="mobile-nav-link" onclick="handleSlugLinkClick(event, '/'); closeAllMobileMenus();" data-i18n="nav_pub_home">Home</a>
+        <a href="/applicant" class="mobile-nav-link" onclick="handleSlugLinkClick(event, '/applicant'); closeAllMobileMenus();" data-i18n="gw_applicant_title">Applicant Application Portal</a>
+        <a href="/officer" class="mobile-nav-link" onclick="handleSlugLinkClick(event, '/officer'); closeAllMobileMenus();" data-i18n="gw_officer_title">Loan Officer Institutional Portal</a>
+        <div class="mobile-drawer-divider"></div>
+        <a href="/privacy" class="mobile-nav-link" onclick="handleSlugLinkClick(event, '/privacy'); closeAllMobileMenus();" data-i18n="foot_privacy">Privacy Policy</a>
+        <a href="/terms" class="mobile-nav-link" onclick="handleSlugLinkClick(event, '/terms'); closeAllMobileMenus();" data-i18n="foot_terms">Terms of Service</a>
+        <a href="/grievance" class="mobile-nav-link" onclick="handleSlugLinkClick(event, '/grievance'); closeAllMobileMenus();" data-i18n="foot_grievance">Grievance Redressal</a>
+        <a href="tel:18002094000" class="mobile-nav-link" onclick="closeAllMobileMenus()" data-i18n="mob_call_helpline">Call Helpline: 1800-209-4000</a>
+        <a href="mailto:grievance.bharat@meridian.fin" class="mobile-nav-link" onclick="closeAllMobileMenus()" data-i18n="mob_email_support">Email: grievance.bharat@meridian.fin</a>
+      </nav>
     </header>
 
     <div class="mission-strip">
@@ -149,9 +185,11 @@
     </div>
 
     <div class="auth-landing-body">
+      <nav id="public-breadcrumbs" class="breadcrumb-bar" aria-label="Breadcrumb"></nav>
+
       <div class="auth-welcome-hero">
         <div class="auth-welcome-tag" data-i18n="auth_hero_tag">🏛️ SECURE CREDIT UNDERWRITING GATEWAY</div>
-        <h2 class="auth-welcome-title" data-i18n="auth_hero_title">Explainable Loan Decision System</h2>
+        <h1 id="auth-hero-heading" class="auth-welcome-title" data-i18n="auth_hero_title">Explainable Loan Decision System</h1>
         <p class="auth-welcome-desc" data-i18n="auth_hero_desc">
           Empowering transparent, fair, and algorithmic credit decisions across Bharat with SHAP explainability and demographic parity auditing.
         </p>
@@ -172,7 +210,9 @@
 
       <div class="auth-modal-card">
         <div id="auth-card-header" class="auth-card-header">
-          <div class="auth-brand-logo">M</div>
+          <div class="auth-brand-logo">
+            <img src="/icons/icon-192.png" alt="Meridian FairLend AI Portal Badge" width="48" height="48" class="auth-brand-logo-img">
+          </div>
           <h2 id="auth-card-title" data-i18n="auth_card_title_applicant">Applicant Application Portal</h2>
           <p id="auth-card-subtitle" data-i18n="auth_card_sub_applicant">Submit Applications, Inspect Personalized Reports &amp; Track Loan Sanctions</p>
         </div>
@@ -207,14 +247,14 @@
               <label class="auth-label" for="signin-applicant-email" data-i18n="lbl_app_email">Applicant Email Address</label>
               <div class="auth-input-wrapper">
                 <span class="auth-input-icon">✉️</span>
-                <input type="email" id="signin-applicant-email" class="auth-input" placeholder="applicant@domain.com" data-i18n-placeholder="ph_app_email" required autocomplete="email">
+                <input type="email" id="signin-applicant-email" class="auth-input" placeholder="name@domain.com" data-i18n-placeholder="ph_app_email" required autocomplete="email">
               </div>
             </div>
 
             <div class="auth-form-group">
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <label class="auth-label" for="signin-applicant-password" data-i18n="lbl_password">Password</label>
-                <a href="javascript:void(0)" onclick="openForgotPassword('applicant')" style="font-size: 0.78rem; color: #064E3B; font-weight: 700; text-decoration: none;" data-i18n="link_forgot_pwd">Forgot Password?</a>
+                <a href="/forgot-password" onclick="event.preventDefault(); openForgotPassword('applicant')" style="font-size: 0.78rem; color: #064E3B; font-weight: 700; text-decoration: none;" data-i18n="link_forgot_pwd">Forgot Password?</a>
               </div>
               <div class="auth-input-wrapper">
                 <span class="auth-input-icon">🔒</span>
@@ -246,7 +286,7 @@
               <label class="auth-label" for="signup-app-fullname" data-i18n="lbl_su_name">Full Name</label>
               <div class="auth-input-wrapper">
                 <span class="auth-input-icon">👤</span>
-                <input type="text" id="signup-app-fullname" class="auth-input" placeholder="e.g. Ananya Rao" data-i18n-placeholder="ph_su_name" required autocomplete="off">
+                <input type="text" id="signup-app-fullname" class="auth-input" placeholder="Enter your full name" data-i18n-placeholder="ph_su_name" required autocomplete="off">
               </div>
             </div>
 
@@ -254,7 +294,7 @@
               <label class="auth-label" for="signup-app-email" data-i18n="lbl_su_email">Email Address</label>
               <div class="auth-input-wrapper">
                 <span class="auth-input-icon">✉️</span>
-                <input type="email" id="signup-app-email" class="auth-input" placeholder="applicant@domain.com" data-i18n-placeholder="ph_app_email" required autocomplete="off">
+                <input type="email" id="signup-app-email" class="auth-input" placeholder="name@domain.com" data-i18n-placeholder="ph_app_email" required autocomplete="off">
               </div>
             </div>
 
@@ -275,7 +315,7 @@
               <label class="auth-label" for="signup-app-phone" data-i18n="lbl_su_phone">Mobile Number</label>
               <div class="auth-input-wrapper">
                 <span class="auth-input-icon">📱</span>
-                <input type="tel" id="signup-app-phone" class="auth-input" placeholder="10-digit mobile number" data-i18n-placeholder="ph_su_phone" required autocomplete="off">
+                <input type="tel" id="signup-app-phone" class="auth-input" placeholder="Enter 10-digit mobile number" data-i18n-placeholder="ph_su_phone" required autocomplete="off">
               </div>
             </div>
 
@@ -311,14 +351,14 @@
               <label class="auth-label" for="signin-officer-email" data-i18n="lbl_officer_email">Institutional Officer Email</label>
               <div class="auth-input-wrapper">
                 <span class="auth-input-icon">🛡️</span>
-                <input type="email" id="signin-officer-email" class="auth-input" placeholder="officer@meridianbank.in" data-i18n-placeholder="ph_off_email" required autocomplete="email">
+                <input type="email" id="signin-officer-email" class="auth-input" placeholder="officer@domain.in" data-i18n-placeholder="ph_off_email" required autocomplete="email">
               </div>
             </div>
 
             <div class="auth-form-group">
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <label class="auth-label" for="signin-officer-password" data-i18n="lbl_officer_pwd">Officer Password</label>
-                <a href="javascript:void(0)" onclick="openForgotPassword('officer')" style="font-size: 0.78rem; color: #064E3B; font-weight: 700; text-decoration: none;" data-i18n="link_forgot_pwd">Forgot Password?</a>
+                <a href="/forgot-password" onclick="event.preventDefault(); openForgotPassword('officer')" style="font-size: 0.78rem; color: #064E3B; font-weight: 700; text-decoration: none;" data-i18n="link_forgot_pwd">Forgot Password?</a>
               </div>
               <div class="auth-input-wrapper">
                 <span class="auth-input-icon">🔒</span>
@@ -348,7 +388,7 @@
               <label class="auth-label" for="signup-off-fullname" data-i18n="lbl_off_su_name">Officer Full Name</label>
               <div class="auth-input-wrapper">
                 <span class="auth-input-icon">🛡️</span>
-                <input type="text" id="signup-off-fullname" class="auth-input" placeholder="e.g. Vikram Sharma" data-i18n-placeholder="ph_off_name" required autocomplete="off">
+                <input type="text" id="signup-off-fullname" class="auth-input" placeholder="Enter officer full name" data-i18n-placeholder="ph_off_name" required autocomplete="off">
               </div>
             </div>
 
@@ -356,7 +396,7 @@
               <label class="auth-label" for="signup-off-email" data-i18n="lbl_officer_email">Institutional Officer Email</label>
               <div class="auth-input-wrapper">
                 <span class="auth-input-icon">✉️</span>
-                <input type="email" id="signup-off-email" class="auth-input" placeholder="officer@meridianbank.in" data-i18n-placeholder="ph_off_email" required autocomplete="off">
+                <input type="email" id="signup-off-email" class="auth-input" placeholder="officer@domain.in" data-i18n-placeholder="ph_off_email" required autocomplete="off">
               </div>
             </div>
 
@@ -377,7 +417,7 @@
               <label class="auth-label" for="signup-off-phone" data-i18n="lbl_su_phone">Mobile Number</label>
               <div class="auth-input-wrapper">
                 <span class="auth-input-icon">📱</span>
-                <input type="tel" id="signup-off-phone" class="auth-input" placeholder="10-digit mobile number" data-i18n-placeholder="ph_su_phone" required autocomplete="off">
+                <input type="tel" id="signup-off-phone" class="auth-input" placeholder="Enter 10-digit mobile number" data-i18n-placeholder="ph_su_phone" required autocomplete="off">
               </div>
             </div>
 
@@ -426,25 +466,44 @@
         <span data-i18n="auth_comp_4">RBI Fair Lending Framework</span>
       </div>
     </div>
+
+    <footer class="auth-landing-footer" role="contentinfo">
+      <div class="auth-landing-footer-inner">
+        <nav class="footer-nav-links" aria-label="Footer Links">
+          <a href="/applicant" onclick="handleSlugLinkClick(event, '/applicant')" data-i18n="nav_pub_applicant">Applicant Portal</a>
+          <a href="/officer" onclick="handleSlugLinkClick(event, '/officer')" data-i18n="nav_pub_officer">Officer Portal</a>
+          <a href="/privacy" onclick="handleSlugLinkClick(event, '/privacy')" data-i18n="foot_privacy">Privacy Policy</a>
+          <a href="/terms" onclick="handleSlugLinkClick(event, '/terms')" data-i18n="foot_terms">Terms of Service</a>
+          <a href="/grievance" onclick="handleSlugLinkClick(event, '/grievance')" data-i18n="foot_grievance">Grievance Redressal</a>
+          <a href="/sitemap.xml" target="_blank" rel="noopener noreferrer" data-i18n="foot_sitemap">Sitemap</a>
+        </nav>
+        <div class="footer-contact-row">
+          <span data-i18n-html="foot_contact_html">Toll-Free: <a href="tel:18002094000" class="contact-link">1800-209-4000</a> &bull; RBI Ombudsman: <a href="tel:14448" class="contact-link">14448</a> &bull; Email: <a href="mailto:grievance.bharat@meridian.fin" class="contact-link">grievance.bharat@meridian.fin</a></span>
+        </div>
+        <div class="footer-copyright" data-i18n="footer_disclaimer">
+          © 2026 Meridian FairLend. Operating in compliance with the Reserve Bank of India (RBI) Regulatory Framework for Digital Lending.
+        </div>
+      </div>
+    </footer>
   </div>
 
   <div id="app-shell" style="display: none;">
 
   <header class="app-header">
     <div class="header-container">
-      <div class="brand-wrapper">
-        <div class="brand-logo">M</div>
+      <a href="/" class="brand-wrapper" onclick="handleBrandLogoClick(event)" aria-label="Meridian FairLend AI Home">
+        <img src="/icons/icon-192.png" alt="Meridian FairLend AI Mission Bharat Logo" width="44" height="44" class="brand-logo-img">
         <div class="brand-info">
-          <h1>
+          <div class="brand-name-heading">
             <span data-i18n="brand_title">Meridian FairLend AI</span>
             <span class="brand-badge" data-i18n="brand_badge">Mission Bharat</span>
-          </h1>
+          </div>
           <div class="brand-tagline" data-i18n="brand_sub">AI-Powered Explainable Lending &amp; Demographic Equity Platform</div>
         </div>
-      </div>
+      </a>
 
       <div class="header-controls">
-        <button id="officer-site-toggle-pill" class="site-status-pill online nav-officer-item" style="display: none; cursor: pointer;" onclick="openSiteAvailabilityModal()" title="Control public website availability (Online / Offline)" data-i18n-title="title_site_toggle_pill">
+        <button id="officer-site-toggle-pill" type="button" class="site-status-pill online nav-officer-item" style="display: none; cursor: pointer;" onclick="openSiteAvailabilityModal()" title="Control public website availability (Online / Offline)" data-i18n-title="title_site_toggle_pill">
           <span class="status-dot"></span>
           <span id="officer-site-pill-text">Website: ONLINE</span>
         </button>
@@ -454,7 +513,7 @@
             <span id="user-display-name" class="user-auth-name">User</span>
             <span id="user-display-role" class="user-auth-role-badge applicant">Applicant</span>
           </div>
-          <button id="btn-logout" class="user-logout-btn" onclick="handleLogout()" title="Sign Out of Session" data-i18n-title="title_signout">
+          <button id="btn-logout" type="button" class="user-logout-btn" onclick="handleLogout()" title="Sign Out of Session" data-i18n-title="title_signout">
             <span>🚪</span> <span data-i18n="btn_signout">Sign Out</span>
           </button>
         </div>
@@ -463,7 +522,47 @@
           <span>⚙️</span> <span data-i18n="btn_settings">Settings</span>
         </button>
 
-        <button id="lang-toggle-btn" class="lang-btn" onclick="toggleLanguage()" title="Bilingual Language Switcher" data-i18n-title="title_lang_btn">🇮🇳 हिन्दी (Hindi)</button>
+        <button id="lang-toggle-btn" type="button" class="lang-btn" onclick="toggleLanguage()" title="Bilingual Language Switcher" data-i18n-title="title_lang_btn">🇮🇳 हिन्दी (Hindi)</button>
+
+        <button id="mobile-menu-toggle-app" type="button" class="mobile-menu-btn" aria-expanded="false" aria-controls="mobile-nav-drawer-app" aria-label="Open Navigation Menu" onclick="toggleMobileMenu('app')" data-i18n-title="title_mobile_menu" title="Open Navigation Menu">
+          <span>☰</span> <span data-i18n="btn_menu">Menu</span>
+        </button>
+      </div>
+    </div>
+
+    <div id="mobile-nav-drawer-app" class="mobile-nav-drawer" aria-label="Mobile Workspace Navigation" style="display: none;">
+      <button type="button" class="mobile-nav-link nav-applicant-item" data-mobile-tab="apply-view" onclick="activateWorkspaceTab('apply-view'); closeAllMobileMenus();" data-i18n-html="nav_apply">
+        <span>📝</span> 1. Apply for a Loan
+      </button>
+      <button type="button" class="mobile-nav-link nav-applicant-item" data-mobile-tab="applicant-view" onclick="activateWorkspaceTab('applicant-view'); closeAllMobileMenus();" data-i18n-html="nav_report">
+        <span>📊</span> 2. My Decision Report
+      </button>
+      <button type="button" class="mobile-nav-link nav-officer-item" data-mobile-tab="officer-view" style="display: none;" onclick="activateWorkspaceTab('officer-view'); closeAllMobileMenus();" data-i18n-html="nav_officer">
+        <span>⚙️</span> 1. Underwriting Cockpit &amp; SHAP Waterfall
+      </button>
+      <button id="mobile-drawer-vault-btn" type="button" class="mobile-nav-link nav-shared-vault" data-mobile-tab="database-view" onclick="activateWorkspaceTab('database-view'); closeAllMobileMenus();" data-i18n-html="nav_vault_applicant">
+        <span>🗄️</span> 3. My Applications Vault
+      </button>
+      <button type="button" class="mobile-nav-link nav-officer-item" data-mobile-tab="portfolio-view" style="display: none;" onclick="activateWorkspaceTab('portfolio-view'); closeAllMobileMenus();" data-i18n-html="nav_portfolio">
+        <span>📁</span> 3. Historical Portfolio
+      </button>
+      <button type="button" class="mobile-nav-link nav-officer-item" data-mobile-tab="model-view" style="display: none;" onclick="activateWorkspaceTab('model-view'); closeAllMobileMenus();" data-i18n-html="nav_accuracy">
+        <span>🎯</span> 4. Model Accuracy Report
+      </button>
+      <button type="button" class="mobile-nav-link nav-officer-item" data-mobile-tab="fairness-view" style="display: none;" onclick="activateWorkspaceTab('fairness-view'); closeAllMobileMenus();" data-i18n-html="nav_fairness">
+        <span>⚖️</span> 5. Fairness Across Groups
+      </button>
+      <div class="mobile-drawer-divider"></div>
+      <a href="/privacy" class="mobile-nav-link" onclick="handleSlugLinkClick(event, '/privacy'); closeAllMobileMenus();" data-i18n="foot_link_privacy">Privacy Policy</a>
+      <a href="/terms" class="mobile-nav-link" onclick="handleSlugLinkClick(event, '/terms'); closeAllMobileMenus();" data-i18n="foot_link_terms">Terms of Lending</a>
+      <a href="/grievance" class="mobile-nav-link" onclick="handleSlugLinkClick(event, '/grievance'); closeAllMobileMenus();" data-i18n="foot_link_grievance">RBI Grievance Redressal</a>
+      <div class="mobile-nav-contact">
+        <a href="tel:18002094000" class="mobile-nav-link" data-i18n="mob_call_helpline">Call Helpline: 1800-209-4000</a>
+        <a href="mailto:grievance.bharat@meridian.fin" class="mobile-nav-link" data-i18n="mob_email_support">Email: grievance.bharat@meridian.fin</a>
+      </div>
+      <div style="display: flex; gap: 0.5rem; margin-top: 0.35rem;">
+        <button type="button" class="btn btn-outline" style="flex: 1;" onclick="closeAllMobileMenus(); openSettingsModal();" data-i18n="btn_settings">Settings</button>
+        <button type="button" class="btn btn-saffron" style="flex: 1;" onclick="closeAllMobileMenus(); handleLogout();" data-i18n="btn_signout">Sign Out</button>
       </div>
     </div>
   </header>
@@ -509,6 +608,15 @@
   </nav>
 
   <main class="main-content">
+
+    <nav id="app-breadcrumbs" class="breadcrumb-bar" aria-label="Breadcrumb"></nav>
+
+    <div id="workspace-page-header" class="workspace-page-header">
+      <div>
+        <h2 id="workspace-page-heading" class="workspace-page-title" data-i18n="ws_apply_title">Apply for a Retail Loan</h2>
+        <p id="workspace-page-sub" class="workspace-page-sub" data-i18n="ws_apply_sub">Submit your transparent retail credit application for instant XAI underwriting and persistent vault archiving.</p>
+      </div>
+    </div>
 
     <div id="officer-offline-alert-banner" class="officer-offline-banner" style="display: none;">
       <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.85rem;">
@@ -591,7 +699,7 @@
           </div>
           <div id="letter-action-container" style="margin-top: 1.25rem;">
             <div id="letter-download-btn-group" style="display: none; gap: 0.75rem; flex-wrap: wrap;">
-              <button id="btn-open-letter" class="btn btn-saffron">
+              <button id="btn-open-letter" type="button" class="btn btn-saffron">
                 <span>📄</span> View &amp; Download Official Sanction Letter
               </button>
             </div>
@@ -696,7 +804,7 @@
             </div>
             <div style="display: flex; align-items: center; gap: 8px; margin-top: 6px;">
               <span style="font-size: 0.76rem; color: #4B6359;" data-i18n="lbl_sim_exact_loan">Exact amount (₹):</span>
-              <input type="number" id="sim-input-loan" class="form-control" min="1000" step="1" value="150000" placeholder="e.g. 150000" data-i18n-placeholder="ph_loan_amount" style="width: 135px; padding: 3px 8px; font-size: 0.85rem;">
+              <input type="number" id="sim-input-loan" class="form-control" min="1000" step="1" value="150000" placeholder="Enter loan amount (INR)" data-i18n-placeholder="ph_loan_amount" style="width: 135px; padding: 3px 8px; font-size: 0.85rem;">
             </div>
           </div>
 
@@ -827,7 +935,7 @@
             <div class="form-row">
               <div class="form-group">
                 <label class="form-label" data-i18n="off_lbl_name">Full Name / Reference</label>
-                <input type="text" id="input-name" class="form-control" value="Ananya Rao">
+                <input type="text" id="input-name" class="form-control" value="" placeholder="Enter applicant full name" data-i18n-placeholder="ph_off_ref_name">
               </div>
               <div class="form-group">
                 <label class="form-label" data-i18n="off_lbl_gender">Gender</label>
@@ -888,7 +996,7 @@
             <div class="form-row">
               <div class="form-group">
                 <label class="form-label" data-i18n="off_lbl_loan_amt">Loan Amount (₹)</label>
-                <input type="number" id="input-loan-amount" class="form-control" value="150000" min="1000" step="1" placeholder="e.g. 150000" data-i18n-placeholder="ph_loan_amount">
+                <input type="number" id="input-loan-amount" class="form-control" value="150000" min="1000" step="1" placeholder="Enter loan amount (INR)" data-i18n-placeholder="ph_loan_amount">
               </div>
               <div class="form-group">
                 <label class="form-label" data-i18n="off_lbl_tenure">Tenure (Months)</label>
@@ -964,7 +1072,7 @@
             </div>
 
             <div style="margin-bottom: 0.85rem;">
-              <input type="text" id="officer-remarks-input" class="auth-input" style="background: #FFFFFF;" placeholder="Enter official underwriting remarks (e.g., CIBIL score verified, DTI ratio compliant)..." data-i18n-placeholder="ph_officer_remarks">
+              <input type="text" id="officer-remarks-input" class="auth-input" style="background: #FFFFFF;" placeholder="Enter official underwriting remarks and justification..." data-i18n-placeholder="ph_officer_remarks">
             </div>
             <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
               <button type="button" id="btn-officer-approve" class="btn" style="background: #10B981; color: white;" data-i18n="btn_sanction_approve">
@@ -983,6 +1091,7 @@
                 📄 Preview / Issue Sanction Notice
               </button>
             </div>
+            <div id="officer-action-alert" class="auth-alert" style="display: none; margin-top: 0.85rem; margin-bottom: 0;"></div>
           </div>
         </div>
       </div>
@@ -996,6 +1105,7 @@
             <div class="card-subtitle" data-i18n="off_audit_sub">Complete chronological trail for internal RBI compliance inspection</div>
           </div>
         </div>
+        <div class="table-scroll-wrap">
         <table class="fairness-table">
           <thead>
             <tr>
@@ -1008,6 +1118,7 @@
           </thead>
           <tbody id="audit-table-body"></tbody>
         </table>
+        </div>
       </div>
     </section>
 
@@ -1156,6 +1267,7 @@
           </div>
         </div>
 
+        <div class="table-scroll-wrap">
         <table class="fairness-table">
           <thead>
             <tr>
@@ -1170,8 +1282,9 @@
           </thead>
           <tbody id="fairness-table-body"></tbody>
         </table>
+        </div>
 
-        <div style="margin-top: 1.5rem; display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; font-size: 0.82rem;">
+        <div class="grid-3" style="margin-top: 1.5rem; font-size: 0.82rem;">
           <div style="background: #F8FAFC; border: 1px solid #E2E8F0; padding: 1rem; border-radius: 8px;">
             <strong style="color: #064E3B;" data-i18n="fair_c1_t">Disparate Impact Ratio (DIR):</strong>
             <p style="color: #64748B; margin-top: 4px;" data-i18n-html="fair_c1_d">
@@ -1212,21 +1325,22 @@
           <input
             type="text"
             id="portfolio-search-input"
-            placeholder="Search by Loan ID or Region (e.g. LP001003, Rural)..."
+            placeholder="Search by Loan ID, territory, or profile..."
             data-i18n-placeholder="ph_portfolio_search"
             class="form-control"
-            style="flex: 1; min-width: 240px;"
+            style="flex: 1; min-width: 220px;"
             oninput="filterPortfolioSearch(this.value)"
           >
           <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-            <button class="btn btn-outline" onclick="setPortfolioFilter('all')" data-i18n="flt_all">All</button>
-            <button class="btn btn-outline" onclick="setPortfolioFilter('approved')" data-i18n="flt_approved">Approved</button>
-            <button class="btn btn-outline" onclick="setPortfolioFilter('rejected')" data-i18n="flt_rejected">Rejected</button>
-            <button class="btn btn-outline" onclick="setPortfolioFilter('rural')" data-i18n="flt_rural">Rural</button>
-            <button class="btn btn-outline" onclick="setPortfolioFilter('female')" data-i18n="flt_women">Women</button>
+            <button type="button" class="btn btn-primary" onclick="setPortfolioFilter('all')" data-i18n="flt_all">All</button>
+            <button type="button" class="btn btn-outline" onclick="setPortfolioFilter('approved')" data-i18n="flt_approved">Approved</button>
+            <button type="button" class="btn btn-outline" onclick="setPortfolioFilter('rejected')" data-i18n="flt_rejected">Rejected</button>
+            <button type="button" class="btn btn-outline" onclick="setPortfolioFilter('rural')" data-i18n="flt_rural">Rural</button>
+            <button type="button" class="btn btn-outline" onclick="setPortfolioFilter('female')" data-i18n="flt_women">Women</button>
           </div>
         </div>
 
+        <div class="table-scroll-wrap">
         <table class="fairness-table">
           <thead>
             <tr>
@@ -1243,11 +1357,12 @@
           </thead>
           <tbody id="portfolio-table-body"></tbody>
         </table>
+        </div>
 
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #E2E8F0;">
-          <button class="btn btn-outline" onclick="changePortfolioPage(-1)" data-i18n="btn_prev_page">← Previous</button>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #E2E8F0; flex-wrap: wrap; gap: 0.5rem;">
+          <button type="button" class="btn btn-outline" onclick="changePortfolioPage(-1)" data-i18n="btn_prev_page">← Previous</button>
           <span id="portfolio-page-indicator" style="font-size: 0.85rem; font-weight: 600; color: #475569;">Page 1</span>
-          <button class="btn btn-outline" onclick="changePortfolioPage(1)" data-i18n="btn_next_page">Next →</button>
+          <button type="button" class="btn btn-outline" onclick="changePortfolioPage(1)" data-i18n="btn_next_page">Next →</button>
         </div>
       </div>
     </section>
@@ -1302,7 +1417,7 @@
       </div>
 
       <div class="card">
-        <form id="loan-fillup-form" onsubmit="handleLoanApplicationSubmit(event)" autocomplete="off">
+        <form id="loan-fillup-form" onsubmit="handleLoanApplicationSubmit(event)" autocomplete="off" novalidate>
           <div class="grid-2">
 
             <div>
@@ -1312,13 +1427,13 @@
 
               <div class="form-group">
                 <label class="form-label" id="lbl-fill-name">Full Name of Applicant *</label>
-                <input type="text" id="fill-full-name" class="form-control" required autocomplete="off" placeholder="e.g. Ananya Rao, Devansh Kulkarni" data-i18n-placeholder="ph_fill_name">
+                <input type="text" id="fill-full-name" class="form-control" required autocomplete="off" placeholder="Enter applicant full name" data-i18n-placeholder="ph_fill_name">
               </div>
 
               <div class="form-row">
                 <div class="form-group">
                   <label class="form-label" id="lbl-fill-phone">Contact Mobile Number *</label>
-                  <input type="tel" id="fill-phone" class="form-control" required autocomplete="off" placeholder="10-digit mobile (e.g. 9876543210)" data-i18n-placeholder="ph_fill_phone">
+                  <input type="tel" id="fill-phone" class="form-control" required autocomplete="off" placeholder="Enter 10-digit mobile number" data-i18n-placeholder="ph_fill_phone">
                 </div>
                 <div class="form-group">
                   <label class="form-label" id="lbl-fill-gender">Gender *</label>
@@ -1429,7 +1544,7 @@
               <div class="form-row">
                 <div class="form-group">
                   <label class="form-label" id="lbl-fill-loan-amount">Requested Loan Amount (₹) *</label>
-                  <input type="number" id="fill-loan-amount" class="form-control" required value="150000" min="1000" step="1" placeholder="e.g. 150000" data-i18n-placeholder="ph_loan_amount" oninput="updateFillLoanHint(this.value)">
+                  <input type="number" id="fill-loan-amount" class="form-control" required value="150000" min="1000" step="1" placeholder="Enter loan amount (INR)" data-i18n-placeholder="ph_loan_amount" oninput="updateFillLoanHint(this.value)">
                   <div id="fill-loan-hint" style="font-size: 0.74rem; color: #4B6359; margin-top: 4px; font-weight: 600;" data-i18n="hint_loan_inr">₹1,50,000 (₹1.5 Lakh)</div>
                 </div>
                 <div class="form-group">
@@ -1495,6 +1610,8 @@
             </div>
           </div>
 
+          <div id="apply-form-alert" class="auth-alert" style="display: none; margin-top: 1rem; margin-bottom: 0;"></div>
+
           <div style="border-top: 1.5px solid #F2ECDE; padding-top: 1.25rem; margin-top: 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
             <div style="font-size: 0.8rem; color: #4B6359;" data-i18n-html="apply_footer_note">
               🔒 Guaranteed Data Encryption &bull; Stored in Meridian Vault &bull; Auditable under RBI Fair Practices Code
@@ -1540,6 +1657,7 @@
           </div>
         </div>
 
+        <div class="table-scroll-wrap">
         <table class="fairness-table">
           <thead>
             <tr>
@@ -1558,6 +1676,7 @@
           </thead>
           <tbody id="db-table-body"></tbody>
         </table>
+        </div>
 
         <div style="margin-top: 1.25rem; background: #FAF3E6; border: 1px solid #E8D7B8; border-radius: 8px; padding: 0.85rem 1rem; font-size: 0.82rem; color: #064E3B; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
           <div data-i18n-html="db_excel_tip">
@@ -1583,6 +1702,20 @@
       </div>
 
       <div class="fairlend-footer-divider" role="separator"></div>
+
+      <nav class="fairlend-footer-links" aria-label="Portal Footer Navigation">
+        <a href="/apply" onclick="handleSlugLinkClick(event, '/apply')" data-i18n="foot_link_apply">Apply for Loan</a>
+        <a href="/decision-report" onclick="handleSlugLinkClick(event, '/decision-report')" data-i18n="foot_link_report">Decision Report</a>
+        <a href="/vault" onclick="handleSlugLinkClick(event, '/vault')" data-i18n="foot_link_vault">Application Vault</a>
+        <a href="/privacy" onclick="handleSlugLinkClick(event, '/privacy')" data-i18n="foot_link_privacy">Privacy Policy</a>
+        <a href="/terms" onclick="handleSlugLinkClick(event, '/terms')" data-i18n="foot_link_terms">Terms of Lending</a>
+        <a href="/grievance" onclick="handleSlugLinkClick(event, '/grievance')" data-i18n="foot_link_grievance">RBI Grievance Redressal</a>
+        <a href="/sitemap.xml" target="_blank" rel="noopener noreferrer" data-i18n="foot_link_sitemap">Sitemap</a>
+      </nav>
+
+      <div class="fairlend-footer-contact">
+        <span data-i18n-html="foot_contact_html">Toll-Free: <a href="tel:18002094000" class="contact-link">1800-209-4000</a> &bull; RBI Ombudsman: <a href="tel:14448" class="contact-link">14448</a> &bull; Email: <a href="mailto:grievance.bharat@meridian.fin" class="contact-link">grievance.bharat@meridian.fin</a></span>
+      </div>
 
       <div class="fairlend-footer-bottom">
         <div class="fairlend-footer-brand-wrap">
@@ -1670,6 +1803,7 @@
             <span id="kfs-title-text" data-i18n="kfs_title">OFFICIAL RBI KEY FACT STATEMENT (KFS)</span>
             <span id="kfs-compliant-tag" style="font-size: 0.7rem; background: #F8E7C9; color: #064E3B; padding: 2px 8px; border-radius: 4px; font-weight: 800;" data-i18n="kfs_compliant">RBI Digital Lending Compliant</span>
           </div>
+          <div class="table-scroll-wrap">
           <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
             <tbody>
               <tr style="border-bottom: 1px solid #E2E8F0;">
@@ -1713,6 +1847,7 @@
               </tr>
             </tbody>
           </table>
+          </div>
         </div>
 
         <div id="letter-adverse-card" class="letter-adverse-box" style="display: none;">
@@ -1720,6 +1855,7 @@
             <span data-i18n="adv_title">APPLICATION UNDERWRITING SUMMARY (NO FACILITY SANCTIONED)</span>
             <span style="font-size: 0.7rem; background: #FEE2E2; color: #991B1B; padding: 2px 8px; border-radius: 4px; font-weight: 800;" data-i18n="adv_badge">RBI Fair Lending Disclosure</span>
           </div>
+          <div class="table-scroll-wrap">
           <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
             <tbody>
               <tr style="border-bottom: 1px solid #FECACA;">
@@ -1748,6 +1884,7 @@
               </tr>
             </tbody>
           </table>
+          </div>
         </div>
 
         <h4 style="font-size: 0.8rem; font-weight: 700; color: #0F172A; text-transform: uppercase; margin-bottom: 0.4rem; letter-spacing: 0.04em;" data-i18n="let_factors_heading">
@@ -1769,8 +1906,8 @@
 
         <div style="border-top: 1.5px solid #E2E8F0; padding-top: 0.75rem; font-size: 0.74rem; color: #475569; line-height: 1.5;" data-i18n-html="let_ombudsman_html">
           <strong>RBI Fair Practices Code &amp; Statutory Redressal Mechanism:</strong><br>
-          • <strong>Principal Grievance Redressal Officer:</strong> Smt. Shalini Verma, Nodal Grievance Officer, Meridian FairLend AI, Nariman Point, Mumbai 400021. Toll-Free: <code>1800-209-4000</code> | Email: <code>grievance.bharat@meridian.fin</code> (Resolution SLA: within 15 working days).<br>
-          • <strong>RBI Integrated Ombudsman Scheme:</strong> If your grievance is not redressed within 30 days, you have the statutory right under the Reserve Bank of India Integrated Ombudsman Scheme, 2021 to lodge a complaint online at <strong><a href="https://cms.rbi.org.in" target="_blank" style="color: #064E3B; font-weight: 700; text-decoration: underline;">https://cms.rbi.org.in</a></strong> or dial toll-free <code>14448</code>.
+          • <strong>Principal Grievance Redressal Officer:</strong> Smt. Shalini Verma, Nodal Grievance Officer, Meridian FairLend AI, Nariman Point, Mumbai 400021. Toll-Free: <a href="tel:18002094000" style="color: #064E3B; font-weight: 700;">1800-209-4000</a> | Email: <a href="mailto:grievance.bharat@meridian.fin" style="color: #064E3B; font-weight: 700;">grievance.bharat@meridian.fin</a> (Resolution SLA: within 15 working days).<br>
+          • <strong>RBI Integrated Ombudsman Scheme:</strong> If your grievance is not redressed within 30 days, you have the statutory right under the Reserve Bank of India Integrated Ombudsman Scheme, 2021 to lodge a complaint online at <strong><a href="https://cms.rbi.org.in" target="_blank" rel="noopener noreferrer" style="color: #064E3B; font-weight: 700; text-decoration: underline;">https://cms.rbi.org.in</a></strong> or dial toll-free <a href="tel:14448" style="color: #064E3B; font-weight: 700;">14448</a>.
         </div>
       </div>
 
@@ -1796,7 +1933,7 @@
         <h3 style="color: #064E3B; font-size: 1.25rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
           <span>🔌</span> <span data-i18n="modal_api_title">FastAPI Backend Connection Hub</span>
         </h3>
-        <button class="btn btn-outline" style="padding: 2px 8px; font-size: 0.85rem;" onclick="toggleBackendInfoModal()">✕</button>
+        <button type="button" class="btn btn-outline" style="padding: 2px 8px; font-size: 0.85rem;" onclick="toggleBackendInfoModal()">✕</button>
       </div>
 
       <div style="margin-bottom: 1.25rem;">
@@ -1811,24 +1948,25 @@
 
       <div id="modal-backend-details" style="font-size: 0.85rem; line-height: 1.6; color: #334155;">
         <p><strong data-i18n="modal_api_status_lbl">Status:</strong> <span id="modal-backend-status-desc">Checking REST API endpoint connectivity...</span></p>
-        <p style="margin-top: 0.5rem;" data-i18n-html="modal_api_docs_note">All authentication, underwriting scoring, SHAP explainability, and fairness checks communicate live with FastAPI (<a id="modal-swagger-link" href="/docs" target="_blank" style="color: #064E3B; font-weight: 700; text-decoration: underline;">OpenAPI /docs</a>).</p>
+        <p style="margin-top: 0.5rem;" data-i18n-html="modal_api_docs_note">All authentication, underwriting scoring, SHAP explainability, and fairness checks communicate live with FastAPI (<a id="modal-swagger-link" href="/docs" target="_blank" rel="noopener noreferrer" style="color: #064E3B; font-weight: 700; text-decoration: underline;">OpenAPI /docs</a>).</p>
       </div>
 
       <div style="background: #FDFBF7; border: 1px solid #E6DDCF; border-radius: 8px; padding: 0.9rem; margin-top: 1rem; font-size: 0.82rem;">
         <strong style="color: #064E3B;" data-i18n="modal_api_custom_t">Connect Custom Internet Backend URL (Optional):</strong>
         <p style="color: #64748B; margin: 4px 0 8px 0;" data-i18n="modal_api_custom_d">If serving frontend separately, enter your deployed internet API base URL:</p>
         <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-          <input type="url" id="custom-api-base-input" class="form-control" placeholder="https://your-service.up.railway.app" data-i18n-placeholder="ph_custom_api" style="flex: 1; min-width: 220px; font-size: 0.82rem;">
+          <input type="url" id="custom-api-base-input" class="form-control" placeholder="https://api.example.com" data-i18n-placeholder="ph_custom_api" style="flex: 1; min-width: 220px; font-size: 0.82rem;">
           <button type="button" class="btn btn-primary" style="padding: 6px 12px; font-size: 0.8rem;" onclick="saveCustomApiBase()" data-i18n="btn_save_url">Save URL</button>
           <button type="button" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.8rem;" onclick="resetCustomApiBase()" data-i18n="btn_auto_detect">Auto-Detect</button>
         </div>
+        <div id="backend-info-alert" class="auth-alert" style="display: none; margin-top: 0.75rem; margin-bottom: 0;"></div>
       </div>
 
       <div style="margin-top: 1.5rem; display: flex; justify-content: flex-end; gap: 0.75rem;">
-        <button id="btn-reconnect-backend" class="btn btn-primary" onclick="checkBackendConnection(true)">
+        <button id="btn-reconnect-backend" type="button" class="btn btn-primary" onclick="checkBackendConnection(true)">
           <span>🔄</span> <span data-i18n="btn_test_reconnect">Test &amp; Reconnect</span>
         </button>
-        <button class="btn btn-outline" onclick="toggleBackendInfoModal()" data-i18n="btn_close">Close</button>
+        <button type="button" class="btn btn-outline" onclick="toggleBackendInfoModal()" data-i18n="btn_close">Close</button>
       </div>
     </div>
   </div>
@@ -1839,7 +1977,7 @@
         <h3 style="color: #064E3B; font-size: 1.2rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
           <span>🌐</span> <span data-i18n="modal_site_title">Website Online / Offline Control</span>
         </h3>
-        <button class="btn btn-outline" style="padding: 2px 8px; font-size: 0.85rem;" onclick="closeSiteAvailabilityModal()">✕</button>
+        <button type="button" class="btn btn-outline" style="padding: 2px 8px; font-size: 0.85rem;" onclick="closeSiteAvailabilityModal()">✕</button>
       </div>
 
       <div style="display: flex; justify-content: space-between; align-items: center; background: #FAF3E6; border: 1.5px solid #E8D7B8; border-radius: 8px; padding: 0.85rem 1rem; margin-bottom: 1.1rem;">
@@ -2286,6 +2424,26 @@
   </div>
 </div>
 <div id="meridian-toast-container" class="toast-container"></div>
-<script src="app.js"></script>
+
+<div id="public-info-modal" class="modal-overlay" style="display: none;">
+  <div class="modal-content public-info-modal-content">
+    <div class="public-info-header">
+      <div>
+        <div id="public-info-badge" class="badge badge-info" style="margin-bottom: 0.35rem;" data-i18n="pub_info_badge">RBI Regulatory Disclosure</div>
+        <h2 id="public-info-heading" class="public-info-title">Regulatory Information</h2>
+      </div>
+      <button type="button" class="btn btn-outline" style="padding: 2px 9px; font-size: 0.85rem;" onclick="closePublicInfoModal()">✕</button>
+    </div>
+    <div id="public-info-body" class="public-info-body"></div>
+    <div class="public-info-footer">
+      <div style="font-size: 0.8rem; color: #475569;">
+        <span data-i18n-html="foot_contact_html">Toll-Free: <a href="tel:18002094000" class="contact-link">1800-209-4000</a> &bull; RBI Ombudsman: <a href="tel:14448" class="contact-link">14448</a> &bull; Email: <a href="mailto:grievance.bharat@meridian.fin" class="contact-link">grievance.bharat@meridian.fin</a></span>
+      </div>
+      <button type="button" class="btn btn-primary" onclick="closePublicInfoModal()" data-i18n="btn_close">Close</button>
+    </div>
+  </div>
+</div>
+
+<script src="/app.js" defer></script>
 </body>
 </html>

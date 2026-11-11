@@ -1,14 +1,18 @@
-const CACHE_NAME = 'meridian-fairlend-v1';
+const CACHE_NAME = 'meridian-fairlend-v2';
 const PRECACHE_URLS = [
   '/',
   '/index.html',
   '/styles.css',
   '/app.js',
-  '/dataset_data.js',
   '/manifest.webmanifest',
+  '/favicon.ico',
+  '/favicon.svg',
+  '/icons/favicon-32x32.png',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
-  '/icons/apple-touch-icon.png'
+  '/icons/apple-touch-icon.png',
+  '/icons/og-share.png',
+  '/404.html'
 ];
 
 self.addEventListener('install', (event) => {
@@ -53,6 +57,9 @@ self.addEventListener('fetch', (event) => {
     path.startsWith('/api/') ||
     path.startsWith('/downloads/') ||
     path.startsWith('/.well-known/') ||
+    path === '/sitemap.xml' ||
+    path === '/robots.txt' ||
+    path === '/urllist.txt' ||
     path === '/docs' ||
     path === '/redoc' ||
     path === '/openapi.json'

@@ -1,11 +1,16 @@
+import html as html_lib
+import json
 import os
+import re
 from contextlib import asynccontextmanager
 from typing import Dict, Any
 
 from fastapi import FastAPI, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from backend import load_sample_dataset
 import database
@@ -71,6 +76,312 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["*"],
 )
+app.add_middleware(GZipMiddleware, minimum_size=500)
+
+DEFAULT_CANONICAL_BASE = "https://meridian-fairlend-production.up.railway.app"
+SITE_LASTMOD = "2026-11-11"
+
+SLUG_SEO_META: Dict[str, Dict[str, str]] = {
+    "/": {
+        "title": "Meridian FairLend AI • MISSION BHARAT | Explainable Loan Decision System",
+        "description": "Meridian FairLend Mission Bharat: Transparent credit underwriting, SHAP explainability, counterfactual scenario simulation, and algorithmic equity portal.",
+        "crumb": "Home",
+        "priority": "1.0",
+    },
+    "/applicant": {
+        "title": "Applicant Loan Portal • Apply & Track Loans | Meridian FairLend AI",
+        "description": "Sign in or register as an Applicant on Meridian FairLend AI to submit loan requests, test interactive What-If scenarios, and download RBI Key Fact Statements.",
+        "crumb": "Applicant Portal",
+        "priority": "0.95",
+    },
+    "/officer": {
+        "title": "Loan Officer Institutional Portal & Cockpit | Meridian FairLend AI",
+        "description": "Institutional Loan Officer portal for real-time SHAP underwriting inspection, regulatory audit trails, portfolio analytics, and 80% fairness calibration.",
+        "crumb": "Officer Portal",
+        "priority": "0.95",
+    },
+    "/apply": {
+        "title": "Apply for a Retail Loan • Direct Borrower Intake | Meridian FairLend AI",
+        "description": "Submit a transparent retail credit application in INR with CIBIL calibration, 1-to-30 year flexible tenure, and instant AI underwriting assessment.",
+        "crumb": "Apply for a Loan",
+        "priority": "0.90",
+    },
+    "/decision-report": {
+        "title": "Decision Report & Counterfactual Simulator | Meridian FairLend AI",
+        "description": "Inspect plain-language AI decision breakdowns, adjust interactive loan What-If sliders, and print official RBI Key Fact Statement (KFS) letters.",
+        "crumb": "Decision Report",
+        "priority": "0.85",
+    },
+    "/vault": {
+        "title": "Application Vault & Registry | Meridian FairLend AI",
+        "description": "Access permanently archived loan applications, CSV/JSON/SQLite exports, and live officer sanction statuses in the Meridian Vault.",
+        "crumb": "Application Vault",
+        "priority": "0.85",
+    },
+    "/underwriting-cockpit": {
+        "title": "Underwriting Cockpit & SHAP Waterfall | Meridian FairLend AI",
+        "description": "Evaluate borrower variables live with additive SHAP attribution, DTI ratios, and institutional sanction recording.",
+        "crumb": "Underwriting Cockpit",
+        "priority": "0.80",
+    },
+    "/portfolio": {
+        "title": "Historical Lending Portfolio Analytics | Meridian FairLend AI",
+        "description": "Browse, search, and audit historical retail loan records across rural, semi-urban, and metropolitan Mission Bharat segments.",
+        "crumb": "Historical Portfolio",
+        "priority": "0.80",
+    },
+    "/model-accuracy": {
+        "title": "Model Accuracy & Confusion Matrix Report | Meridian FairLend AI",
+        "description": "Review holdout validation accuracy, ROC-AUC metrics, confusion matrix breakdowns, and global feature weights for regulatory governance.",
+        "crumb": "Model Accuracy",
+        "priority": "0.80",
+    },
+    "/fairness-audit": {
+        "title": "Demographic Parity & 80% Fairness Audit | Meridian FairLend AI",
+        "description": "Monitor four-fifths (80%) Disparate Impact Ratios and Equal Opportunity TPR parity across gender, territory, and education groups.",
+        "crumb": "Fairness Audit",
+        "priority": "0.80",
+    },
+    "/privacy": {
+        "title": "Privacy Policy & DPDP Act 2023 Compliance | Meridian FairLend AI",
+        "description": "Read how Meridian FairLend AI protects borrower identity, CIBIL disclosures, PBKDF2 security, and Digital Personal Data Protection compliance.",
+        "crumb": "Privacy Policy",
+        "priority": "0.70",
+    },
+    "/terms": {
+        "title": "Terms of Service & RBI Digital Lending Framework | Meridian FairLend AI",
+        "description": "Review lending terms, statutory 3-day cooling-off period rights, zero processing fees, and Fair Practices Code obligations.",
+        "crumb": "Terms of Service",
+        "priority": "0.70",
+    },
+    "/grievance": {
+        "title": "Grievance Redressal & RBI Ombudsman | Meridian FairLend AI",
+        "description": "Contact the Nodal Grievance Officer on toll-free 1800-209-4000 or grievance.bharat@meridian.fin and escalate via the RBI Integrated Ombudsman Scheme (14448).",
+        "crumb": "Grievance Redressal",
+        "priority": "0.75",
+    },
+    "/forgot-password": {
+        "title": "Reset Account Password via Email OTP | Meridian FairLend AI",
+        "description": "Recover access to your Meridian FairLend AI Applicant or Loan Officer account using 6-digit verified email OTP.",
+        "crumb": "Reset Password",
+        "priority": "0.50",
+    },
+}
+
+
+def get_public_base_url(request: Request) -> str:
+    env_base = os.environ.get("PUBLIC_BASE_URL", "").strip().rstrip("/")
+    if env_base:
+        return env_base
+    fwd_host = (request.headers.get("x-forwarded-host") or "").split(",")[0].strip()
+    host = fwd_host or (request.headers.get("host") or "").strip()
+    fwd_proto = (request.headers.get("x-forwarded-proto") or "").split(",")[0].strip()
+    proto = fwd_proto or request.url.scheme or "https"
+    if host and host not in ("testserver", "testclient"):
+        return f"{proto}://{host}".rstrip("/")
+    return DEFAULT_CANONICAL_BASE
+
+
+def build_json_ld_payload(base_url: str, canonical_url: str, slug_path: str, crumb_label: str) -> str:
+    og_img = f"{base_url}/icons/og-share.png"
+    logo_img = f"{base_url}/icons/icon-512.png"
+    breadcrumb_items = [
+        {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Home",
+            "item": f"{base_url}/",
+        }
+    ]
+    if slug_path != "/":
+        breadcrumb_items.append(
+            {
+                "@type": "ListItem",
+                "position": 2,
+                "name": crumb_label,
+                "item": canonical_url,
+            }
+        )
+
+    payload = {
+        "@context": "https://schema.org",
+        "@graph": [
+            {
+                "@type": "Organization",
+                "@id": f"{base_url}/#organization",
+                "name": "Meridian FairLend AI",
+                "url": f"{base_url}/",
+                "logo": {
+                    "@type": "ImageObject",
+                    "url": logo_img,
+                    "width": 512,
+                    "height": 512,
+                },
+                "telephone": "+91-1800-209-4000",
+                "email": "grievance.bharat@meridian.fin",
+            },
+            {
+                "@type": ["FinancialService", "LocalBusiness"],
+                "@id": f"{base_url}/#localbusiness",
+                "name": "Meridian FairLend AI — Mission Bharat",
+                "description": "AI-powered explainable retail credit underwriting and demographic fairness lending institution operating under RBI Digital Lending Directions.",
+                "url": f"{base_url}/",
+                "image": [og_img, logo_img],
+                "telephone": "+91-1800-209-4000",
+                "email": "grievance.bharat@meridian.fin",
+                "priceRange": "₹0 Processing Fee",
+                "areaServed": "IN",
+                "address": {
+                    "@type": "PostalAddress",
+                    "streetAddress": "Inclusive Retail Credit Division, Nariman Point",
+                    "addressLocality": "Mumbai",
+                    "addressRegion": "MH",
+                    "postalCode": "400021",
+                    "addressCountry": "IN",
+                },
+                "geo": {
+                    "@type": "GeoCoordinates",
+                    "latitude": 18.9256,
+                    "longitude": 72.8242,
+                },
+                "openingHoursSpecification": [
+                    {
+                        "@type": "OpeningHoursSpecification",
+                        "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+                        "opens": "09:00",
+                        "closes": "19:00",
+                    }
+                ],
+                "contactPoint": {
+                    "@type": "ContactPoint",
+                    "telephone": "+91-1800-209-4000",
+                    "email": "grievance.bharat@meridian.fin",
+                    "contactType": "customer service",
+                    "areaServed": "IN",
+                    "availableLanguage": ["en", "hi"],
+                },
+            },
+            {
+                "@type": "WebSite",
+                "@id": f"{base_url}/#website",
+                "url": f"{base_url}/",
+                "name": "Meridian FairLend AI",
+                "publisher": {"@id": f"{base_url}/#organization"},
+                "inLanguage": ["en-IN", "hi-IN"],
+            },
+            {
+                "@type": "BreadcrumbList",
+                "@id": f"{canonical_url}#breadcrumb",
+                "itemListElement": breadcrumb_items,
+            },
+        ],
+    }
+    return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+
+
+def inject_seo_into_html(html_text: str, base_url: str, slug_path: str) -> str:
+    meta = SLUG_SEO_META.get(slug_path, SLUG_SEO_META["/"])
+    title_esc = html_lib.escape(meta["title"])
+    desc_esc = html_lib.escape(meta["description"])
+    canonical_url = f"{base_url}/" if slug_path == "/" else f"{base_url}{slug_path}"
+    canonical_esc = html_lib.escape(canonical_url)
+    og_image_esc = html_lib.escape(f"{base_url}/icons/og-share.png")
+    json_ld = build_json_ld_payload(base_url, canonical_url, slug_path, meta["crumb"])
+
+    out = re.sub(r"<title>.*?</title>", f"<title>{title_esc}</title>", html_text, count=1, flags=re.DOTALL)
+    out = re.sub(
+        r'<meta name="description" content="[^"]*">',
+        f'<meta name="description" content="{desc_esc}">',
+        out,
+        count=1,
+    )
+    out = re.sub(
+        r'<link rel="canonical" href="[^"]*">',
+        f'<link rel="canonical" href="{canonical_esc}">',
+        out,
+        count=1,
+    )
+    out = re.sub(
+        r'<meta property="og:title" content="[^"]*">',
+        f'<meta property="og:title" content="{title_esc}">',
+        out,
+        count=1,
+    )
+    out = re.sub(
+        r'<meta property="og:description" content="[^"]*">',
+        f'<meta property="og:description" content="{desc_esc}">',
+        out,
+        count=1,
+    )
+    out = re.sub(
+        r'<meta property="og:url" content="[^"]*">',
+        f'<meta property="og:url" content="{canonical_esc}">',
+        out,
+        count=1,
+    )
+    out = re.sub(
+        r'<meta property="og:image" content="[^"]*">',
+        f'<meta property="og:image" content="{og_image_esc}">',
+        out,
+        count=1,
+    )
+    out = re.sub(
+        r'<meta name="twitter:title" content="[^"]*">',
+        f'<meta name="twitter:title" content="{title_esc}">',
+        out,
+        count=1,
+    )
+    out = re.sub(
+        r'<meta name="twitter:description" content="[^"]*">',
+        f'<meta name="twitter:description" content="{desc_esc}">',
+        out,
+        count=1,
+    )
+    out = re.sub(
+        r'<meta name="twitter:image" content="[^"]*">',
+        f'<meta name="twitter:image" content="{og_image_esc}">',
+        out,
+        count=1,
+    )
+    out = re.sub(
+        r'<script id="structured-data-jsonld" type="application/ld\+json">.*?</script>',
+        f'<script id="structured-data-jsonld" type="application/ld+json">{json_ld}</script>',
+        out,
+        count=1,
+        flags=re.DOTALL,
+    )
+    return out
+
+
+def render_404_page(request: Request) -> HTMLResponse:
+    base_url = get_public_base_url(request)
+    f404 = os.path.join(BASE_DIR, "404.html")
+    if os.path.exists(f404):
+        with open(f404, "r", encoding="utf-8") as fh:
+            content = fh.read()
+        content = content.replace(DEFAULT_CANONICAL_BASE, base_url)
+        return HTMLResponse(content=content, status_code=status.HTTP_404_NOT_FOUND)
+    return HTMLResponse(
+        content="<!DOCTYPE html><html lang='en'><head><meta charset='UTF-8'><title>404 — Page Not Found | Meridian FairLend AI</title></head><body><h1>404 — Page Not Found</h1><p><a href='/'>Return Home</a></p></body></html>",
+        status_code=status.HTTP_404_NOT_FOUND,
+    )
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    path = request.url.path or "/"
+    if path.startswith("/api/") or path.startswith("/downloads/") or path.startswith("/icons/"):
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"success": False, "error": exc.detail},
+        )
+    if exc.status_code == status.HTTP_404_NOT_FOUND:
+        return render_404_page(request)
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"success": False, "error": exc.detail},
+    )
+
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
@@ -100,14 +411,42 @@ app.include_router(system_router)
 
 @app.get("/", include_in_schema=False)
 @app.get("/index.html", include_in_schema=False)
-async def serve_index():
+@app.get("/applicant", include_in_schema=False)
+@app.get("/officer", include_in_schema=False)
+@app.get("/apply", include_in_schema=False)
+@app.get("/decision-report", include_in_schema=False)
+@app.get("/vault", include_in_schema=False)
+@app.get("/underwriting-cockpit", include_in_schema=False)
+@app.get("/portfolio", include_in_schema=False)
+@app.get("/model-accuracy", include_in_schema=False)
+@app.get("/fairness-audit", include_in_schema=False)
+@app.get("/privacy", include_in_schema=False)
+@app.get("/terms", include_in_schema=False)
+@app.get("/grievance", include_in_schema=False)
+@app.get("/forgot-password", include_in_schema=False)
+async def serve_index(request: Request):
     index_file = os.path.join(BASE_DIR, "index.html")
     if os.path.exists(index_file):
-        return FileResponse(index_file, media_type="text/html")
+        with open(index_file, "r", encoding="utf-8") as fh:
+            raw_html = fh.read()
+        raw_path = (request.url.path or "/").rstrip("/") or "/"
+        slug_path = "/" if raw_path == "/index.html" else raw_path
+        base_url = get_public_base_url(request)
+        rendered = inject_seo_into_html(raw_html, base_url, slug_path)
+        return HTMLResponse(
+            content=rendered,
+            status_code=status.HTTP_200_OK,
+            headers={"Cache-Control": "no-cache, must-revalidate"},
+        )
     return JSONResponse(
         status_code=status.HTTP_404_NOT_FOUND,
         content={"error": "index.html not found"}
     )
+
+
+@app.get("/404.html", include_in_schema=False)
+async def serve_custom_404_file(request: Request):
+    return render_404_page(request)
 
 @app.get("/styles.css", include_in_schema=False)
 async def serve_css():
@@ -172,6 +511,8 @@ ALLOWED_ICONS = {
     "icon-512.png": "image/png",
     "icon-maskable-512.png": "image/png",
     "apple-touch-icon.png": "image/png",
+    "favicon-32x32.png": "image/png",
+    "og-share.png": "image/png",
     "app-icon.ico": "image/x-icon",
 }
 
@@ -303,10 +644,62 @@ async def serve_favicon():
     return Response(content=svg_icon, media_type="image/svg+xml", status_code=status.HTTP_200_OK)
 
 @app.get("/robots.txt", include_in_schema=False)
-async def serve_robots():
+async def serve_robots(request: Request):
+    base_url = get_public_base_url(request)
+    robots_body = (
+        "User-agent: *\n"
+        "Allow: /\n"
+        "Disallow: /api/\n"
+        "Disallow: /downloads/\n"
+        f"Sitemap: {base_url}/sitemap.xml\n"
+    )
     return Response(
-        content="User-agent: *\nAllow: /\nDisallow: /api/\n",
-        media_type="text/plain",
+        content=robots_body,
+        media_type="text/plain; charset=utf-8",
+        status_code=status.HTTP_200_OK
+    )
+
+
+@app.get("/sitemap.xml", include_in_schema=False)
+async def serve_sitemap(request: Request):
+    base_url = get_public_base_url(request)
+    url_nodes = []
+    for slug_path, meta in SLUG_SEO_META.items():
+        if slug_path == "/forgot-password":
+            continue
+        loc = f"{base_url}/" if slug_path == "/" else f"{base_url}{slug_path}"
+        url_nodes.append(
+            f"  <url>\n"
+            f"    <loc>{html_lib.escape(loc)}</loc>\n"
+            f"    <lastmod>{SITE_LASTMOD}</lastmod>\n"
+            f"    <changefreq>weekly</changefreq>\n"
+            f"    <priority>{meta.get('priority', '0.7')}</priority>\n"
+            f"  </url>"
+        )
+    xml_doc = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+        + "\n".join(url_nodes)
+        + "\n</urlset>\n"
+    )
+    return Response(
+        content=xml_doc,
+        media_type="application/xml; charset=utf-8",
+        status_code=status.HTTP_200_OK
+    )
+
+
+@app.get("/urllist.txt", include_in_schema=False)
+async def serve_urllist(request: Request):
+    base_url = get_public_base_url(request)
+    lines = [
+        f"{base_url}/" if slug_path == "/" else f"{base_url}{slug_path}"
+        for slug_path in SLUG_SEO_META.keys()
+        if slug_path != "/forgot-password"
+    ]
+    return Response(
+        content="\n".join(lines) + "\n",
+        media_type="text/plain; charset=utf-8",
         status_code=status.HTTP_200_OK
     )
 

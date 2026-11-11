@@ -1021,6 +1021,94 @@ def run_tests():
         assert fake_js_str not in js_src, f"Hardcoded mock impact/ref string {fake_js_str!r} still present in /app.js"
     print("[PASS] 41. Single-flow Print/PDF @media print isolation + Authentic RBI KFS / Adverse Action Notice & real SHAP attribution verified")
 
+    import json as json_mod
+
+    r_robots = client.get("/robots.txt")
+    assert r_robots.status_code == 200
+    assert "User-agent: *" in r_robots.text
+    assert "Disallow: /api/" in r_robots.text
+    assert "Sitemap:" in r_robots.text and "/sitemap.xml" in r_robots.text
+
+    r_sitemap = client.get("/sitemap.xml")
+    assert r_sitemap.status_code == 200 and "application/xml" in r_sitemap.headers.get("content-type", "")
+    for sm_slug in ("/applicant", "/officer", "/apply", "/privacy", "/terms", "/grievance"):
+        assert sm_slug in r_sitemap.text, f"Missing {sm_slug} in /sitemap.xml"
+
+    r_urllist = client.get("/urllist.txt")
+    assert r_urllist.status_code == 200 and "/privacy" in r_urllist.text and "/grievance" in r_urllist.text
+
+    r_fav32 = client.get("/icons/favicon-32x32.png")
+    assert r_fav32.status_code == 200 and r_fav32.content.startswith(b"\x89PNG")
+    r_og = client.get("/icons/og-share.png")
+    assert r_og.status_code == 200 and r_og.content.startswith(b"\x89PNG") and len(r_og.content) > 10000
+
+    seo_titles = {}
+    for slug in (
+        "/",
+        "/applicant",
+        "/officer",
+        "/apply",
+        "/decision-report",
+        "/vault",
+        "/underwriting-cockpit",
+        "/portfolio",
+        "/model-accuracy",
+        "/fairness-audit",
+        "/privacy",
+        "/terms",
+        "/grievance",
+    ):
+        r_slug = client.get(slug)
+        assert r_slug.status_code == 200, f"Expected 200 on {slug}, got {r_slug.status_code}"
+        s_html = r_slug.text
+        t_start = s_html.index("<title>") + 7
+        t_end = s_html.index("</title>")
+        page_title = s_html[t_start:t_end].strip()
+        assert page_title and "Vite" not in page_title and "React" not in page_title
+        seo_titles[slug] = page_title
+        expected_canon = "https://meridian-fairlend-production.up.railway.app/" if slug == "/" else f"https://meridian-fairlend-production.up.railway.app{slug}"
+        assert f'<link rel="canonical" href="{expected_canon}">' in s_html
+        assert '<meta name="description"' in s_html
+        assert '<meta property="og:image"' in s_html and '/icons/og-share.png"' in s_html
+        assert '<meta name="twitter:card" content="summary_large_image">' in s_html
+        ld_marker = '<script id="structured-data-jsonld" type="application/ld+json">'
+        ld_s = s_html.index(ld_marker) + len(ld_marker)
+        ld_e = s_html.index("</script>", ld_s)
+        ld_json = json_mod.loads(s_html[ld_s:ld_e])
+        graph_types = []
+        for node in ld_json.get("@graph", []):
+            nt = node.get("@type")
+            if isinstance(nt, list):
+                graph_types.extend(nt)
+            elif nt:
+                graph_types.append(nt)
+        assert "LocalBusiness" in graph_types and "FinancialService" in graph_types and "BreadcrumbList" in graph_types
+    assert len(set(seo_titles.values())) == len(seo_titles), "Each clean URL slug must inject a distinct page title"
+
+    r_404_web = client.get("/this-page-does-not-exist-404-check")
+    assert r_404_web.status_code == 404
+    assert "text/html" in r_404_web.headers.get("content-type", "")
+    assert "<h1 " in r_404_web.text and "Page Not Found</h1>" in r_404_web.text
+    assert "© 2026" in r_404_web.text
+
+    r_404_api = client.get("/api/this-endpoint-does-not-exist")
+    assert r_404_api.status_code == 404
+    assert r_404_api.json().get("success") is False
+
+    assert 'href="tel:18002094000"' in html_src
+    assert 'href="mailto:grievance.bharat@meridian.fin"' in html_src
+    assert 'id="mobile-menu-toggle-auth"' in html_src and 'id="mobile-menu-toggle-app"' in html_src
+    assert 'id="mobile-nav-drawer-auth"' in html_src and 'id="mobile-nav-drawer-app"' in html_src
+    assert 'id="public-breadcrumbs"' in html_src and 'id="app-breadcrumbs"' in html_src
+    assert 'id="public-info-modal"' in html_src
+    assert "© 2026 Meridian FairLend" in html_src
+    assert '<script src="dataset_data.js"></script>' not in html_src
+    assert '<script src="/app.js" defer></script>' in html_src
+    assert "sourceMappingURL" not in js_src and "sourceMappingURL" not in css_src
+    assert "Vite" not in html_src and "React" not in html_src
+    assert "ensureDatasetLoaded" in js_src and "syncDocumentSeoAndBreadcrumbs" in js_src and "syncVisibleH1Tag" in js_src
+    print("[PASS] 42. Clean Slugs, Unique Meta/Canonical/JSON-LD Schema, Sitemap/Robots/UrlList, Custom 404, Mobile Menus, Clickable Links & Lazy Bundle verified")
+
     print("=" * 70)
     print("ALL FASTAPI ENDPOINTS & POLICIES VALIDATED SUCCESSFULLY (100% PASS)")
     print("=" * 70)
