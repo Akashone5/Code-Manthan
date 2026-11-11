@@ -806,7 +806,7 @@ def create_user_profile(full_name: str, email: str, phone: str, password: str,
 
     with get_sqlite_conn() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id FROM profiles WHERE email = ?", (email,))
+        cursor.execute("SELECT id FROM profiles WHERE LOWER(email) = ?", (email,))
         if cursor.fetchone():
             raise ValueError(f"An account with email '{email}' already exists. Please sign in.")
 
@@ -913,7 +913,7 @@ def authenticate_user(email: str, password: str) -> Dict[str, Any]:
 
     with get_sqlite_conn() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM profiles WHERE email = ?", (email,))
+        cursor.execute("SELECT * FROM profiles WHERE LOWER(email) = ?", (email,))
         row = cursor.fetchone()
 
         if not row:
@@ -941,7 +941,7 @@ def authenticate_user(email: str, password: str) -> Dict[str, Any]:
 def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
     with get_sqlite_conn() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, full_name, email, phone, role, is_verified_officer, created_at FROM profiles WHERE email = ?", (email.strip().lower(),))
+        cursor.execute("SELECT id, full_name, email, phone, role, is_verified_officer, created_at FROM profiles WHERE LOWER(email) = ?", (email.strip().lower(),))
         row = cursor.fetchone()
         return dict(row) if row else None
 
@@ -951,6 +951,93 @@ def get_user_profile(user_id: str) -> Optional[Dict[str, Any]]:
         cursor.execute("SELECT id, full_name, email, phone, role, is_verified_officer, created_at FROM profiles WHERE id = ?", (user_id,))
         row = cursor.fetchone()
         return dict(row) if row else None
+
+def update_user_profile(user_id: str, full_name: str, email: str) -> Dict[str, Any]:
+    clean_uid = str(user_id or '').strip()
+    clean_name = (full_name or '').strip()
+    clean_email = (email or '').strip().lower()
+
+    if not clean_uid:
+        raise ValueError("User identifier is required.")
+    if len(clean_name) < 2:
+        raise ValueError("Full Name must be at least 2 characters.")
+    if not validate_email_format(clean_email):
+        raise ValueError("Please enter a valid email address.")
+
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    apps_updated = 0
+
+    with get_sqlite_conn() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, full_name, email, phone, role, is_verified_officer, created_at FROM profiles WHERE id = ?",
+            (clean_uid,)
+        )
+        existing_row = cursor.fetchone()
+        if not existing_row:
+            raise ValueError("NOT_FOUND:User profile not found.")
+        existing = dict(existing_row)
+        old_email = str(existing.get('email') or '').strip().lower()
+        user_role = str(existing.get('role') or 'applicant').strip().lower()
+
+        cursor.execute(
+            "SELECT id FROM profiles WHERE LOWER(email) = ? AND id != ?",
+            (clean_email, clean_uid)
+        )
+        if cursor.fetchone():
+            raise ValueError(f"DUPLICATE_EMAIL:An account with email '{clean_email}' already exists.")
+
+        cursor.execute('''
+            UPDATE profiles
+            SET full_name = ?, email = ?, updated_at = ?
+            WHERE id = ?
+        ''', (clean_name, clean_email, now_str, clean_uid))
+
+        if old_email != clean_email:
+            if user_role == 'applicant' and old_email:
+                cursor.execute('''
+                    UPDATE loan_applications
+                    SET applicant_email = ?, updated_at = ?
+                    WHERE user_id = ?
+                       OR applicant_id = ?
+                       OR ((user_id IS NULL OR user_id = '') AND LOWER(applicant_email) = ?)
+                ''', (clean_email, now_str, clean_uid, clean_uid, old_email))
+            else:
+                cursor.execute('''
+                    UPDATE loan_applications
+                    SET applicant_email = ?, updated_at = ?
+                    WHERE user_id = ? OR applicant_id = ?
+                ''', (clean_email, now_str, clean_uid, clean_uid))
+            apps_updated = cursor.rowcount or 0
+
+        cursor.execute(
+            "SELECT id, full_name, email, phone, role, is_verified_officer, created_at FROM profiles WHERE id = ?",
+            (clean_uid,)
+        )
+        updated_row = dict(cursor.fetchone())
+
+    sb_client = get_supabase_client()
+    if sb_client.is_configured():
+        try:
+            sb_client.update('profiles', {'full_name': clean_name, 'email': clean_email}, 'id', clean_uid)
+            if old_email != clean_email:
+                sb_client.update('loan_applications', {'applicant_email': clean_email, 'updated_at': now_str}, 'user_id', clean_uid)
+        except Exception:
+            pass
+
+    checkpoint_db('PASSIVE')
+    if apps_updated > 0:
+        sync_csv_export()
+
+    return {
+        'id': updated_row['id'],
+        'full_name': updated_row['full_name'],
+        'email': updated_row['email'],
+        'phone': updated_row.get('phone', ''),
+        'role': updated_row['role'],
+        'is_verified_officer': bool(updated_row.get('is_verified_officer', 0)),
+        'created_at': updated_row.get('created_at')
+    }
 
 def sync_csv_export():
     try:

@@ -156,6 +156,7 @@ async def api_hub():
             <li><code>POST /api/auth/signup</code> - Register new Applicant or Officer (Requires Passkey)</li>
             <li><code>POST /api/auth/signin</code> - Authenticate user credentials &amp; issue persistent session</li>
             <li><code>GET /api/auth/session</code> - Verify stored Bearer / session token state</li>
+            <li><code>PATCH /api/auth/profile</code> - Update account name and email address</li>
             <li><code>POST /api/auth/logout</code> - Terminate &amp; revoke active session</li>
             <li><code>GET /api/saved-applications</code> - Strict role-isolated application retrieval</li>
             <li><code>POST /api/apply</code> - Submit loan application (Applicant Portal only)</li>

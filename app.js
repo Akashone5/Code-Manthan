@@ -1028,7 +1028,7 @@ function resetWorkspaceState() {
     localStorage.removeItem('meridian_saved_apps');
   } catch (e) {}
 
-  ['letter-modal', 'backend-info-modal', 'site-availability-modal', 'forgot-password-modal', 'download-app-modal', 'settings-modal'].forEach(mid => {
+  ['letter-modal', 'backend-info-modal', 'site-availability-modal', 'forgot-password-modal', 'settings-modal'].forEach(mid => {
     const modal = document.getElementById(mid);
     if (modal) modal.style.display = 'none';
   });
@@ -2194,37 +2194,19 @@ const I18N = {
     fp_lbl_new_pwd: "New Password (Min 8 chars, letter + digit)",
     fp_lbl_confirm_pwd: "Confirm New Password",
     fp_btn_submit: "Verify & Reset Password",
-    btn_get_app: "Get App",
-    title_get_app: "Download App for Laptop & Phone",
-    dl_modal_title: "Download App for Laptop & Phone",
-    dl_detecting: "Detecting Device...",
-    dl_hero_heading: "1-Click Install App on This Device",
-    dl_hero_sub: "Install Meridian FairLend AI natively with full Email OTP, dark-free readability, and live Railway cloud sync.",
-    dl_btn_install_now: "Install App Now",
-    dl_win_title: "Windows Laptop",
-    dl_win_sub: "Windows 10 / 11 Desktop Window",
-    dl_win_desc: "Download the lightweight Windows desktop launcher (.exe) or click Install App in Chrome / Edge for a pinned taskbar app.",
-    dl_win_btn: "Download Windows .EXE",
-    dl_and_title: "Android Phone",
-    dl_and_sub: "Android APK + 1-Tap Chrome Install",
-    dl_and_desc: "Tap Install App Now in Chrome/Edge (zero sideload warnings), or download the signed Android .apk package below.",
-    dl_and_btn: "Download Android .APK",
-    dl_mac_title: "Mac Laptop",
-    dl_mac_sub: "macOS App Bundle + Safari Dock",
-    dl_mac_desc: 'On macOS Safari use <strong>File &rarr; Add to Dock</strong>, or download the <strong>.app</strong> launcher bundle (Right-click &rarr; Open first time).',
-    dl_mac_btn: "Download Mac .ZIP (.app)",
-    dl_ios_title: "iPhone / iPad (iOS)",
-    dl_ios_sub: "Native Fullscreen Home Screen App",
-    dl_ios_badge: "SAFARI",
-    dl_ios_desc: '1. Open in <strong>Safari</strong> on iPhone/iPad.<br>2. Tap <strong>Share</strong> icon &rarr; <strong>Add to Home Screen</strong> &rarr; <strong>Add</strong>.',
-    dl_ios_btn: "Copy Link for Safari",
-    dl_footer_note: "Installed apps connect live to Meridian FairLend Cloud API so Email OTP verification, password recovery, and sanction vault sync work identically everywhere.",
     btn_settings: "Settings",
     title_settings_btn: "Customize Website & Workspace Settings",
     settings_modal_title: "Website & Workspace Settings",
     settings_modal_sub: "Tailored to your account profile, readability, and workflow",
     settings_cloud_checking: "Checking Sync...",
     settings_btn_reset_pwd: "Reset Password (OTP)",
+    settings_sec_identity: "Account Identity (Name & Email)",
+    settings_sec_identity_desc: "Update your registered full name and sign-in email for this portal account.",
+    settings_lbl_fullname: "Full Name",
+    settings_ph_fullname: "Enter your full name",
+    settings_lbl_email: "Email Address",
+    settings_ph_email: "name@domain.com",
+    settings_btn_update_identity: "Update Name & Email",
     settings_sec_appearance: "Website Appearance, Display & Notifications",
     settings_sec_appearance_desc: "Customize visual theme, typography size, layout spacing, and alert behavior.",
     settings_lbl_theme: "Color Theme Palette",
@@ -2747,37 +2729,19 @@ const I18N = {
     fp_lbl_new_pwd: "नया पासवर्ड (न्यूनतम 8 अक्षर, अक्षर + अंक)",
     fp_lbl_confirm_pwd: "नए पासवर्ड की पुष्टि करें",
     fp_btn_submit: "OTP जांचें व पासवर्ड बदलें",
-    btn_get_app: "ऐप डाउनलोड करें",
-    title_get_app: "लैपटॉप और फ़ोन के लिए ऐप डाउनलोड करें",
-    dl_modal_title: "लैपटॉप और फ़ोन के लिए ऐप डाउनलोड करें",
-    dl_detecting: "डिवाइस पहचाना जा रहा है...",
-    dl_hero_heading: "इस डिवाइस पर 1-क्लिक में ऐप इंस्टॉल करें",
-    dl_hero_sub: "लाइव ईमेल OTP और क्लाउड सिंक के साथ मेरिडियन फेयरलेंड एआई ऐप इंस्टॉल करें।",
-    dl_btn_install_now: "अभी ऐप इंस्टॉल करें",
-    dl_win_title: "विंडोज़ लैपटॉप",
-    dl_win_sub: "विंडोज़ 10 / 11 डेस्कटॉप विंडो",
-    dl_win_desc: "विंडोज़ डेस्कटॉप लॉन्चर (.exe) डाउनलोड करें या Chrome / Edge से पिन किया हुआ ऐप इंस्टॉल करें।",
-    dl_win_btn: "विंडोज़ .EXE डाउनलोड करें",
-    dl_and_title: "एंड्रॉइड फ़ोन",
-    dl_and_sub: "एंड्रॉइड APK + 1-टैप Chrome इंस्टॉल",
-    dl_and_desc: "Chrome/Edge में अभी इंस्टॉल करें टैप करें, या नीचे से सीधे एंड्रॉइड .apk फ़ाइल डाउनलोड करें।",
-    dl_and_btn: "एंड्रॉइड .APK डाउनलोड करें",
-    dl_mac_title: "मैक लैपटॉप",
-    dl_mac_sub: "macOS ऐप बंडल + Safari डॉक",
-    dl_mac_desc: 'macOS Safari में <strong>File &rarr; Add to Dock</strong> चुनें, या <strong>.app</strong> लॉन्चर डाउनलोड करें (पहली बार Right-click &rarr; Open करें)।',
-    dl_mac_btn: "मैक .ZIP (.app) डाउनलोड करें",
-    dl_ios_title: "iPhone / iPad (iOS)",
-    dl_ios_sub: "नेटिव फ़ुलस्क्रीन होम स्क्रीन ऐप",
-    dl_ios_badge: "SAFARI",
-    dl_ios_desc: '1. iPhone/iPad पर <strong>Safari</strong> में खोलें।<br>2. <strong>Share</strong> बटन दबाएं &rarr; <strong>Add to Home Screen</strong> &rarr; <strong>Add</strong> चुनें।',
-    dl_ios_btn: "Safari के लिए लिंक कॉपी करें",
-    dl_footer_note: "इंस्टॉल किए गए ऐप सीधे मेरिडियन फेयरलेंड क्लाउड सर्वर से जुड़े रहते हैं ताकि ईमेल OTP, पासवर्ड रीसेट और ऋण रिकॉर्ड हर जगह एक साथ अपडेट रहें।",
     btn_settings: "सेटिंग्स",
     title_settings_btn: "वेबसाइट और कार्यक्षेत्र सेटिंग्स अनुकूलित करें",
     settings_modal_title: "वेबसाइट एवं उपयोगकर्ता सेटिंग्स",
     settings_modal_sub: "आपकी भूमिका, पठनीयता और कार्यप्रणाली के अनुसार वैयक्तिकृत",
     settings_cloud_checking: "सिंक जांच जारी...",
     settings_btn_reset_pwd: "पासवर्ड रीसेट (OTP)",
+    settings_sec_identity: "खाता पहचान (नाम एवं ईमेल)",
+    settings_sec_identity_desc: "इस पोर्टल खाते के लिए अपना पंजीकृत पूरा नाम और साइन-इन ईमेल अपडेट करें।",
+    settings_lbl_fullname: "पूरा नाम",
+    settings_ph_fullname: "अपना पूरा नाम दर्ज करें",
+    settings_lbl_email: "ईमेल पता",
+    settings_ph_email: "name@domain.com",
+    settings_btn_update_identity: "नाम और ईमेल अपडेट करें",
     settings_sec_appearance: "वेबसाइट रूप, फ़ॉन्ट आकार एवं सूचनाएं",
     settings_sec_appearance_desc: "रंग थीम, टेक्स्ट आकार, लेआउट घनत्व और अलर्ट व्यवहार चुनें।",
     settings_lbl_theme: "वेबसाइट रंग थीम",
@@ -3189,9 +3153,6 @@ function syncFormHelperDisplays() {
   const slipVal = document.getElementById('fill-salary-slip')?.value || 'Yes';
   window.setSalarySlipChoice(slipVal);
   syncSimSalarySlipVisuals(state.simulated.salary_slip);
-  if (typeof window.refreshDownloadAppModalUI === 'function') {
-    window.refreshDownloadAppModalUI();
-  }
 }
 
 function formatInrFlexible(rawAmt, hi = state.currentLang === 'hi') {
@@ -4155,8 +4116,7 @@ window.exportVaultToCSV = function() {
   }
 
   const csvCell = (val) => `"${String(val ?? '').replace(/"/g, '""')}"`;
-  let csvContent = 'data:text/csv;charset=utf-8,';
-  csvContent += 'Application No,Submitted At,Updated At,Full Name,CIBIL Score,Salary Slip,Applicant Income,Co-Applicant Income,Loan Amount (INR),Tenure (Months),Property Area,AI Score (%),Status,Officer Decision,Officer Remarks,Monthly EMI (INR)\n';
+  let rawCsvBody = 'Application No,Submitted At,Updated At,Full Name,CIBIL Score,Salary Slip,Applicant Income,Co-Applicant Income,Loan Amount (INR),Tenure (Months),Property Area,AI Score (%),Status,Officer Decision,Officer Remarks,Monthly EMI (INR)\n';
 
   apps.forEach(a => {
     const row = [
@@ -4177,13 +4137,19 @@ window.exportVaultToCSV = function() {
       csvCell(a.officer_remarks || a.officer_notes || ''),
       a.monthly_emi || 0
     ].join(',');
-    csvContent += row + '\n';
+    rawCsvBody += row + '\n';
   });
 
-  const encodedUri = encodeURI(csvContent);
+  const csvFilename = `meridian_loan_applications_${new Date().toISOString().substring(0, 10)}.csv`;
+  if (window.AndroidBridge && typeof window.AndroidBridge.saveTextFile === 'function') {
+    window.AndroidBridge.saveTextFile(csvFilename, 'text/csv', rawCsvBody);
+    return;
+  }
+
+  const encodedUri = encodeURI('data:text/csv;charset=utf-8,' + rawCsvBody);
   const link = document.createElement('a');
   link.setAttribute('href', encodedUri);
-  link.setAttribute('download', `meridian_loan_applications_${new Date().toISOString().substring(0, 10)}.csv`);
+  link.setAttribute('download', csvFilename);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -4200,10 +4166,17 @@ window.exportVaultToJSON = function() {
     return;
   }
 
-  const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(apps, null, 2));
+  const rawJson = JSON.stringify(apps, null, 2);
+  const jsonFilename = `meridian_loan_vault_backup_${new Date().toISOString().substring(0, 10)}.json`;
+  if (window.AndroidBridge && typeof window.AndroidBridge.saveTextFile === 'function') {
+    window.AndroidBridge.saveTextFile(jsonFilename, 'application/json', rawJson);
+    return;
+  }
+
+  const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(rawJson);
   const link = document.createElement('a');
   link.setAttribute('href', dataStr);
-  link.setAttribute('download', `meridian_loan_vault_backup_${new Date().toISOString().substring(0, 10)}.json`);
+  link.setAttribute('download', jsonFilename);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -4898,6 +4871,10 @@ function setupEventListeners() {
   });
 
   document.getElementById('btn-print-letter')?.addEventListener('click', () => {
+    if (window.AndroidBridge && typeof window.AndroidBridge.printPage === 'function') {
+      window.AndroidBridge.printPage();
+      return;
+    }
     window.print();
   });
 
@@ -5360,10 +5337,25 @@ window.downloadSqliteBackup = async function() {
       return;
     }
     const blob = await res.blob();
+    const dbFilename = `meridian_loans_backup_${new Date().toISOString().substring(0, 10)}.db`;
+    if (window.AndroidBridge && typeof window.AndroidBridge.saveBase64File === 'function') {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const dataUrl = String(reader.result || '');
+        const idx = dataUrl.indexOf(',');
+        const b64 = idx >= 0 ? dataUrl.slice(idx + 1) : '';
+        if (b64) {
+          window.AndroidBridge.saveBase64File(dbFilename, 'application/x-sqlite3', b64);
+        }
+      };
+      reader.readAsDataURL(blob);
+      window.showMeridianToast(hi ? '💽 SQLite वॉल्ट बैकअप डाउनलोड हो रहा है!' : '💽 Saving SQLite Vault backup...');
+      return;
+    }
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `meridian_loans_backup_${new Date().toISOString().substring(0, 10)}.db`;
+    link.download = dbFilename;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -5732,248 +5724,7 @@ window.loadHistoricalCase = async function(caseId) {
   );
 };
 
-let deferredPwaPrompt = null;
-let cachedDownloadsInfo = null;
-
-function detectClientPlatform() {
-  const ua = (navigator.userAgent || '').toLowerCase();
-  const plt = (navigator.platform || '').toLowerCase();
-  if (/iphone|ipad|ipod/.test(ua) || (plt === 'macintel' && navigator.maxTouchPoints > 1)) {
-    return 'ios';
-  }
-  if (/android/.test(ua)) {
-    return 'android';
-  }
-  if (/mac/.test(plt) || /mac os/.test(ua)) {
-    return 'mac';
-  }
-  if (/win/.test(plt) || /windows/.test(ua)) {
-    return 'windows';
-  }
-  return 'desktop';
-}
-
-function isRunningStandalone() {
-  try {
-    if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) return true;
-    if (window.navigator && window.navigator.standalone === true) return true;
-  } catch (e) {}
-  return false;
-}
-
-function formatDownloadSize(bytes, fallbackLabel) {
-  const num = Number(bytes || 0);
-  if (!num || num <= 0) return fallbackLabel;
-  if (num >= 1024 * 1024) {
-    return `${(num / (1024 * 1024)).toFixed(1)} MB ${fallbackLabel}`;
-  }
-  return `${Math.max(1, Math.round(num / 1024))} KB ${fallbackLabel}`;
-}
-
-window.fetchDownloadsInfo = async function() {
-  try {
-    const res = await fetch(`${state.apiBase}/api/downloads/info`, { method: 'GET' });
-    if (res.ok) {
-      const data = await res.json();
-      if (data && data.platforms) {
-        cachedDownloadsInfo = data;
-      }
-    }
-  } catch (e) {}
-  window.refreshDownloadAppModalUI();
-};
-
-window.refreshDownloadAppModalUI = function() {
-  const hi = state.currentLang === 'hi';
-  const plat = detectClientPlatform();
-  const standalone = isRunningStandalone();
-
-  const deviceNames = {
-    windows: hi ? 'विंडोज़ लैपटॉप पहचाना गया' : 'Detected: Windows Laptop',
-    android: hi ? 'एंड्रॉइड फ़ोन पहचाना गया' : 'Detected: Android Phone',
-    mac: hi ? 'मैक लैपटॉप पहचाना गया' : 'Detected: Mac Laptop',
-    ios: hi ? 'iPhone / iPad पहचाना गया' : 'Detected: iPhone / iPad',
-    desktop: hi ? 'वेब डेस्कटॉप पहचाना गया' : 'Detected: Desktop Browser'
-  };
-
-  const badgeEl = document.getElementById('dl-device-badge');
-  if (badgeEl) badgeEl.innerText = deviceNames[plat] || deviceNames.desktop;
-
-  const cardMap = {
-    windows: 'dl-card-windows',
-    android: 'dl-card-android',
-    mac: 'dl-card-mac',
-    ios: 'dl-card-ios'
-  };
-  Object.entries(cardMap).forEach(([key, cardId]) => {
-    const el = document.getElementById(cardId);
-    if (el) el.classList.toggle('is-recommended', key === plat);
-  });
-
-  const btnInstall = document.getElementById('btn-pwa-direct-install');
-  const btnLabel = document.getElementById('btn-pwa-direct-install-label');
-  const heroTitle = document.getElementById('dl-hero-title');
-  const heroSub = document.getElementById('dl-hero-sub');
-
-  if (standalone) {
-    if (heroTitle) {
-      heroTitle.innerText = hi ? '✓ आप पहले से इंस्टॉल्ड ऐप मोड में हैं' : '✓ Running in Installed App Mode';
-    }
-    if (heroSub) {
-      heroSub.innerText = hi
-        ? 'यह डिवाइस स्टैंडअलोन मेरिडियन फेयरलेंड ऐप विंडो में चल रहा है। नीचे से आप अन्य डिवाइस के लिए फ़ाइलें डाउनलोड कर सकते हैं।'
-        : 'This device is already running the standalone Meridian FairLend app. You can still download installers for other devices below.';
-    }
-    if (btnLabel) btnLabel.innerText = hi ? 'ऐप इंस्टॉल हो चुका है' : 'App Installed';
-    if (btnInstall) btnInstall.disabled = true;
-  } else {
-    if (btnInstall) btnInstall.disabled = false;
-    if (heroTitle) {
-      heroTitle.innerText = hi ? 'इस डिवाइस पर 1-क्लिक में ऐप इंस्टॉल करें' : '1-Click Install App on This Device';
-    }
-    if (deferredPwaPrompt) {
-      if (btnLabel) btnLabel.innerText = hi ? 'अभी ऐप इंस्टॉल करें' : 'Install App Now';
-      if (heroSub) {
-        heroSub.innerText = hi
-          ? 'तुरंत स्टैंडअलोन ऐप जोड़ने के लिए दबाएं — कोई अलग चेतावनी नहीं, लाइव OTP सिंक तैयार।'
-          : 'Click to install Meridian FairLend directly onto your home screen or taskbar — zero warnings, live OTP sync ready.';
-      }
-    } else if (plat === 'ios') {
-      if (btnLabel) btnLabel.innerText = hi ? 'Safari में जोड़ने की विधि देखें' : 'Show iPhone Install Steps';
-      if (heroSub) {
-        heroSub.innerText = hi
-          ? 'iPhone / iPad पर Safari में नीचे Share (⎋) बटन दबाकर Add to Home Screen चुनें।'
-          : 'On iPhone / iPad Safari: tap Share (⎋) -> Add to Home Screen -> Add.';
-      }
-    } else {
-      if (btnLabel) btnLabel.innerText = hi ? 'इंस्टॉल निर्देश / डाउनलोड करें' : 'Install App Now';
-      if (heroSub) {
-        heroSub.innerText = hi
-          ? 'यदि ब्राउज़र पॉपअप न दिखे, तो Chrome/Edge मेनू से Install App चुनें या नीचे से फ़ाइल डाउनलोड करें।'
-          : 'Use Chrome/Edge Install icon in the address bar or download the direct installer package for your device below.';
-      }
-    }
-  }
-
-  const plats = cachedDownloadsInfo?.platforms || {};
-  const winMeta = plats.windows;
-  const andMeta = plats.android;
-  const macMeta = plats.mac;
-
-  const winBadge = document.getElementById('dl-win-size');
-  const winLink = document.getElementById('dl-win-link');
-  if (winBadge) winBadge.innerText = winMeta?.available ? formatDownloadSize(winMeta.size_bytes, 'EXE') : 'EXE';
-  if (winLink) {
-    winLink.href = `${state.apiBase}/downloads/MeridianFairLend-Windows.exe`;
-    winLink.classList.toggle('is-disabled', winMeta && !winMeta.available);
-  }
-
-  const andBadge = document.getElementById('dl-and-size');
-  const andLink = document.getElementById('dl-and-link');
-  if (andMeta && !andMeta.available) {
-    if (andBadge) {
-      andBadge.className = 'badge badge-warning';
-      andBadge.innerText = hi ? 'ब्राउज़र इंस्टॉल' : 'CHROME PWA';
-    }
-    if (andLink) {
-      andLink.removeAttribute('href');
-      andLink.classList.add('is-disabled');
-      const spanTxt = andLink.querySelector('[data-i18n="dl_and_btn"]');
-      if (spanTxt) spanTxt.innerText = hi ? 'APK तैयार हो रहा है (ऊपर से Install करें)' : 'Use Chrome 1-Tap Install Above';
-    }
-  } else {
-    if (andBadge) {
-      andBadge.className = 'badge badge-success';
-      andBadge.innerText = andMeta?.available ? formatDownloadSize(andMeta.size_bytes, 'APK') : 'APK';
-    }
-    if (andLink) {
-      andLink.href = `${state.apiBase}/downloads/MeridianFairLend-Android.apk`;
-      andLink.classList.remove('is-disabled');
-      const spanTxt = andLink.querySelector('[data-i18n="dl_and_btn"]');
-      if (spanTxt) spanTxt.innerText = hi ? 'एंड्रॉइड .APK डाउनलोड करें' : 'Download Android .APK';
-    }
-  }
-
-  const macBadge = document.getElementById('dl-mac-size');
-  const macLink = document.getElementById('dl-mac-link');
-  if (macBadge) macBadge.innerText = macMeta?.available ? formatDownloadSize(macMeta.size_bytes, 'ZIP') : 'ZIP';
-  if (macLink) {
-    macLink.href = `${state.apiBase}/downloads/MeridianFairLend-Mac.zip`;
-    macLink.classList.toggle('is-disabled', macMeta && !macMeta.available);
-  }
-};
-
-window.openDownloadAppModal = function() {
-  const modal = document.getElementById('download-app-modal');
-  if (!modal) return;
-  modal.style.display = 'flex';
-  window.refreshDownloadAppModalUI();
-  window.fetchDownloadsInfo();
-};
-
-window.closeDownloadAppModal = function() {
-  const modal = document.getElementById('download-app-modal');
-  if (modal) modal.style.display = 'none';
-};
-
-window.triggerPwaInstall = async function() {
-  const hi = state.currentLang === 'hi';
-  if (isRunningStandalone()) {
-    showToast(hi ? 'ऐप पहले से ही इंस्टॉल मोड में खुला है।' : 'Meridian FairLend is already running in installed app mode.');
-    return;
-  }
-  if (deferredPwaPrompt) {
-    try {
-      deferredPwaPrompt.prompt();
-      const choice = await deferredPwaPrompt.userChoice;
-      if (choice && choice.outcome === 'accepted') {
-        showToast(hi ? 'ऐप सफलतापूर्वक इंस्टॉल हो रहा है!' : 'Installing Meridian FairLend AI app on your device!');
-        deferredPwaPrompt = null;
-      } else {
-        showToast(hi ? 'इंस्टॉलेशन रद्द किया गया। आप नीचे से सीधे फ़ाइल भी डाउनलोड कर सकते हैं।' : 'Install prompt dismissed. You can also download the direct package below.');
-      }
-      window.refreshDownloadAppModalUI();
-      return;
-    } catch (e) {}
-  }
-
-  const plat = detectClientPlatform();
-  if (plat === 'ios') {
-    showToast(hi ? 'iPhone/iPad Safari में नीचे Share (⎋) दबाकर Add to Home Screen चुनें।' : 'In Safari on iPhone/iPad: tap Share (⎋) at the bottom -> Add to Home Screen -> Add.');
-  } else if (plat === 'android') {
-    showToast(hi ? 'Chrome में ऊपर दाईं ओर ⋮ मेनू खोलें -> Add to Home screen / Install app चुनें, या नीचे से .APK डाउनलोड करें।' : 'In Android Chrome: tap ⋮ menu -> Install app / Add to Home screen, or download the .APK below.');
-  } else if (plat === 'mac') {
-    showToast(hi ? 'Mac पर Safari मेन्यू से File -> Add to Dock चुनें, Chrome में ऊपर Install आइकन दबाएं, या नीचे .ZIP डाउनलोड करें।' : 'On Mac: Safari -> File -> Add to Dock, or Chrome Address Bar -> Install, or download the Mac .ZIP below.');
-  } else {
-    showToast(hi ? 'Chrome / Edge में पता बार के दाईं ओर Install आइकन दबाएं, या नीचे से Windows .EXE डाउनलोड करें।' : 'In Windows Chrome/Edge: click the Install App icon in the address bar, or download Windows .EXE below.');
-  }
-};
-
-window.copyCurrentPortalUrl = async function() {
-  const hi = state.currentLang === 'hi';
-  const url = window.location.origin || state.apiBase;
-  try {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      await navigator.clipboard.writeText(url);
-      showToast(hi ? `पोर्टल लिंक कॉपी हो गया: ${url}` : `Copied portal link for Safari: ${url}`);
-      return;
-    }
-  } catch (e) {}
-  showToast(url);
-};
-
 function registerAppServiceWorker() {
-  window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    deferredPwaPrompt = e;
-    window.refreshDownloadAppModalUI();
-  });
-  window.addEventListener('appinstalled', () => {
-    deferredPwaPrompt = null;
-    const hi = state.currentLang === 'hi';
-    showToast(hi ? 'मेरिडियन फेयरलेंड ऐप सफलतापूर्वक इंस्टॉल हो गया!' : 'Meridian FairLend AI app installed successfully!');
-    window.refreshDownloadAppModalUI();
-  });
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => null);
   }
@@ -6164,6 +5915,142 @@ function readSettingsModalIntoObject() {
   };
 }
 
+function setSettingsProfileFeedback(msg = '', isError = false) {
+  const el = document.getElementById('settings-profile-msg');
+  if (!el) return;
+  if (!msg) {
+    el.style.display = 'none';
+    el.innerText = '';
+    return;
+  }
+  el.className = isError ? 'auth-alert auth-alert-error' : 'auth-alert auth-alert-success';
+  el.innerText = (isError ? '⚠️ ' : '✅ ') + msg;
+  el.style.display = 'block';
+}
+
+function syncDisplayedUserIdentity() {
+  const fullName = String(currentAuthUser?.full_name || '').trim();
+  const email = String(currentAuthUser?.email || '').trim();
+  const displayName = fullName || email || '-';
+  const initialChar = displayName && displayName !== '-' ? Array.from(displayName)[0].toUpperCase() : '👤';
+
+  const headerNameEl = document.getElementById('user-display-name');
+  if (headerNameEl) headerNameEl.innerText = fullName || email;
+
+  const avatarEl = document.getElementById('settings-prof-avatar');
+  if (avatarEl) avatarEl.innerText = initialChar;
+
+  const nameEl = document.getElementById('settings-prof-name');
+  if (nameEl) nameEl.innerText = displayName;
+  const emailEl = document.getElementById('settings-prof-email');
+  if (emailEl) emailEl.innerText = email || '-';
+
+  const inputName = document.getElementById('setting-prof-fullname');
+  if (inputName) inputName.value = fullName;
+  const inputEmail = document.getElementById('setting-prof-email');
+  if (inputEmail) inputEmail.value = email;
+}
+
+window.saveProfileIdentityFromSettings = async function(silentIfUnchanged = false) {
+  const hi = state.currentLang === 'hi';
+  if (!currentAuthUser) {
+    return { ok: false, changed: false };
+  }
+
+  const nameInput = document.getElementById('setting-prof-fullname');
+  const emailInput = document.getElementById('setting-prof-email');
+  const saveBtn = document.getElementById('btn-save-profile-identity');
+
+  const newName = (nameInput?.value || '').trim();
+  const newEmail = (emailInput?.value || '').trim().toLowerCase();
+  const oldName = String(currentAuthUser.full_name || '').trim();
+  const oldEmail = String(currentAuthUser.email || '').trim().toLowerCase();
+
+  if (newName === oldName && newEmail === oldEmail) {
+    if (silentIfUnchanged) {
+      setSettingsProfileFeedback('', false);
+      return { ok: true, changed: false };
+    }
+    const unchangedMsg = hi
+      ? 'कोई परिवर्तन नहीं मिला — आपका नाम और ईमेल पहले से अद्यतन हैं।'
+      : 'No changes detected — your name and email are already up to date.';
+    setSettingsProfileFeedback(unchangedMsg, false);
+    return { ok: true, changed: false };
+  }
+
+  if (newName.length < 2) {
+    const msg = hi ? 'कृपया कम से कम 2 अक्षरों का पूरा नाम दर्ज करें।' : 'Full Name must be at least 2 characters.';
+    setSettingsProfileFeedback(msg, true);
+    window.showMeridianToast(msg, true);
+    nameInput?.focus();
+    return { ok: false, changed: true };
+  }
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
+    const msg = hi ? 'कृपया वैध ईमेल पता दर्ज करें।' : 'Please enter a valid email address.';
+    setSettingsProfileFeedback(msg, true);
+    window.showMeridianToast(msg, true);
+    emailInput?.focus();
+    return { ok: false, changed: true };
+  }
+
+  const dict = getLangDict();
+  const prevBtnHtml = saveBtn ? saveBtn.innerHTML : '';
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = `<span>⏳</span> ${hi ? 'सहेज रहे हैं...' : 'Saving...'}`;
+  }
+
+  try {
+    const res = await fetch(`${state.apiBase}/api/auth/profile`, {
+      method: 'PATCH',
+      headers: buildAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({
+        full_name: newName,
+        email: newEmail
+      })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.success || !data.user) {
+      const errMsg = data.error || (hi ? 'नाम और ईमेल अपडेट नहीं हो सके।' : 'Failed to update name and email.');
+      setSettingsProfileFeedback(errMsg, true);
+      window.showMeridianToast(errMsg, true);
+      if (res.status === 409) emailInput?.focus();
+      return { ok: false, changed: true };
+    }
+
+    currentAuthUser = { ...currentAuthUser, ...data.user };
+    try {
+      localStorage.setItem('meridian_auth_user', JSON.stringify(currentAuthUser));
+    } catch (e) {}
+
+    syncDisplayedUserIdentity();
+    const okMsg = hi
+      ? 'नाम और ईमेल सफलतापूर्वक अपडेट हो गए!'
+      : 'Name and email updated successfully!';
+    setSettingsProfileFeedback(okMsg, false);
+    if (!silentIfUnchanged) {
+      window.showMeridianToast(`✅ ${okMsg}`);
+    }
+    if (typeof window.refreshDatabaseTable === 'function') {
+      window.refreshDatabaseTable().catch(() => {});
+    }
+    return { ok: true, changed: true };
+  } catch (err) {
+    const netMsg = hi
+      ? `${state.apiBase} से संपर्क नहीं हो सका। कृपया ऑनलाइन होने पर पुनः प्रयास करें।`
+      : `Unable to reach backend server at ${state.apiBase}. Please try again while online.`;
+    setSettingsProfileFeedback(netMsg, true);
+    window.showMeridianToast(netMsg, true);
+    return { ok: false, changed: true };
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = prevBtnHtml || `<span>💾</span> <span data-i18n="settings_btn_update_identity">${dict.settings_btn_update_identity}</span>`;
+    }
+  }
+};
+
 window.openSettingsModal = function() {
   const modal = document.getElementById('settings-modal');
   if (!modal) return;
@@ -6172,15 +6059,9 @@ window.openSettingsModal = function() {
 
   draftUserSettings = { ...activeUserSettings };
 
-  const rawName = (currentAuthUser?.full_name || currentAuthUser?.email || '-').trim();
-  const initialChar = rawName && rawName !== '-' ? Array.from(rawName)[0].toUpperCase() : '👤';
-  const avatarEl = document.getElementById('settings-prof-avatar');
-  if (avatarEl) avatarEl.innerText = initialChar;
+  syncDisplayedUserIdentity();
+  setSettingsProfileFeedback('', false);
 
-  const nameEl = document.getElementById('settings-prof-name');
-  if (nameEl) nameEl.innerText = rawName;
-  const emailEl = document.getElementById('settings-prof-email');
-  if (emailEl) emailEl.innerText = currentAuthUser?.email || '-';
   const phoneEl = document.getElementById('settings-prof-phone');
   if (phoneEl) phoneEl.innerText = currentAuthUser?.phone || (hi ? 'फ़ोन दर्ज नहीं' : 'Phone not listed');
 
@@ -6222,8 +6103,12 @@ window.previewSettingToggles = function() {
   applyVisualSettingsToDOM(draftUserSettings);
 };
 
-window.saveAndCloseSettingsModal = function() {
+window.saveAndCloseSettingsModal = async function() {
   const hi = state.currentLang === 'hi';
+  const profResult = await window.saveProfileIdentityFromSettings(true);
+  if (profResult && profResult.ok === false) {
+    return;
+  }
   const nextSettings = readSettingsModalIntoObject();
   activeUserSettings = nextSettings;
   draftUserSettings = { ...nextSettings };
@@ -6235,8 +6120,8 @@ window.saveAndCloseSettingsModal = function() {
   window.closeSettingsModal(false);
   window.showMeridianToast(
     hi
-      ? '✅ आपकी वेबसाइट और खाता सेटिंग्स सहेजी व लागू की गईं।'
-      : '✅ Your website & workspace settings have been saved and applied.'
+      ? (profResult?.changed ? '✅ नाम, ईमेल और वेबसाइट सेटिंग्स सहेजी व लागू की गईं।' : '✅ आपकी वेबसाइट और खाता सेटिंग्स सहेजी व लागू की गईं।')
+      : (profResult?.changed ? '✅ Name, email & workspace settings saved and applied.' : '✅ Your website & workspace settings have been saved and applied.')
   );
 };
 
@@ -6320,6 +6205,5 @@ document.addEventListener('DOMContentLoaded', async () => {
   await window.checkExistingSession();
   checkBackendConnection();
   applyTranslations();
-  window.fetchDownloadsInfo();
   restartAvailabilityPolling(activeUserSettings.syncIntervalSec !== undefined ? activeUserSettings.syncIntervalSec : 20);
 });

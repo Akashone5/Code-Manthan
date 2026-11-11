@@ -804,7 +804,8 @@ def run_tests():
     assert dl_meta["platforms"]["ios"]["available"] is True
 
     res_win = client.get("/downloads/MeridianFairLend-Windows.exe")
-    assert res_win.status_code == 200 and res_win.content[:2] == b"MZ" and len(res_win.content) > 4096
+    assert res_win.status_code == 200 and res_win.content[:2] == b"MZ" and len(res_win.content) > 100000
+    assert "Microsoft.Web.WebView2".encode("utf-16le") in res_win.content or b"Microsoft.Web.WebView2" in res_win.content
 
     res_mac = client.get("/downloads/MeridianFairLend-Mac.zip")
     assert res_mac.status_code == 200
@@ -812,23 +813,33 @@ def run_tests():
         names = set(zf.namelist())
         assert "Meridian FairLend AI.app/Contents/Info.plist" in names
         assert "Meridian FairLend AI.app/Contents/MacOS/MeridianFairLend" in names
+        mac_launch = zf.read("Meridian FairLend AI.app/Contents/MacOS/MeridianFairLend").decode("utf-8")
+        assert "--user-data-dir=" in mac_launch and "--new-window" in mac_launch
 
     res_apk = client.get("/downloads/MeridianFairLend-Android.apk")
     assert res_apk.status_code == 200 and res_apk.content[:2] == b"PK" and len(res_apk.content) > 100000
     with zipfile.ZipFile(io.BytesIO(res_apk.content), "r") as azf:
         anames = set(azf.namelist())
         assert "AndroidManifest.xml" in anames
+        assert "classes.dex" in anames
+        assert b"TrustedWebActivityService" not in azf.read("AndroidManifest.xml")
         assert any(n.startswith("META-INF/") and (n.endswith(".RSA") or n.endswith(".EC") or n.endswith(".DSA")) for n in anames)
 
     assert client.get("/downloads/unauthorized.txt").status_code == 404
-    print("[PASS] 38. PWA Manifest, Service Worker, Icons, AssetLinks & Windows/Android/Mac App Downloads verified")
+    print("[PASS] 38. Standalone Desktop (WebView2 EXE + Isolated Mac) & Native Android WebView APK verified")
 
     res_html_settings = client.get("/")
     assert res_html_settings.status_code == 200
     html_src = res_html_settings.text
+    for removed_id in ('id="btn-get-app-auth"', 'id="btn-get-app-main"', 'id="download-app-modal"', 'openDownloadAppModal()'):
+        assert removed_id not in html_src, f"Download app UI artifact {removed_id!r} should be removed from HTML"
     assert 'id="btn-settings-main"' in html_src
     assert 'onclick="openSettingsModal()"' in html_src
     assert 'id="settings-modal"' in html_src
+    assert 'id="settings-account-identity-card"' in html_src
+    assert 'id="setting-prof-fullname"' in html_src
+    assert 'id="setting-prof-email"' in html_src
+    assert 'id="btn-save-profile-identity"' in html_src
     assert 'id="settings-applicant-section"' in html_src
     assert 'id="settings-officer-section"' in html_src
     assert 'id="applicant-roadmap-card"' in html_src
@@ -839,6 +850,7 @@ def run_tests():
     settings_start = html_src.index('<div id="settings-modal"')
     settings_end = html_src.index('<div id="meridian-toast-container"')
     settings_block = html_src[settings_start:settings_end]
+    assert 'id="setting-prof-fullname"' in settings_block and 'id="setting-prof-email"' in settings_block
     for forbidden in ("toggleLanguage", "lang-toggle", "meridian_lang", "हिन्दी", "Language"):
         assert forbidden.lower() not in settings_block.lower(), f"Forbidden language control {forbidden!r} found inside settings modal"
 
@@ -849,6 +861,8 @@ def run_tests():
         "openSettingsModal",
         "closeSettingsModal",
         "saveAndCloseSettingsModal",
+        "saveProfileIdentityFromSettings",
+        "syncDisplayedUserIdentity",
         "resetUserSettingsToDefaults",
         "applyUserSettingsToApp",
         "getUserSettingsStorageKey",
@@ -857,11 +871,14 @@ def run_tests():
         "clearUserOfflineQueue"
     ):
         assert sym in js_src, f"Missing settings symbol {sym} in /app.js"
+    for dead_sym in ("openDownloadAppModal", "refreshDownloadAppModalUI", "fetchDownloadsInfo"):
+        assert dead_sym not in js_src, f"Dead download modal helper {dead_sym} still present in /app.js"
 
     res_css_settings = client.get("/styles.css")
     assert res_css_settings.status_code == 200
     css_src = res_css_settings.text
     for cls in (
+        ".app-install-pill",
         ".settings-trigger-btn",
         ".settings-modal-content",
         ".theme-midnight",
@@ -870,7 +887,100 @@ def run_tests():
         ".pref-reduced-motion"
     ):
         assert cls in css_src, f"Missing settings CSS selector {cls} in /styles.css"
-    print("[PASS] 39. Role-Adaptive Settings Button & Modal (Applicant + Officer, Zero Language Option) verified")
+    assert ".dl-platform-card" not in css_src
+    print("[PASS] 39. Removed Download App Buttons + Role-Adaptive Settings Modal (with Name & Email Editor, Zero Language Option) verified")
+
+    assert client.patch("/api/auth/profile", json={"full_name": "Anon", "email": "anon@example.com"}).status_code == 401
+
+    prof_uid = uuid.uuid4().hex[:8]
+    p_app_old_email = f"prof.app.old.{prof_uid}@example.com"
+    p_app_new_email = f"prof.app.new.{prof_uid}@example.com"
+    p_off_old_email = f"prof.off.old.{prof_uid}@example.com"
+    p_off_new_email = f"prof.off.new.{prof_uid}@example.com"
+
+    assert client.post("/api/auth/signup", json={
+        "full_name": "Before App Name",
+        "email": p_app_old_email,
+        "phone": "9811445566",
+        "password": "Password@123",
+        "confirm_password": "Password@123",
+        "role": "applicant"
+    }).status_code == 201
+
+    assert client.post("/api/auth/signup", json={
+        "full_name": "Before Off Name",
+        "email": p_off_old_email,
+        "phone": "9811445577",
+        "password": "Password@123",
+        "confirm_password": "Password@123",
+        "role": "officer",
+        "officer_key": configured_key
+    }).status_code == 201
+
+    p_app_tok = client.post(
+        "/api/auth/signin",
+        json={"email": p_app_old_email, "password": "Password@123", "expected_role": "applicant"},
+        headers={"X-Forwarded-For": "198.51.100.91"}
+    ).json()["token"]
+    p_off_tok = client.post(
+        "/api/auth/signin",
+        json={"email": p_off_old_email, "password": "Password@123", "expected_role": "officer"},
+        headers={"X-Forwarded-For": "198.51.100.92"}
+    ).json()["token"]
+
+    p_app_headers = {"Authorization": f"Bearer {p_app_tok}"}
+    p_off_headers = {"Authorization": f"Bearer {p_off_tok}"}
+
+    r_prof_bad = client.patch("/api/auth/profile", json={"full_name": "X", "email": "not-an-email"}, headers=p_app_headers)
+    assert r_prof_bad.status_code == 400
+
+    r_app_sub = client.post("/api/apply", json={**sample_app, "email": p_app_old_email}, headers=p_app_headers)
+    assert r_app_sub.status_code == 201
+    p_app_no = r_app_sub.json()["application"]["application_no"]
+
+    r_prof_app = client.patch("/api/auth/profile", json={
+        "full_name": "After App Name",
+        "email": p_app_new_email.upper()
+    }, headers=p_app_headers)
+    assert r_prof_app.status_code == 200
+    assert r_prof_app.json()["user"]["full_name"] == "After App Name"
+    assert r_prof_app.json()["user"]["email"] == p_app_new_email
+
+    r_app_sess = client.get("/api/auth/session", headers=p_app_headers)
+    assert r_app_sess.status_code == 200
+    assert r_app_sess.json()["user"]["full_name"] == "After App Name"
+    assert r_app_sess.json()["user"]["email"] == p_app_new_email
+
+    r_prof_off = client.patch("/api/auth/profile", json={
+        "full_name": "After Off Name",
+        "email": p_off_new_email
+    }, headers=p_off_headers)
+    assert r_prof_off.status_code == 200
+    assert r_prof_off.json()["user"]["full_name"] == "After Off Name"
+    assert r_prof_off.json()["user"]["email"] == p_off_new_email
+
+    r_prof_dup = client.patch("/api/auth/profile", json={
+        "full_name": "After Off Name",
+        "email": p_app_new_email
+    }, headers=p_off_headers)
+    assert r_prof_dup.status_code == 409
+
+    r_off_vault = client.get("/api/saved-applications?role=officer", headers=p_off_headers)
+    assert r_off_vault.status_code == 200
+    matched_vault = [a for a in r_off_vault.json()["applications"] if a.get("application_no") == p_app_no]
+    assert matched_vault and matched_vault[0]["applicant_email"] == p_app_new_email
+
+    assert client.post(
+        "/api/auth/signin",
+        json={"email": p_app_new_email, "password": "Password@123", "expected_role": "applicant"},
+        headers={"X-Forwarded-For": "198.51.100.93"}
+    ).status_code == 200
+    assert client.post(
+        "/api/auth/signin",
+        json={"email": p_app_old_email, "password": "Password@123", "expected_role": "applicant"},
+        headers={"X-Forwarded-For": "198.51.100.94"}
+    ).status_code == 401
+    print("[PASS] 40. PATCH /api/auth/profile -> 401/400/409 guards + Applicant & Officer Name/Email persistence & Vault email sync verified")
 
     print("=" * 70)
     print("ALL FASTAPI ENDPOINTS & POLICIES VALIDATED SUCCESSFULLY (100% PASS)")

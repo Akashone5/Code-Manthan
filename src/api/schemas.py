@@ -38,6 +38,10 @@ class ResetPasswordRequest(BaseModel):
     password: str = Field(..., description="New account password", min_length=8)
     confirm_password: Optional[str] = Field(default=None, description="Confirmation of new password")
 
+class ProfileUpdateRequest(BaseModel):
+    full_name: str = Field(..., description="Updated full name of the account holder")
+    email: str = Field(..., description="Updated account email address")
+
 class UserProfileResponse(BaseModel):
     id: str
     full_name: str

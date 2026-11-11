@@ -231,7 +231,7 @@ async def get_downloads_info():
         content={
             "success": True,
             "app_name": "Meridian FairLend AI",
-            "version": "2.0.0",
+            "version": "3.0.0",
             "pwa_ready": (
                 os.path.isfile(os.path.join(BASE_DIR, "manifest.webmanifest"))
                 and os.path.isfile(os.path.join(BASE_DIR, "sw.js"))

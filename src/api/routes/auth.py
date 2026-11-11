@@ -12,6 +12,7 @@ from src.api.schemas import (
     SendOtpRequest,
     VerifyOtpRequest,
     ResetPasswordRequest,
+    ProfileUpdateRequest,
     AuthSuccessResponse,
     BaseMessageResponse
 )
@@ -616,6 +617,65 @@ async def verify_session(
         status_code=status.HTTP_200_OK,
         content={"success": True, "user": profile}
     )
+
+@router.patch(
+    "/profile",
+    summary="Update authenticated user's full name and email address"
+)
+async def update_profile(
+    payload: ProfileUpdateRequest,
+    authorization: Optional[str] = Header(default=None, alias="Authorization"),
+    x_session_token: Optional[str] = Header(default=None, alias="X-Session-Token")
+):
+    session_token = _extract_session_token(authorization, x_session_token, None)
+    if not session_token:
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content={"success": False, "error": "Authentication required to update profile details."}
+        )
+
+    verified_user = database.verify_session_token(session_token)
+    if not verified_user:
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content={"success": False, "error": "Session expired or invalid. Please sign in again."}
+        )
+
+    try:
+        updated = database.update_user_profile(
+            user_id=str(verified_user["id"]),
+            full_name=payload.full_name,
+            email=payload.email
+        )
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={
+                "success": True,
+                "message": "Profile name and email updated successfully.",
+                "user": updated
+            }
+        )
+    except ValueError as val_err:
+        err_msg = str(val_err)
+        if err_msg.startswith("DUPLICATE_EMAIL:"):
+            return JSONResponse(
+                status_code=status.HTTP_409_CONFLICT,
+                content={"success": False, "error": err_msg.split(":", 1)[1]}
+            )
+        if err_msg.startswith("NOT_FOUND:"):
+            return JSONResponse(
+                status_code=status.HTTP_404_NOT_FOUND,
+                content={"success": False, "error": err_msg.split(":", 1)[1]}
+            )
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"success": False, "error": err_msg}
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"success": False, "error": f"Failed to update profile: {str(e)}"}
+        )
 
 @router.post(
     "/logout",

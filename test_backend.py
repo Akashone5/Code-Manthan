@@ -298,8 +298,68 @@ def run_tests():
         db_ops.EXPORT_CSV = orig_csv
     print("[OK] Test 16: Real Email OTP DB lifecycle, cooldown, lockout, single-use tokens & password reset session revocation verified")
 
+    orig_db, orig_csv = db_ops.DB_FILE, db_ops.EXPORT_CSV
+    try:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
+            tmp_db = os.path.join(tmpdir, "profile_test.db")
+            tmp_csv = os.path.join(tmpdir, "profile_test.csv")
+            db_ops.DB_FILE = tmp_db
+            db_ops.EXPORT_CSV = tmp_csv
+            db_ops.init_db()
+
+            app_reg = database.register_user("Initial Applicant", "init.app@example.com", "9811001122", "Applicant@123", "applicant")
+            off_reg = database.register_user(
+                "Initial Officer",
+                "init.off@example.com",
+                "9811001133",
+                "Officer@123",
+                "officer",
+                officer_key=os.environ.get("OFFICER_REGISTRATION_KEY", "OFFICER-2026"),
+            )
+            app_uid = app_reg["id"]
+            off_uid = off_reg["id"]
+
+            saved_prof_app = db_ops.save_application(
+                {**test_applicant, "applicant_email": "init.app@example.com"},
+                pred,
+                exp,
+                user_id=app_uid,
+            )
+
+            upd_app = db_ops.update_user_profile(app_uid, "Renamed Applicant", "UPDATED.APP@example.com")
+            assert upd_app["full_name"] == "Renamed Applicant"
+            assert upd_app["email"] == "updated.app@example.com"
+            assert database.login_user("init.app@example.com", "Applicant@123").get("success") is False
+            assert database.login_user("UPDATED.APP@example.com", "Applicant@123").get("success") is True
+
+            reloaded_app = db_ops.get_application_by_number(saved_prof_app["application_no"])
+            assert reloaded_app["applicant_email"] == "updated.app@example.com"
+
+            upd_off = db_ops.update_user_profile(off_uid, "Renamed Officer", "updated.off@example.com")
+            assert upd_off["full_name"] == "Renamed Officer"
+            assert upd_off["email"] == "updated.off@example.com"
+            assert database.login_user("updated.off@example.com", "Officer@123").get("success") is True
+
+            try:
+                db_ops.update_user_profile(off_uid, "Renamed Officer", "updated.app@example.com")
+                assert False, "Duplicate email across accounts must raise DUPLICATE_EMAIL ValueError"
+            except ValueError as dup_err:
+                assert str(dup_err).startswith("DUPLICATE_EMAIL:")
+
+            try:
+                db_ops.update_user_profile(app_uid, "A", "updated.app@example.com")
+                assert False, "Short name must fail validation"
+            except ValueError:
+                pass
+
+            db_ops.checkpoint_db("TRUNCATE")
+    finally:
+        db_ops.DB_FILE = orig_db
+        db_ops.EXPORT_CSV = orig_csv
+    print("[OK] Test 17: Applicant & Officer profile name/email update, Vault email sync & duplicate email guard verified")
+
     print("-" * 70)
-    print("ALL 16 SYSTEM VALIDATION SUITES PASSED CLEANLY (100% OPERATIONAL)")
+    print("ALL 17 SYSTEM VALIDATION SUITES PASSED CLEANLY (100% OPERATIONAL)")
     print("=" * 70)
 
 if __name__ == '__main__':
