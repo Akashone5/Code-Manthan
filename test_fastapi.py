@@ -11,7 +11,7 @@ client = TestClient(app)
 
 def run_tests():
     print("=" * 70)
-    print("  MERIDIAN FAIRLEND FASTAPI ENDPOINT VALIDATION SUITE")
+    print("  RINDRISTI FAIRLEND FASTAPI ENDPOINT VALIDATION SUITE")
     print("=" * 70)
 
     res = client.get("/api/health")
@@ -21,7 +21,7 @@ def run_tests():
 
     res = client.get("/api")
     assert res.status_code == 200, f"API hub failed: {res.text}"
-    assert "Meridian FairLend" in res.text
+    assert "RinDristi FairLend" in res.text
     print("[PASS] 2. GET /api -> 200 Interactive Dashboard")
 
     res = client.get("/docs")
@@ -29,7 +29,7 @@ def run_tests():
     print("[PASS] 3. GET /docs -> 200 OpenAPI Interactive Swagger UI")
 
     res = client.get("/")
-    assert res.status_code == 200 and "Meridian" in res.text
+    assert res.status_code == 200 and "RinDristi" in res.text
     assert "gw-btn-applicant" in res.text and "gw-btn-officer" in res.text
     print("[PASS] 4. GET / -> 200 index.html & segregated portals served")
 
@@ -57,7 +57,7 @@ def run_tests():
     print("[PASS] 7b2. GET /robots.txt -> 200 Robots directive served")
 
     res = client.options("/api/predict", headers={
-        "Origin": "https://meridian-client.netlify.app",
+        "Origin": "https://rindristi-client.netlify.app",
         "Access-Control-Request-Method": "POST"
     })
     assert res.status_code in (200, 204)
@@ -86,7 +86,7 @@ def run_tests():
     print("[PASS] 9. POST /api/auth/signup -> 400 Unauthorized officer blocked")
 
     res = client.post("/api/auth/signin", json={
-        "email": "applicant@meridianbank.in",
+        "email": "applicant@rindristi.in",
         "password": "Applicant@123",
         "expected_role": "applicant"
     })
@@ -105,7 +105,7 @@ def run_tests():
     print(f"[PASS] 10. POST /api/auth/signin -> 200 Applicant authenticated with Bearer token ({app_data['user']['email']})")
 
     res = client.post("/api/auth/signin", json={
-        "email": "applicant@meridianbank.in",
+        "email": "applicant@rindristi.in",
         "password": "Applicant@123",
         "expected_role": "officer"
     })
@@ -114,7 +114,7 @@ def run_tests():
 
     officer_pwd = os.environ.get("OFFICER_ADMIN_PASSWORD", "Officer@2026")
     res = client.post("/api/auth/signin", json={
-        "email": "officer@meridianbank.in",
+        "email": "officer@rindristi.in",
         "password": officer_pwd,
         "expected_role": "officer"
     })
@@ -132,13 +132,13 @@ def run_tests():
     print(f"[PASS] 12. POST /api/auth/signin -> 200 Officer authenticated with Bearer token ({off_data['user']['email']})")
 
     res = client.post("/api/auth/signin", json={
-        "email": "officer@meridianbank.in",
+        "email": "officer@rindristi.in",
         "password": "IncorrectPassword"
     })
     assert res.status_code == 401
     print("[PASS] 13. POST /api/auth/signin -> 401 Invalid password rejected")
 
-    res = client.post("/api/auth/forgot-password", json={"email": "applicant@meridianbank.in"})
+    res = client.post("/api/auth/forgot-password", json={"email": "applicant@rindristi.in"})
     assert res.status_code == 200 and res.json()["success"] is True
     print("[PASS] 14. POST /api/auth/forgot-password -> 200 Reset instructions dispatched")
 
@@ -153,7 +153,7 @@ def run_tests():
     print("[PASS] 15. POST /api/auth/logout -> Bearer session token persistently revoked (subsequent GET -> 401)")
 
     res = client.post("/api/auth/signin", json={
-        "email": "applicant@meridianbank.in",
+        "email": "applicant@rindristi.in",
         "password": "Applicant@123",
         "expected_role": "applicant"
     })
@@ -405,7 +405,7 @@ def run_tests():
     assert res.status_code == 200 and res.json()["online"] is False
     print("[PASS] 29. POST /api/system/availability -> 200 Officer switched website Offline")
 
-    res = client.post("/api/auth/signin", json={"email": "applicant@meridianbank.in", "password": "Applicant@123", "expected_role": "applicant"})
+    res = client.post("/api/auth/signin", json={"email": "applicant@rindristi.in", "password": "Applicant@123", "expected_role": "applicant"})
     assert res.status_code == 503 and res.json().get("offline") is True
     res_acc_blocked = client.get("/api/accuracy", headers=app_headers)
     assert res_acc_blocked.status_code == 503 and res_acc_blocked.json().get("offline") is True
@@ -419,7 +419,7 @@ def run_tests():
     assert res_fair_off.status_code == 200
     res_health = client.get("/api/health")
     assert res_health.status_code == 200 and res_health.json().get("site_online") is False
-    res_off_login = client.post("/api/auth/signin", json={"email": "officer@meridianbank.in", "password": officer_pwd, "expected_role": "officer"})
+    res_off_login = client.post("/api/auth/signin", json={"email": "officer@rindristi.in", "password": officer_pwd, "expected_role": "officer"})
     assert res_off_login.status_code == 200
     print("[PASS] 30. Offline Maintenance Gate -> 503 for public/applicant, 200 for /api/health & Officer Override + Analytics")
 
@@ -430,7 +430,7 @@ def run_tests():
             "online": True,
             "officer_key": configured_key,
             "title": "Portal Temporarily Offline",
-            "maintenance_message": "Meridian FairLend AI is currently offline for scheduled maintenance. Online underwriting will resume shortly."
+            "maintenance_message": "RinDristi FairLend AI is currently offline for scheduled maintenance. Online underwriting will resume shortly."
         }
     )
     assert res.status_code == 200 and res.json()["online"] is True
@@ -440,13 +440,13 @@ def run_tests():
     for _ in range(8):
         r_fail = client.post(
             "/api/auth/signin",
-            json={"email": "officer@meridianbank.in", "password": "BadPassword123"},
+            json={"email": "officer@rindristi.in", "password": "BadPassword123"},
             headers={"X-Forwarded-For": rate_ip}
         )
         assert r_fail.status_code == 401
     r_blocked = client.post(
         "/api/auth/signin",
-        json={"email": "officer@meridianbank.in", "password": "BadPassword123"},
+        json={"email": "officer@rindristi.in", "password": "BadPassword123"},
         headers={"X-Forwarded-For": rate_ip}
     )
     assert r_blocked.status_code == 429
@@ -516,7 +516,7 @@ def run_tests():
             return True, "sent"
 
         os.environ["BREVO_API_KEY"] = "test-brevo-key-000"
-        os.environ["EMAIL_FROM"] = "no-reply@meridianbank.in"
+        os.environ["EMAIL_FROM"] = "no-reply@rindristi.in"
         os.environ["REQUIRE_EMAIL_OTP"] = "true"
         email_service.send_otp_email = _mock_send_otp
 
@@ -530,7 +530,7 @@ def run_tests():
 
         r_dup = client.post(
             "/api/auth/send-otp",
-            json={"email": "applicant@meridianbank.in", "purpose": "signup", "lang": "en"},
+            json={"email": "applicant@rindristi.in", "purpose": "signup", "lang": "en"},
             headers={"X-Forwarded-For": "198.51.100.34"}
         )
         assert r_dup.status_code == 409
@@ -680,7 +680,7 @@ def run_tests():
 
         r_apply_no_otp_needed = client.post(
             "/api/apply",
-            json={**sample_app, "email": "applicant@meridianbank.in", "applicant_email": "applicant@meridianbank.in", "email_otp_verified": True},
+            json={**sample_app, "email": "applicant@rindristi.in", "applicant_email": "applicant@rindristi.in", "email_otp_verified": True},
             headers=su_new_headers
         )
         assert r_apply_no_otp_needed.status_code == 201
@@ -785,20 +785,20 @@ def run_tests():
     assert dl_meta["platforms"]["mac"]["available"] is True
     assert dl_meta["platforms"]["ios"]["available"] is True
 
-    res_win = client.get("/downloads/MeridianFairLend-Windows.exe")
+    res_win = client.get("/downloads/RinDristi-Windows.exe")
     assert res_win.status_code == 200 and res_win.content[:2] == b"MZ" and len(res_win.content) > 100000
     assert "Microsoft.Web.WebView2".encode("utf-16le") in res_win.content or b"Microsoft.Web.WebView2" in res_win.content
 
-    res_mac = client.get("/downloads/MeridianFairLend-Mac.zip")
+    res_mac = client.get("/downloads/RinDristi-Mac.zip")
     assert res_mac.status_code == 200
     with zipfile.ZipFile(io.BytesIO(res_mac.content), "r") as zf:
         names = set(zf.namelist())
-        assert "Meridian FairLend AI.app/Contents/Info.plist" in names
-        assert "Meridian FairLend AI.app/Contents/MacOS/MeridianFairLend" in names
-        mac_launch = zf.read("Meridian FairLend AI.app/Contents/MacOS/MeridianFairLend").decode("utf-8")
+        assert "RinDristi FairLend AI.app/Contents/Info.plist" in names
+        assert "RinDristi FairLend AI.app/Contents/MacOS/RinDristi" in names
+        mac_launch = zf.read("RinDristi FairLend AI.app/Contents/MacOS/RinDristi").decode("utf-8")
         assert "--user-data-dir=" in mac_launch and "--new-window" in mac_launch
 
-    res_apk = client.get("/downloads/MeridianFairLend-Android.apk")
+    res_apk = client.get("/downloads/RinDristi-Android.apk")
     assert res_apk.status_code == 200 and res_apk.content[:2] == b"PK" and len(res_apk.content) > 100000
     with zipfile.ZipFile(io.BytesIO(res_apk.content), "r") as azf:
         anames = set(azf.namelist())
@@ -826,6 +826,7 @@ def run_tests():
     ):
         assert removed_id not in html_src, f"Removed UI artifact {removed_id!r} should not be present in HTML"
     assert 'id="otp-box-signup-app"' in html_src and 'id="otp-box-signup-off"' in html_src and 'id="btn-send-otp-forgot"' in html_src
+    assert 'id="otp-box-profile-email"' in html_src and 'id="btn-send-otp-profile-email"' in html_src and 'id="setting-prof-otp"' in html_src
     assert 'id="btn-settings-main"' in html_src
     assert 'onclick="openSettingsModal()"' in html_src
     assert 'id="settings-modal"' in html_src
@@ -841,10 +842,10 @@ def run_tests():
     app_shell_block = html_src[app_shell_start:app_shell_end]
     assert 'id="btn-settings-main"' in app_shell_block
     settings_start = html_src.index('<div id="settings-modal"')
-    settings_end = html_src.index('<div id="meridian-toast-container"')
+    settings_end = html_src.index('<div id="rindristi-toast-container"')
     settings_block = html_src[settings_start:settings_end]
     assert 'id="setting-prof-fullname"' in settings_block and 'id="setting-prof-email"' in settings_block
-    for forbidden in ("toggleLanguage", "lang-toggle", "meridian_lang", "हिन्दी", "Language"):
+    for forbidden in ("toggleLanguage", "lang-toggle", "rindristi_lang", "हिन्दी", "Language"):
         assert forbidden.lower() not in settings_block.lower(), f"Forbidden language control {forbidden!r} found inside settings modal"
 
     res_js_settings = client.get("/app.js")
@@ -855,15 +856,19 @@ def run_tests():
         "closeSettingsModal",
         "saveAndCloseSettingsModal",
         "saveProfileIdentityFromSettings",
+        "syncProfileEmailOtpBoxVisibility",
         "syncDisplayedUserIdentity",
         "resetUserSettingsToDefaults",
         "applyUserSettingsToApp",
         "getUserSettingsStorageKey",
         "maskPrivacyName",
         "openForgotPasswordFromSettings",
-        "clearUserOfflineQueue"
+        "clearUserOfflineQueue",
+        "SESSION_IDLE_TIMEOUT_MS",
+        "handleApiAuthFailure",
+        "rindristi_last_activity_at"
     ):
-        assert sym in js_src, f"Missing settings symbol {sym} in /app.js"
+        assert sym in js_src, f"Missing settings/session symbol {sym} in /app.js"
     for dead_sym in (
         "openDownloadAppModal",
         "refreshDownloadAppModalUI",
@@ -939,32 +944,107 @@ def run_tests():
     assert r_app_sub.status_code == 201
     p_app_no = r_app_sub.json()["application"]["application_no"]
 
-    r_prof_app = client.patch("/api/auth/profile", json={
+    r_prof_name_only = client.patch("/api/auth/profile", json={
+        "full_name": "Intermediate App Name",
+        "email": p_app_old_email
+    }, headers=p_app_headers)
+    assert r_prof_name_only.status_code == 200
+    assert r_prof_name_only.json()["user"]["full_name"] == "Intermediate App Name"
+
+    r_prof_no_otp = client.patch("/api/auth/profile", json={
         "full_name": "After App Name",
         "email": p_app_new_email.upper()
     }, headers=p_app_headers)
-    assert r_prof_app.status_code == 200
-    assert r_prof_app.json()["user"]["full_name"] == "After App Name"
-    assert r_prof_app.json()["user"]["email"] == p_app_new_email
+    assert r_prof_no_otp.status_code == 400 and r_prof_no_otp.json().get("code") == "EMAIL_OTP_REQUIRED"
 
-    r_app_sess = client.get("/api/auth/session", headers=p_app_headers)
-    assert r_app_sess.status_code == 200
-    assert r_app_sess.json()["user"]["full_name"] == "After App Name"
-    assert r_app_sess.json()["user"]["email"] == p_app_new_email
+    dispatched_email_changes = []
+    saved_ec_env = {k: os.environ.get(k) for k in ("BREVO_API_KEY", "EMAIL_FROM", "REQUIRE_EMAIL_OTP")}
+    orig_send_otp_ec = email_service.send_otp_email
+    try:
+        os.environ["BREVO_API_KEY"] = "test-brevo-key-ec"
+        os.environ["EMAIL_FROM"] = "no-reply@rindristi.in"
+        os.environ["REQUIRE_EMAIL_OTP"] = "true"
+        email_service.send_otp_email = lambda to_email, otp_code, purpose, lang="en": (
+            dispatched_email_changes.append({"to": to_email, "otp": otp_code, "purpose": purpose}) or (True, "sent")
+        )
 
-    r_prof_off = client.patch("/api/auth/profile", json={
-        "full_name": "After Off Name",
-        "email": p_off_new_email
-    }, headers=p_off_headers)
-    assert r_prof_off.status_code == 200
-    assert r_prof_off.json()["user"]["full_name"] == "After Off Name"
-    assert r_prof_off.json()["user"]["email"] == p_off_new_email
+        assert client.post(
+            "/api/auth/send-otp",
+            json={"email": p_app_new_email, "purpose": "email_change", "lang": "en"},
+            headers={"X-Forwarded-For": "198.51.100.95"}
+        ).status_code == 401
 
-    r_prof_dup = client.patch("/api/auth/profile", json={
-        "full_name": "After Off Name",
-        "email": p_app_new_email
-    }, headers=p_off_headers)
-    assert r_prof_dup.status_code == 409
+        assert client.post(
+            "/api/auth/send-otp",
+            json={"email": p_app_old_email, "purpose": "email_change", "lang": "en"},
+            headers={**p_app_headers, "X-Forwarded-For": "198.51.100.95"}
+        ).status_code == 400
+
+        assert client.post(
+            "/api/auth/send-otp",
+            json={"email": p_off_old_email, "purpose": "email_change", "lang": "en"},
+            headers={**p_app_headers, "X-Forwarded-For": "198.51.100.95"}
+        ).status_code == 409
+
+        r_ec_send = client.post(
+            "/api/auth/send-otp",
+            json={"email": p_app_new_email, "purpose": "email_change", "lang": "en"},
+            headers={**p_app_headers, "X-Forwarded-For": "198.51.100.95"}
+        )
+        assert r_ec_send.status_code == 200 and dispatched_email_changes[-1]["to"] == p_app_new_email
+        app_ec_code = dispatched_email_changes[-1]["otp"]
+
+        r_ec_ver = client.post(
+            "/api/auth/verify-otp",
+            json={"email": p_app_new_email, "purpose": "email_change", "otp": app_ec_code},
+            headers={"X-Forwarded-For": "198.51.100.95"}
+        )
+        assert r_ec_ver.status_code == 200
+        app_ec_vtok = r_ec_ver.json()["verification_token"]
+
+        r_prof_app = client.patch("/api/auth/profile", json={
+            "full_name": "After App Name",
+            "email": p_app_new_email.upper(),
+            "otp_verification_token": app_ec_vtok
+        }, headers=p_app_headers)
+        assert r_prof_app.status_code == 200, r_prof_app.text
+        assert r_prof_app.json()["user"]["full_name"] == "After App Name"
+        assert r_prof_app.json()["user"]["email"] == p_app_new_email
+
+        r_app_sess = client.get("/api/auth/session", headers=p_app_headers)
+        assert r_app_sess.status_code == 200
+        assert r_app_sess.json()["user"]["full_name"] == "After App Name"
+        assert r_app_sess.json()["user"]["email"] == p_app_new_email
+
+        r_off_send = client.post(
+            "/api/auth/send-otp",
+            json={"email": p_off_new_email, "purpose": "email_change", "lang": "en"},
+            headers={**p_off_headers, "X-Forwarded-For": "198.51.100.96"}
+        )
+        assert r_off_send.status_code == 200
+        off_ec_code = dispatched_email_changes[-1]["otp"]
+
+        r_prof_off = client.patch("/api/auth/profile", json={
+            "full_name": "After Off Name",
+            "email": p_off_new_email,
+            "otp_code": off_ec_code
+        }, headers=p_off_headers)
+        assert r_prof_off.status_code == 200, r_prof_off.text
+        assert r_prof_off.json()["user"]["full_name"] == "After Off Name"
+        assert r_prof_off.json()["user"]["email"] == p_off_new_email
+
+        r_prof_dup = client.patch("/api/auth/profile", json={
+            "full_name": "After Off Name",
+            "email": p_app_new_email
+        }, headers=p_off_headers)
+        assert r_prof_dup.status_code == 409
+    finally:
+        email_service.send_otp_email = orig_send_otp_ec
+        for k, v in saved_ec_env.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
 
     r_off_vault = client.get("/api/saved-applications?role=officer", headers=p_off_headers)
     assert r_off_vault.status_code == 200
@@ -981,7 +1061,7 @@ def run_tests():
         json={"email": p_app_old_email, "password": "Password@123", "expected_role": "applicant"},
         headers={"X-Forwarded-For": "198.51.100.94"}
     ).status_code == 401
-    print("[PASS] 40. PATCH /api/auth/profile -> 401/400/409 guards + Applicant & Officer Name/Email persistence & Vault email sync verified")
+    print("[PASS] 40. PATCH /api/auth/profile -> Name-only OTP-free + New-email OTP enforced + Applicant & Officer persistence & Vault sync verified")
 
     assert "@page" in css_src
     assert "body.letter-modal-open" in css_src
@@ -1004,7 +1084,7 @@ def run_tests():
         'id="let-signatory-name"'
     ):
         assert let_dom_id in html_src, f"Missing Decision Letter element {let_dom_id} in /"
-    for fake_str in ("MERIDIAN-MB-9021", "28 October 2026"):
+    for fake_str in ("RINDRISTI-RD-9021", "MERIDIAN-MB-9021", "28 October 2026"):
         assert fake_str not in html_src, f"Hardcoded placeholder {fake_str!r} still present in /"
 
     for let_js_sym in (
@@ -1017,7 +1097,7 @@ def run_tests():
         "afterprint"
     ):
         assert let_js_sym in js_src, f"Missing print/letter symbol {let_js_sym} in /app.js"
-    for fake_js_str in ("+28.4%", "-32.1%", "MERIDIAN-MB-9021"):
+    for fake_js_str in ("+28.4%", "-32.1%", "RINDRISTI-RD-9021", "MERIDIAN-MB-9021"):
         assert fake_js_str not in js_src, f"Hardcoded mock impact/ref string {fake_js_str!r} still present in /app.js"
     print("[PASS] 41. Single-flow Print/PDF @media print isolation + Authentic RBI KFS / Adverse Action Notice & real SHAP attribution verified")
 
@@ -1096,18 +1176,42 @@ def run_tests():
     assert r_404_api.json().get("success") is False
 
     assert 'href="tel:18002094000"' in html_src
-    assert 'href="mailto:grievance.bharat@meridian.fin"' in html_src
+    assert 'href="mailto:grievance.bharat@rindristi.fin"' in html_src
     assert 'id="mobile-menu-toggle-auth"' in html_src and 'id="mobile-menu-toggle-app"' in html_src
     assert 'id="mobile-nav-drawer-auth"' in html_src and 'id="mobile-nav-drawer-app"' in html_src
     assert 'id="public-breadcrumbs"' in html_src and 'id="app-breadcrumbs"' in html_src
     assert 'id="public-info-modal"' in html_src
-    assert "© 2026 Meridian FairLend" in html_src
+    assert "© 2026 RinDristi FairLend" in html_src
     assert '<script src="dataset_data.js"></script>' not in html_src
     assert '<script src="/app.js" defer></script>' in html_src
     assert "sourceMappingURL" not in js_src and "sourceMappingURL" not in css_src
     assert "Vite" not in html_src and "React" not in html_src
     assert "ensureDatasetLoaded" in js_src and "syncDocumentSeoAndBreadcrumbs" in js_src and "syncVisibleH1Tag" in js_src
     print("[PASS] 42. Clean Slugs, Unique Meta/Canonical/JSON-LD Schema, Sitemap/Robots/UrlList, Custom 404, Mobile Menus, Clickable Links & Lazy Bundle verified")
+
+    from src.database import database_operations as db_ops
+    r_idle_si = client.post(
+        "/api/auth/signin",
+        json={"email": p_app_new_email, "password": "Password@123", "expected_role": "applicant"},
+        headers={"X-Forwarded-For": "198.51.100.99"}
+    )
+    assert r_idle_si.status_code == 200
+    idle_tok = r_idle_si.json()["token"]
+    idle_hdrs = {"Authorization": f"Bearer {idle_tok}"}
+    r_idle_ok = client.get("/api/auth/session", headers=idle_hdrs)
+    assert r_idle_ok.status_code == 200 and r_idle_ok.json().get("idle_timeout_seconds") == 600
+    with db_ops.get_sqlite_conn() as conn:
+        conn.execute(
+            "UPDATE user_sessions SET last_seen_at = DATETIME('now', '-605 seconds') WHERE token = ?",
+            (idle_tok,)
+        )
+    r_idle_sess = client.get("/api/auth/session", headers=idle_hdrs)
+    assert r_idle_sess.status_code == 401 and r_idle_sess.json().get("session_expired") is True
+    r_idle_vault = client.get("/api/saved-applications", headers=idle_hdrs)
+    assert r_idle_vault.status_code == 401
+    r_idle_prof = client.patch("/api/auth/profile", json={"full_name": "Still Alive", "email": p_app_new_email}, headers=idle_hdrs)
+    assert r_idle_prof.status_code == 401 and r_idle_prof.json().get("session_expired") is True
+    print("[PASS] 43. 10-Minute Session Inactivity Expiry (600s idle timeout) across auth/vault/profile endpoints verified")
 
     print("=" * 70)
     print("ALL FASTAPI ENDPOINTS & POLICIES VALIDATED SUCCESSFULLY (100% PASS)")

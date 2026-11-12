@@ -11,7 +11,7 @@ def _env(name: str, default: str = "") -> str:
 
 def _parse_sender(raw: str) -> Tuple[str, str]:
     name, addr = parseaddr(raw or "")
-    clean_name = (name or "").strip() or "Meridian FairLend AI"
+    clean_name = (name or "").strip() or "RinDristi FairLend AI"
     clean_addr = (addr or "").strip()
     return clean_name, clean_addr
 
@@ -23,9 +23,9 @@ def _resolve_sender(provider: Optional[str]) -> Tuple[str, str]:
         or _env("SMTP_USER")
     )
     if provider == "resend" and not raw:
-        raw = "Meridian FairLend AI <onboarding@resend.dev>"
+        raw = "RinDristi FairLend AI <onboarding@resend.dev>"
     if provider == "webhook" and not raw:
-        raw = "Meridian FairLend AI <webhook-relay@meridian.local>"
+        raw = "RinDristi FairLend AI <webhook-relay@rindristi.local>"
     return _parse_sender(raw)
 
 def get_configured_provider() -> Optional[str]:
@@ -86,26 +86,29 @@ def get_email_otp_status() -> Dict[str, Any]:
         "dev_preview_enabled": is_dev_preview_enabled(),
         "require_otp_on_signup": enforced,
         "require_otp_on_application": False,
-        "require_otp_on_forgot_password": True
+        "require_otp_on_forgot_password": True,
+        "require_otp_on_email_change": True
     }
 
 def _build_otp_email(otp_code: str, purpose: str, lang: str = "en") -> Tuple[str, str, str]:
     is_hi = str(lang or "en").strip().lower() == "hi"
     labels_en = {
         "signup": "Account Registration Verification",
-        "forgot_password": "Password Reset Verification"
+        "forgot_password": "Password Reset Verification",
+        "email_change": "Email Address Change Verification"
     }
     labels_hi = {
         "signup": "खाता पंजीकरण सत्यापन",
-        "forgot_password": "पासवर्ड रीसेट सत्यापन"
+        "forgot_password": "पासवर्ड रीसेट सत्यापन",
+        "email_change": "ईमेल पता परिवर्तन सत्यापन"
     }
     clean_purpose = str(purpose or "signup").strip().lower()
     purpose_label = (labels_hi if is_hi else labels_en).get(clean_purpose, labels_en["signup"])
 
     if is_hi:
-        subject = f"{otp_code} आपका मेरिडियन फेयरलेंड OTP है ({purpose_label})"
+        subject = f"{otp_code} आपका रिनदृष्टि फेयरलेंड OTP है ({purpose_label})"
         text_body = (
-            f"मेरिडियन फेयरलेंड एआई • मिशन भारत\n"
+            f"रिनदृष्टि फेयरलेंड एआई • मिशन भारत\n"
             f"उद्देश्य: {purpose_label}\n\n"
             f"आपका 6-अंकीय सत्यापन OTP: {otp_code}\n\n"
             f"यह कोड 10 मिनट के लिए मान्य है।\n"
@@ -114,11 +117,11 @@ def _build_otp_email(otp_code: str, purpose: str, lang: str = "en") -> Tuple[str
         html_heading = "ईमेल सत्यापन वन-टाइम पासवर्ड (OTP)"
         html_intro = f"<strong>{purpose_label}</strong> पूरा करने के लिए नीचे दिया गया 6-अंकीय सुरक्षा कोड दर्ज करें:"
         html_validity = "यह OTP <strong>10 मिनट</strong> में समाप्त हो जाएगा और केवल एक बार उपयोग किया जा सकता है।"
-        html_warn = "सुरक्षा चेतावनी: मेरिडियन के अधिकारी कभी भी आपसे यह OTP नहीं मांगते। इसे किसी के साथ साझा न करें।"
+        html_warn = "सुरक्षा चेतावनी: रिनदृष्टि के अधिकारी कभी भी आपसे यह OTP नहीं मांगते। इसे किसी के साथ साझा न करें।"
     else:
-        subject = f"{otp_code} is your Meridian FairLend verification OTP"
+        subject = f"{otp_code} is your RinDristi FairLend verification OTP"
         text_body = (
-            f"Meridian FairLend AI • Mission Bharat\n"
+            f"RinDristi FairLend AI • Mission Bharat\n"
             f"Purpose: {purpose_label}\n\n"
             f"Your 6-digit verification code is: {otp_code}\n\n"
             f"This OTP expires in 10 minutes.\n"
@@ -127,13 +130,13 @@ def _build_otp_email(otp_code: str, purpose: str, lang: str = "en") -> Tuple[str
         html_heading = "Email Verification One-Time Password"
         html_intro = f"Enter the 6-digit security code below to complete your <strong>{purpose_label}</strong>:"
         html_validity = "This code expires in <strong>10 minutes</strong> and can only be verified once."
-        html_warn = "Security Notice: Meridian FairLend officers will never ask you for this OTP. Do not share it with anyone."
+        html_warn = "Security Notice: RinDristi FairLend officers will never ask you for this OTP. Do not share it with anyone."
 
     html_body = (
         '<!DOCTYPE html><html><body style="margin:0;padding:24px;background:#F7F3EB;font-family:Segoe UI,Arial,sans-serif;color:#0B2920;">'
         '<div style="max-width:520px;margin:0 auto;background:#FFFFFF;border:2px solid #E6DDCF;border-radius:14px;overflow:hidden;">'
         '<div style="background:#064E3B;padding:20px 24px;border-bottom:4px solid #F8E7C9;color:#FFFFFF;">'
-        '<div style="font-size:18px;font-weight:800;letter-spacing:0.2px;">Meridian FairLend AI</div>'
+        '<div style="font-size:18px;font-weight:800;letter-spacing:0.2px;">RinDristi FairLend AI</div>'
         '<div style="font-size:12px;color:#F8E7C9;margin-top:2px;">Mission Bharat • RBI Fair Lending Compliant</div>'
         '</div>'
         '<div style="padding:24px;">'
@@ -189,7 +192,7 @@ def _send_via_resend(to_email: str, subject: str, text_body: str, html_body: str
     api_key = _env("RESEND_API_KEY")
     if not api_key:
         return False, "RESEND_API_KEY is missing."
-    from_val = f"{sender_name} <{sender_email}>" if sender_email else "Meridian FairLend AI <onboarding@resend.dev>"
+    from_val = f"{sender_name} <{sender_email}>" if sender_email else "RinDristi FairLend AI <onboarding@resend.dev>"
     try:
         resp = requests.post(
             "https://api.resend.com/emails",

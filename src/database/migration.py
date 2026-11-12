@@ -13,7 +13,7 @@ from src.database.database_operations import DB_FILE
 
 def run_migration():
     print("=" * 80)
-    print("  MERIDIAN FAIRLEND - SQLITE TO SUPABASE MIGRATION WIZARD")
+    print("  RINDRISTI FAIRLEND - SQLITE TO SUPABASE MIGRATION WIZARD")
     print("=" * 80)
 
     if not os.path.exists(DB_FILE):
@@ -133,7 +133,7 @@ def run_migration():
 
     print("-" * 80)
     print(f"  MIGRATION SUMMARY & INTEGRITY CHECK:")
-    print(f"  • Original SQLite records in meridian_loans.db: {sqlite_count}")
+    print(f"  • Original SQLite records in rindristi_loans.db: {sqlite_count}")
     print(f"  • Newly migrated records:                      {migrated_success}")
     print(f"  • Previously migrated (deduplicated):          {migrated_skipped}")
     print(f"  • Total verified records in Supabase Cloud:    {sb_total}")

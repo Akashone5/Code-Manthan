@@ -5,7 +5,7 @@ def view_and_export():
     rows = get_all_applications()
 
     print("=" * 105)
-    print("  MERIDIAN FAIRLEND - MISSION BHARAT")
+    print("  RINDRISTI FAIRLEND - MISSION BHARAT")
     print("  CENTRAL LOAN APPLICATION DATABASE & REGISTRY")
     print("=" * 105)
     print(f"Total Applications in Vault: {len(rows)}\n")
@@ -30,7 +30,7 @@ def view_and_export():
     sync_csv_export()
     print("-" * len(header))
     print(f"\n[OK] Excel/CSV File Updated: {EXPORT_CSV}")
-    print("Direct Access: Open 'meridian_loan_applications_export.csv' in Microsoft Excel or Google Sheets.")
+    print("Direct Access: Open 'rindristi_loan_applications_export.csv' in Microsoft Excel or Google Sheets.")
 
 if __name__ == '__main__':
     view_and_export()

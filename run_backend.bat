@@ -1,7 +1,7 @@
 @echo off
-title Meridian FairLend - Credit Decision Server
+title RinDristi FairLend - Credit Decision Server
 echo ========================================================
-echo   MERIDIAN FAIRLEND - CREDIT UNDERWRITING API
+echo   RINDRISTI FAIRLEND - CREDIT UNDERWRITING API
 echo   Starting Production FastAPI REST Server...
 echo   Runtime: Python 3.11
 echo   Swagger UI: http://localhost:5000/docs

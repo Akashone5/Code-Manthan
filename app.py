@@ -28,7 +28,7 @@ if st is None:
     sys.exit(0)
 
 st.set_page_config(
-    page_title="Explainable Loan Decision System - Meridian FairLend",
+    page_title="Explainable Loan Decision System - RinDristi FairLend",
     page_icon="🏛️",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -85,7 +85,7 @@ if not st.session_state.user:
     }
     </style>
     <div style="background: linear-gradient(135deg, #064E3B 0%, #032C21 100%); padding: 1.6rem 2rem; border-radius: 16px; border-bottom: 3.5px solid #F8E7C9; margin-bottom: 1.75rem; text-align: center; box-shadow: 0 4px 14px rgba(6,78,59,0.25);">
-        <div style="display: inline-block; width: 44px; height: 44px; background: linear-gradient(135deg, #F8E7C9 0%, #E8CCA0 100%); border-radius: 10px; font-weight: 900; font-size: 1.45rem; color: #064E3B; line-height: 44px; box-shadow: 0 4px 12px rgba(248, 231, 201, 0.45); margin-bottom: 0.5rem;">M</div>
+        <div style="display: inline-block; width: 44px; height: 44px; background: linear-gradient(135deg, #F8E7C9 0%, #E8CCA0 100%); border-radius: 10px; font-weight: 900; font-size: 1.45rem; color: #064E3B; line-height: 44px; box-shadow: 0 4px 12px rgba(248, 231, 201, 0.45); margin-bottom: 0.5rem;">R</div>
         <h1 style="color: #FFFFFF; font-size: 1.75rem; margin: 0; font-weight: 800; letter-spacing: -0.01em;">Explainable Loan Decision System</h1>
         <div style="margin-top: 6px;">
             <span style="background: rgba(248, 231, 201, 0.18); border: 1px solid #F8E7C9; color: #F8E7C9; font-size: 0.72rem; font-weight: 700; padding: 2px 10px; border-radius: 99px; text-transform: uppercase;">Mission Bharat Credit</span>
@@ -131,7 +131,7 @@ if not st.session_state.user:
                 st.markdown("---")
                 st.caption("Applicant Demo Account:")
                 if st.button("👤 Quick Demo: Ananya Rao (Applicant)", use_container_width=True):
-                    res = authenticate_user("applicant@meridianbank.in", "Applicant@123")
+                    res = authenticate_user("applicant@rindristi.in", "Applicant@123")
                     if res.get('success'):
                         st.session_state.user = res['user']
                         st.session_state.user_token = res.get('token')
@@ -140,7 +140,7 @@ if not st.session_state.user:
             elif auth_mode == "🛡️ Loan Officer Sign In":
                 st.subheader("Loan Officer Terminal")
                 st.caption("Institutional access for credit underwriting, portfolio audit & algorithmic equity.")
-                login_email = st.text_input("Institutional Officer Email", key="login_off_email", placeholder="officer@meridianbank.in")
+                login_email = st.text_input("Institutional Officer Email", key="login_off_email", placeholder="officer@rindristi.in")
                 login_password = st.text_input("Officer Password", type="password", key="login_off_password")
 
                 if st.button("Sign In as Loan Officer", type="primary", use_container_width=True):
@@ -212,7 +212,7 @@ user_role = current_user.get('role', 'applicant')
 user_name = current_user.get('full_name', current_user.get('email', 'User'))
 
 with st.sidebar:
-    st.markdown("### 🏛️ Meridian FairLend")
+    st.markdown("### 🏛️ RinDristi FairLend")
     st.caption("Explainable Loan Decision System")
 
     st.markdown(f"**Welcome, {user_name}**")

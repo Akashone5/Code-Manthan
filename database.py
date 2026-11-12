@@ -30,6 +30,7 @@ from src.database.database_operations import (
     consume_otp_verification_token,
     reset_password_with_otp,
     init_db,
+    SESSION_IDLE_TIMEOUT_SECONDS,
     DB_FILE,
     EXPORT_CSV
 )
@@ -97,6 +98,7 @@ __all__ = [
     'consume_otp_verification_token',
     'reset_password_with_otp',
     'init_db',
+    'SESSION_IDLE_TIMEOUT_SECONDS',
     'DB_FILE',
     'EXPORT_CSV'
 ]

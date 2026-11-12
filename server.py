@@ -5,7 +5,7 @@ from main import app
 def run_server():
     port = int(os.environ.get("PORT", 5000))
     print("=" * 70)
-    print("  Meridian FairLend - FastAPI Underwriting Server")
+    print("  RinDristi FairLend - FastAPI Underwriting Server")
     print(f"  Listening on: http://0.0.0.0:{port}")
     print(f"  Interactive OpenAPI Docs: http://0.0.0.0:{port}/docs")
     print("  Press Ctrl+C to stop.")

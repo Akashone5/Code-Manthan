@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: meridian-fairlend-api
+    name: rindristi-fairlend-api
     runtime: python
     plan: free
     buildCommand: pip install --upgrade pip && pip install -r requirements-api.txt

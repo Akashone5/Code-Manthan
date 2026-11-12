@@ -16,7 +16,8 @@ from typing import List, Dict, Any, Optional, Tuple, Iterator
 
 from .supabase_client import get_supabase_client
 
-VALID_OTP_PURPOSES = ('signup', 'forgot_password')
+SESSION_IDLE_TIMEOUT_SECONDS = 600
+VALID_OTP_PURPOSES = ('signup', 'forgot_password', 'email_change')
 
 def _utc_now_dt() -> datetime.datetime:
     return datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
@@ -25,7 +26,7 @@ def _utc_now_str() -> str:
     return _utc_now_dt().strftime("%Y-%m-%d %H:%M:%S")
 
 _ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-_SEED_DB_FILE = os.path.join(_ROOT_DIR, 'meridian_loans.db')
+_SEED_DB_FILE = os.path.join(_ROOT_DIR, 'rindristi_loans.db')
 
 def _resolve_db_and_export_paths() -> Tuple[str, str]:
     explicit_db = os.environ.get('SQLITE_DB_PATH', '').strip()
@@ -33,7 +34,7 @@ def _resolve_db_and_export_paths() -> Tuple[str, str]:
     if explicit_db:
         db_path = os.path.abspath(explicit_db)
     elif volume_mount:
-        db_path = os.path.abspath(os.path.join(volume_mount, 'meridian_loans.db'))
+        db_path = os.path.abspath(os.path.join(volume_mount, 'rindristi_loans.db'))
     else:
         db_path = _SEED_DB_FILE
 
@@ -42,7 +43,7 @@ def _resolve_db_and_export_paths() -> Tuple[str, str]:
         csv_path = os.path.abspath(explicit_csv)
     else:
         csv_dir = os.path.dirname(db_path) or _ROOT_DIR
-        csv_path = os.path.join(csv_dir, 'meridian_loan_applications_export.csv')
+        csv_path = os.path.join(csv_dir, 'rindristi_loan_applications_export.csv')
     return db_path, csv_path
 
 DB_FILE, EXPORT_CSV = _resolve_db_and_export_paths()
@@ -51,15 +52,19 @@ def _ensure_db_storage_ready():
     parent_dir = os.path.dirname(DB_FILE)
     if parent_dir:
         os.makedirs(parent_dir, exist_ok=True)
-    if (
-        os.path.abspath(DB_FILE) != os.path.abspath(_SEED_DB_FILE)
-        and not os.path.exists(DB_FILE)
-        and os.path.exists(_SEED_DB_FILE)
-    ):
-        try:
-            shutil.copy2(_SEED_DB_FILE, DB_FILE)
-        except Exception:
-            pass
+    if not os.path.exists(DB_FILE):
+        legacy_same_dir = os.path.join(parent_dir or _ROOT_DIR, 'meridian_loans.db')
+        if os.path.abspath(legacy_same_dir) != os.path.abspath(DB_FILE) and os.path.exists(legacy_same_dir):
+            try:
+                shutil.copy2(legacy_same_dir, DB_FILE)
+                return
+            except Exception:
+                pass
+        if os.path.abspath(DB_FILE) != os.path.abspath(_SEED_DB_FILE) and os.path.exists(_SEED_DB_FILE):
+            try:
+                shutil.copy2(_SEED_DB_FILE, DB_FILE)
+            except Exception:
+                pass
 
 @contextmanager
 def get_sqlite_conn() -> Iterator[sqlite3.Connection]:
@@ -270,7 +275,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS email_otps (
                 id TEXT PRIMARY KEY,
                 email TEXT NOT NULL,
-                purpose TEXT NOT NULL CHECK(purpose IN ('signup', 'forgot_password')),
+                purpose TEXT NOT NULL CHECK(purpose IN ('signup', 'forgot_password', 'email_change')),
                 otp_hash TEXT NOT NULL,
                 salt TEXT NOT NULL,
                 attempts_left INTEGER NOT NULL DEFAULT 5,
@@ -282,6 +287,42 @@ def init_db():
                 token_consumed_at TEXT
             )
         ''')
+
+        cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='email_otps'")
+        otp_schema_row = cursor.fetchone()
+        otp_schema_sql = (otp_schema_row['sql'] if otp_schema_row else '') or ''
+        if otp_schema_sql and "'email_change'" not in otp_schema_sql:
+            cursor.execute('''
+                CREATE TABLE email_otps_new (
+                    id TEXT PRIMARY KEY,
+                    email TEXT NOT NULL,
+                    purpose TEXT NOT NULL CHECK(purpose IN ('signup', 'forgot_password', 'email_change')),
+                    otp_hash TEXT NOT NULL,
+                    salt TEXT NOT NULL,
+                    attempts_left INTEGER NOT NULL DEFAULT 5,
+                    created_at TEXT NOT NULL,
+                    expires_at TEXT NOT NULL,
+                    verified_at TEXT,
+                    verification_token TEXT,
+                    token_expires_at TEXT,
+                    token_consumed_at TEXT
+                )
+            ''')
+            cursor.execute('''
+                INSERT INTO email_otps_new (
+                    id, email, purpose, otp_hash, salt, attempts_left,
+                    created_at, expires_at, verified_at, verification_token,
+                    token_expires_at, token_consumed_at
+                )
+                SELECT
+                    id, email, purpose, otp_hash, salt, attempts_left,
+                    created_at, expires_at, verified_at, verification_token,
+                    token_expires_at, token_consumed_at
+                FROM email_otps
+                WHERE purpose IN ('signup', 'forgot_password', 'email_change')
+            ''')
+            cursor.execute("DROP TABLE email_otps")
+            cursor.execute("ALTER TABLE email_otps_new RENAME TO email_otps")
 
         cursor.execute('''
             CREATE INDEX IF NOT EXISTS idx_email_otps_lookup
@@ -318,14 +359,20 @@ def init_db():
         cursor.execute("SELECT COUNT(*) FROM audit_logs")
         if cursor.fetchone()[0] == 0:
             baseline_audits = [
-                ("2026-10-28 21:10:00", None, "Underwriter #304", "officer", "MB-2026-1003", "Mission Bharat Pass", "Rural women digital MSME priority incentive applied", "Verified under Mission Bharat guidelines"),
-                ("2026-10-28 20:42:00", None, "Underwriter #108", "officer", "MB-2026-1002", "Approved", "Standard prime underwriting pass", "CIBIL & DTI ratios within prime ceiling"),
-                ("2026-10-28 20:15:00", None, "Underwriter #402", "officer", "MB-2026-1004", "System Rejected", "Subprime credit score (CIBIL 580) and 59.5% DTI", "Credit rehabilitation recommended")
+                ("2026-10-28 21:10:00", None, "Underwriter #304", "officer", "RD-2026-1003", "Mission Bharat Pass", "Rural women digital MSME priority incentive applied", "Verified under Mission Bharat guidelines"),
+                ("2026-10-28 20:42:00", None, "Underwriter #108", "officer", "RD-2026-1002", "Approved", "Standard prime underwriting pass", "CIBIL & DTI ratios within prime ceiling"),
+                ("2026-10-28 20:15:00", None, "Underwriter #402", "officer", "RD-2026-1004", "System Rejected", "Subprime credit score (CIBIL 580) and 59.5% DTI", "Credit rehabilitation recommended")
             ]
             cursor.executemany('''
                 INSERT INTO audit_logs (created_at, officer_id, officer_name, officer_role, application_no, action, notes, remarks)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ''', baseline_audits)
+        else:
+            cursor.execute('''
+                UPDATE audit_logs
+                SET application_no = REPLACE(application_no, 'MB-2026-', 'RD-2026-')
+                WHERE application_no LIKE 'MB-2026-%'
+            ''')
 
         cursor.execute("SELECT setting_key, setting_value FROM system_settings")
         existing_settings = {row['setting_key']: row['setting_value'] for row in cursor.fetchall()}
@@ -371,12 +418,19 @@ def init_db():
 
         for k, v, actor in [
             ("maintenance_title", "Portal Temporarily Offline", "System Startup"),
-            ("maintenance_message", "Meridian FairLend AI is currently offline for scheduled maintenance. Online underwriting will resume shortly.", "System Startup"),
+            ("maintenance_message", "RinDristi FairLend AI is currently offline for scheduled maintenance. Online underwriting will resume shortly.", "System Startup"),
         ]:
             cursor.execute('''
                 INSERT OR IGNORE INTO system_settings (setting_key, setting_value, updated_by, updated_at)
                 VALUES (?, ?, ?, ?)
             ''', (k, v, actor, now_str))
+
+        cursor.execute('''
+            UPDATE system_settings
+            SET setting_value = ?, updated_at = ?
+            WHERE setting_key = 'maintenance_message'
+              AND setting_value LIKE 'Meridian FairLend AI is currently offline%'
+        ''', ("RinDristi FairLend AI is currently offline for scheduled maintenance. Online underwriting will resume shortly.", now_str))
 
         cursor.execute("SELECT COUNT(*) FROM profiles")
         count = cursor.fetchone()[0]
@@ -385,14 +439,14 @@ def init_db():
             cursor.execute('''
                 INSERT INTO profiles (id, full_name, email, phone, password_hash, salt, role, is_verified_officer, created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (str(uuid.uuid4()), "Ananya Rao", "applicant@meridianbank.in", "9876543210", app_hash, app_salt, "applicant", 0, now_str, now_str))
+            ''', (str(uuid.uuid4()), "Ananya Rao", "applicant@rindristi.in", "9876543210", app_hash, app_salt, "applicant", 0, now_str, now_str))
 
             seed_officer_pwd = os.environ.get("OFFICER_ADMIN_PASSWORD", "").strip() or "Officer@2026"
             off_hash, off_salt = _hash_password(seed_officer_pwd)
             cursor.execute('''
                 INSERT INTO profiles (id, full_name, email, phone, password_hash, salt, role, is_verified_officer, created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (str(uuid.uuid4()), "Vikram Sharma (Lead Credit Officer)", "officer@meridianbank.in", "9811223344", off_hash, off_salt, "officer", 1, now_str, now_str))
+            ''', (str(uuid.uuid4()), "Vikram Sharma (Lead Credit Officer)", "officer@rindristi.in", "9811223344", off_hash, off_salt, "officer", 1, now_str, now_str))
             if os.environ.get("OFFICER_ADMIN_PASSWORD", "").strip():
                 pwd_fp = hashlib.sha256(seed_officer_pwd.encode()).hexdigest()
                 cursor.execute('''
@@ -404,6 +458,45 @@ def init_db():
                         updated_at = excluded.updated_at
                 ''', ("officer_pwd_env_last", pwd_fp, "System Startup", now_str))
         else:
+            cursor.execute("SELECT id FROM profiles WHERE LOWER(email) = ?", ("applicant@rindristi.in",))
+            if not cursor.fetchone():
+                cursor.execute("SELECT id FROM profiles WHERE LOWER(email) = ?", ("applicant@meridianbank.in",))
+                old_app = cursor.fetchone()
+                if old_app:
+                    cursor.execute(
+                        "UPDATE profiles SET email = ?, updated_at = ? WHERE id = ?",
+                        ("applicant@rindristi.in", now_str, old_app['id'])
+                    )
+                    cursor.execute(
+                        "UPDATE loan_applications SET applicant_email = ? WHERE LOWER(applicant_email) = ? OR user_id = ?",
+                        ("applicant@rindristi.in", "applicant@meridianbank.in", old_app['id'])
+                    )
+
+            cursor.execute("SELECT id FROM profiles WHERE LOWER(email) = ?", ("officer@rindristi.in",))
+            if not cursor.fetchone():
+                cursor.execute("SELECT id FROM profiles WHERE LOWER(email) = ?", ("officer@meridianbank.in",))
+                old_off = cursor.fetchone()
+                if old_off:
+                    cursor.execute(
+                        "UPDATE profiles SET email = ?, updated_at = ? WHERE id = ?",
+                        ("officer@rindristi.in", now_str, old_off['id'])
+                    )
+
+            cursor.execute(
+                "UPDATE loan_applications SET applicant_email = 'applicant@rindristi.in' WHERE LOWER(applicant_email) = ?",
+                ("applicant@meridianbank.in",)
+            )
+            migrated_brand_rows = cursor.rowcount or 0
+            cursor.execute(
+                "UPDATE loan_applications SET explanation_summary = REPLACE(explanation_summary, 'Meridian', 'RinDristi') WHERE explanation_summary LIKE '%Meridian%'"
+            )
+            migrated_brand_rows += cursor.rowcount or 0
+            cursor.execute(
+                "UPDATE loan_applications SET application_no = REPLACE(application_no, 'MB-2026-', 'RD-2026-') WHERE application_no LIKE 'MB-2026-%'"
+            )
+            migrated_brand_rows += cursor.rowcount or 0
+            migrated_loan_count += migrated_brand_rows
+
             admin_pwd_env = os.environ.get("OFFICER_ADMIN_PASSWORD", "").strip()
             if admin_pwd_env:
                 pwd_fp = hashlib.sha256(admin_pwd_env.encode()).hexdigest()
@@ -412,8 +505,8 @@ def init_db():
                     cursor.execute('''
                         UPDATE profiles
                         SET password_hash = ?, salt = ?, is_verified_officer = 1, updated_at = ?
-                        WHERE email = ? AND role = 'officer'
-                    ''', (off_hash, off_salt, now_str, "officer@meridianbank.in"))
+                        WHERE LOWER(email) = ? AND role = 'officer'
+                    ''', (off_hash, off_salt, now_str, "officer@rindristi.in"))
                     cursor.execute('''
                         INSERT INTO system_settings (setting_key, setting_value, updated_by, updated_at)
                         VALUES (?, ?, ?, ?)
@@ -430,9 +523,9 @@ def init_db():
 def _persist_session(token: str, user_id: str, role: str):
     if not token or not user_id:
         return
-    now_dt = datetime.datetime.now()
+    now_dt = _utc_now_dt()
     now_str = now_dt.strftime("%Y-%m-%d %H:%M:%S")
-    exp_str = (now_dt + datetime.timedelta(days=30)).strftime("%Y-%m-%d %H:%M:%S")
+    exp_str = (now_dt + datetime.timedelta(seconds=SESSION_IDLE_TIMEOUT_SECONDS)).strftime("%Y-%m-%d %H:%M:%S")
     with get_sqlite_conn() as conn:
         conn.execute('''
             INSERT OR REPLACE INTO user_sessions (token, user_id, role, created_at, expires_at, last_seen_at)
@@ -446,11 +539,13 @@ def verify_session_token(token: str) -> Optional[Dict[str, Any]]:
     if not clean:
         return None
 
-    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now_dt = _utc_now_dt()
+    now_str = now_dt.strftime("%Y-%m-%d %H:%M:%S")
+    next_exp_str = (now_dt + datetime.timedelta(seconds=SESSION_IDLE_TIMEOUT_SECONDS)).strftime("%Y-%m-%d %H:%M:%S")
     with get_sqlite_conn() as conn:
         cursor = conn.cursor()
         cursor.execute('''
-            SELECT s.token, s.user_id, s.role, s.expires_at,
+            SELECT s.token, s.user_id, s.role, s.expires_at, s.last_seen_at,
                    p.id, p.full_name, p.email, p.phone, p.role AS profile_role, p.is_verified_officer, p.created_at
             FROM user_sessions s
             JOIN profiles p ON p.id = s.user_id
@@ -460,10 +555,27 @@ def verify_session_token(token: str) -> Optional[Dict[str, Any]]:
         if not row:
             return None
         rec = dict(row)
-        if rec.get('expires_at') and rec['expires_at'] < now_str:
+        expired = False
+        last_seen_raw = (rec.get('last_seen_at') or '').strip()
+        expires_raw = (rec.get('expires_at') or '').strip()
+        if last_seen_raw:
+            try:
+                last_seen_dt = datetime.datetime.strptime(last_seen_raw[:19], "%Y-%m-%d %H:%M:%S")
+                if (now_dt - last_seen_dt).total_seconds() > SESSION_IDLE_TIMEOUT_SECONDS:
+                    expired = True
+            except Exception:
+                expired = True
+        else:
+            expired = True
+        if not expired and expires_raw and expires_raw < now_str:
+            expired = True
+        if expired:
             cursor.execute("DELETE FROM user_sessions WHERE token = ?", (clean,))
             return None
-        cursor.execute("UPDATE user_sessions SET last_seen_at = ? WHERE token = ?", (now_str, clean))
+        cursor.execute(
+            "UPDATE user_sessions SET last_seen_at = ?, expires_at = ? WHERE token = ?",
+            (now_str, next_exp_str, clean)
+        )
         return {
             'id': rec['id'],
             'full_name': rec['full_name'],
@@ -899,6 +1011,7 @@ def authenticate_user(email: str, password: str) -> Dict[str, Any]:
                 return {
                     'success': True,
                     'token': token,
+                    'idle_timeout_seconds': SESSION_IDLE_TIMEOUT_SECONDS,
                     'user': {
                         'id': user_id,
                         'email': email,
@@ -928,6 +1041,7 @@ def authenticate_user(email: str, password: str) -> Dict[str, Any]:
     return {
         'success': True,
         'token': session_token,
+        'idle_timeout_seconds': SESSION_IDLE_TIMEOUT_SECONDS,
         'user': {
             'id': record['id'],
             'email': record['email'],
@@ -1071,11 +1185,11 @@ def _generate_unique_application_no() -> str:
     with get_sqlite_conn() as conn:
         cursor = conn.cursor()
         for _ in range(25):
-            candidate = f"MB-{current_year}-{random.randint(1000, 9999)}"
+            candidate = f"RD-{current_year}-{random.randint(1000, 9999)}"
             cursor.execute("SELECT 1 FROM loan_applications WHERE application_no = ?", (candidate,))
             if not cursor.fetchone():
                 return candidate
-    return f"MB-{current_year}-{uuid.uuid4().hex[:6].upper()}"
+    return f"RD-{current_year}-{uuid.uuid4().hex[:6].upper()}"
 
 def _parse_loan_amount_inr(
     data: Dict[str, Any],
@@ -1522,7 +1636,7 @@ def get_full_vault_snapshot() -> Dict[str, Any]:
 
 DEFAULT_MAINTENANCE_TITLE = "Portal Temporarily Offline"
 DEFAULT_MAINTENANCE_MESSAGE = (
-    "Meridian FairLend AI is currently offline for scheduled maintenance. "
+    "RinDristi FairLend AI is currently offline for scheduled maintenance. "
     "Online underwriting will resume shortly."
 )
 

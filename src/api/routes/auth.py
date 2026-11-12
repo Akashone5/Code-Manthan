@@ -33,23 +33,57 @@ async def otp_status():
     "/send-otp",
     summary="Send a 6-digit verification OTP to the user email"
 )
-async def send_otp(payload: SendOtpRequest, request: Request):
+async def send_otp(
+    payload: SendOtpRequest,
+    request: Request,
+    authorization: Optional[str] = Header(default=None, alias="Authorization"),
+    x_session_token: Optional[str] = Header(default=None, alias="X-Session-Token")
+):
     client_ip = get_client_ip(request)
     email = (payload.email or "").strip().lower()
     purpose = (payload.purpose or "signup").strip().lower()
     lang = (payload.lang or "en").strip().lower()
 
-    if purpose not in ("signup", "forgot_password"):
+    if purpose not in ("signup", "forgot_password", "email_change"):
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={"success": False, "error": "Invalid OTP verification purpose."}
         )
+
+    verified_requester = None
+    if purpose == "email_change":
+        session_token = _extract_session_token(authorization, x_session_token, None)
+        if not session_token:
+            return JSONResponse(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                content={"success": False, "session_expired": True, "error": "Authentication required to verify an email change."}
+            )
+        verified_requester = database.verify_session_token(session_token)
+        if not verified_requester:
+            return JSONResponse(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                content={"success": False, "session_expired": True, "error": "Session expired after 10 minutes of inactivity or revoked. Please sign in again."}
+            )
 
     if not database.validate_email_format(email):
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={"success": False, "error": "Please enter a valid email address."}
         )
+
+    if purpose == "email_change" and verified_requester is not None:
+        current_email = str(verified_requester.get("email") or "").strip().lower()
+        if email == current_email:
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={"success": False, "error": "New email address must be different from your current email address."}
+            )
+        existing_holder = database.get_user_by_email(email)
+        if existing_holder and str(existing_holder.get("id")) != str(verified_requester.get("id")):
+            return JSONResponse(
+                status_code=status.HTTP_409_CONFLICT,
+                content={"success": False, "error": f"An account with email '{email}' already exists."}
+            )
 
     scope = f"send_otp:{purpose}"
     blocked, retry_after = otp_send_rate_limiter.is_blocked(client_ip, scope)
@@ -575,16 +609,24 @@ async def verify_session(
         if not verified_user:
             return JSONResponse(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                content={"success": False, "error": "Session expired or revoked. Please sign in again."}
+                content={
+                    "success": False,
+                    "session_expired": True,
+                    "error": "Session expired after 10 minutes of inactivity or revoked. Please sign in again."
+                }
             )
         if uid and str(verified_user.get("id", "")) != str(uid).strip():
             return JSONResponse(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                content={"success": False, "error": "Session identity mismatch."}
+                content={"success": False, "session_expired": True, "error": "Session identity mismatch."}
             )
         return JSONResponse(
             status_code=status.HTTP_200_OK,
-            content={"success": True, "user": verified_user}
+            content={
+                "success": True,
+                "idle_timeout_seconds": database.SESSION_IDLE_TIMEOUT_SECONDS,
+                "user": verified_user
+            }
         )
 
     if not uid:
@@ -607,7 +649,7 @@ async def verify_session(
 
 @router.patch(
     "/profile",
-    summary="Update authenticated user's full name and email address"
+    summary="Update authenticated user's full name and email address (OTP required on email change)"
 )
 async def update_profile(
     payload: ProfileUpdateRequest,
@@ -618,27 +660,74 @@ async def update_profile(
     if not session_token:
         return JSONResponse(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            content={"success": False, "error": "Authentication required to update profile details."}
+            content={"success": False, "session_expired": True, "error": "Authentication required to update profile details."}
         )
 
     verified_user = database.verify_session_token(session_token)
     if not verified_user:
         return JSONResponse(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            content={"success": False, "error": "Session expired or invalid. Please sign in again."}
+            content={"success": False, "session_expired": True, "error": "Session expired after 10 minutes of inactivity or invalid. Please sign in again."}
         )
+
+    clean_name = (payload.full_name or "").strip()
+    clean_email = (payload.email or "").strip().lower()
+    current_email = str(verified_user.get("email") or "").strip().lower()
+
+    if len(clean_name) < 2:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"success": False, "error": "Full Name must be at least 2 characters."}
+        )
+    if not database.validate_email_format(clean_email):
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"success": False, "error": "Please enter a valid email address."}
+        )
+
+    email_changed = clean_email != current_email
+    if email_changed:
+        existing_holder = database.get_user_by_email(clean_email)
+        if existing_holder and str(existing_holder.get("id")) != str(verified_user.get("id")):
+            return JSONResponse(
+                status_code=status.HTTP_409_CONFLICT,
+                content={"success": False, "error": f"An account with email '{clean_email}' already exists."}
+            )
+        otp_tok = (payload.otp_verification_token or "").strip()
+        otp_code = (payload.otp_code or "").strip()
+        if not otp_tok and not otp_code:
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={
+                    "success": False,
+                    "code": "EMAIL_OTP_REQUIRED",
+                    "error": "Email OTP verification of the new email address is required before changing your email. Click 'Send OTP' and verify the 6-digit code."
+                }
+            )
+        try:
+            if otp_tok:
+                database.consume_otp_verification_token(clean_email, "email_change", otp_tok)
+            else:
+                verified_otp = database.verify_email_otp(clean_email, "email_change", otp_code)
+                database.consume_otp_verification_token(clean_email, "email_change", verified_otp["verification_token"])
+        except ValueError as otp_err:
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={"success": False, "code": "EMAIL_OTP_INVALID", "error": str(otp_err)}
+            )
 
     try:
         updated = database.update_user_profile(
             user_id=str(verified_user["id"]),
-            full_name=payload.full_name,
-            email=payload.email
+            full_name=clean_name,
+            email=clean_email
         )
         return JSONResponse(
             status_code=status.HTTP_200_OK,
             content={
                 "success": True,
-                "message": "Profile name and email updated successfully.",
+                "email_verified": email_changed,
+                "message": "Profile name and email updated successfully." if email_changed else "Profile name updated successfully.",
                 "user": updated
             }
         )

@@ -11,7 +11,7 @@ def _load_model_parameters() -> Dict[str, Any]:
     if _MODEL_CACHE:
         return _MODEL_CACHE
     
-    model_path = os.path.join(os.path.dirname(__file__), '..', 'meridian_trained_model.json')
+    model_path = os.path.join(os.path.dirname(__file__), '..', 'rindristi_trained_model.json')
     if os.path.exists(model_path):
         try:
             with open(model_path, 'r', encoding='utf-8') as f:

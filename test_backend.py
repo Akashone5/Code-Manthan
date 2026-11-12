@@ -12,7 +12,7 @@ import database
 
 def run_tests():
     print("=" * 70)
-    print("  MERIDIAN FAIRLEND SYSTEM VALIDATION & TEST SUITE")
+    print("  RINDRISTI FAIRLEND SYSTEM VALIDATION & TEST SUITE")
     print("=" * 70)
 
     dataset = load_sample_dataset()
@@ -63,12 +63,12 @@ def run_tests():
     assert sim['simulated']['requested_loan_inr'] == 100000, f"Simulated INR mismatch: {sim['simulated']['requested_loan_inr']}"
     print(f"[OK] Test 6: Scenario simulator operational (Score delta: {sim['deltas']['score_change']:+d})")
 
-    app_login = database.login_user('applicant@meridianbank.in', 'Applicant@123')
+    app_login = database.login_user('applicant@rindristi.in', 'Applicant@123')
     assert app_login.get('success'), "Applicant login failed"
     assert app_login['user']['role'] == 'applicant', "Applicant role mismatch"
 
     officer_pwd = os.environ.get('OFFICER_ADMIN_PASSWORD', 'Officer@2026')
-    off_login = database.login_user('officer@meridianbank.in', officer_pwd)
+    off_login = database.login_user('officer@rindristi.in', officer_pwd)
     assert off_login.get('success'), "Officer login failed"
     assert off_login['user']['role'] == 'officer', "Officer role mismatch"
     print(f"[OK] Test 7: Authentication verified for Applicant ({app_login['user']['email']}) and Officer ({off_login['user']['email']})")
@@ -142,7 +142,7 @@ def run_tests():
     tok = app_login.get('token', '')
     assert tok, "Login did not issue a session token"
     verified_sess = database.verify_session_token(f"Bearer {tok}")
-    assert verified_sess is not None and verified_sess['email'] == 'applicant@meridianbank.in', "Session token failed verification"
+    assert verified_sess is not None and verified_sess['email'] == 'applicant@rindristi.in', "Session token failed verification"
     revoked = database.revoke_session_token(f"Bearer {tok}")
     assert revoked is True, "Session token revocation returned False"
     assert database.verify_session_token(tok) is None, "Revoked session token still accepted"
@@ -363,8 +363,20 @@ def run_tests():
         db_ops.EXPORT_CSV = orig_csv
     print("[OK] Test 17: Applicant & Officer profile name/email update, Vault email sync & duplicate email guard verified")
 
+    assert db_ops.SESSION_IDLE_TIMEOUT_SECONDS == 600, "Session idle timeout must be 600 seconds (10 minutes)"
+    idle_login = database.login_user('applicant@rindristi.in', 'Applicant@123')
+    idle_tok = idle_login.get('token', '')
+    assert idle_tok and database.verify_session_token(idle_tok) is not None
+    with db_ops.get_sqlite_conn() as conn:
+        conn.execute(
+            "UPDATE user_sessions SET last_seen_at = DATETIME('now', '-605 seconds') WHERE token = ?",
+            (idle_tok,)
+        )
+    assert database.verify_session_token(idle_tok) is None, "Session idle > 10 minutes must expire and return None"
+    print("[OK] Test 18: 10-minute session inactivity expiry verified (600s idle timeout)")
+
     print("-" * 70)
-    print("ALL 17 SYSTEM VALIDATION SUITES PASSED CLEANLY (100% OPERATIONAL)")
+    print("ALL 18 SYSTEM VALIDATION SUITES PASSED CLEANLY (100% OPERATIONAL)")
     print("=" * 70)
 
 if __name__ == '__main__':

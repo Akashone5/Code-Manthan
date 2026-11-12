@@ -10,7 +10,7 @@ using System.Windows.Forms;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 
-namespace MeridianFairLendDesktop
+namespace RinDristiDesktop
 {
     internal static class NativeMethods
     {
@@ -42,7 +42,7 @@ namespace MeridianFairLendDesktop
 
             try
             {
-                NativeMethods.SetCurrentProcessExplicitAppUserModelID("com.meridianfairlend.desktop");
+                NativeMethods.SetCurrentProcessExplicitAppUserModelID("com.rindristi.desktop");
             }
             catch
             {
@@ -94,8 +94,8 @@ namespace MeridianFairLendDesktop
             catch (Exception ex)
             {
                 MessageBox.Show(
-                    "Unable to launch Meridian FairLend AI Desktop.\n\nDetails: " + ex.Message + "\n\nPlease open: " + targetUrl,
-                    "Meridian FairLend AI",
+                    "Unable to launch RinDristi FairLend AI Desktop.\n\nDetails: " + ex.Message + "\n\nPlease open: " + targetUrl,
+                    "RinDristi FairLend AI",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Error
                 );
@@ -145,7 +145,7 @@ namespace MeridianFairLendDesktop
                 }
 
                 string localApp = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-                string binDir = Path.Combine(localApp, "MeridianFairLendAI", "bin", arch);
+                string binDir = Path.Combine(localApp, "RinDristiAI", "bin", arch);
                 Directory.CreateDirectory(binDir);
                 string dllPath = Path.Combine(binDir, "WebView2Loader.dll");
 
@@ -216,7 +216,7 @@ namespace MeridianFairLendDesktop
             _targetUrl = targetUrl;
             _fallbackTriggered = false;
 
-            Text = "Meridian FairLend AI";
+            Text = "RinDristi FairLend AI";
             Width = 1320;
             Height = 840;
             MinimumSize = new Size(920, 620);
@@ -250,7 +250,7 @@ namespace MeridianFairLendDesktop
         private void InitializeWebViewAsync()
         {
             string localApp = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            string userDataDir = Path.Combine(localApp, "MeridianFairLendAI", "WebView2Data");
+            string userDataDir = Path.Combine(localApp, "RinDristiAI", "WebView2Data");
             try
             {
                 Directory.CreateDirectory(userDataDir);
@@ -380,15 +380,15 @@ namespace MeridianFairLendDesktop
         {
             string safeUrl = retryUrl.Replace("&", "&amp;").Replace("\"", "&quot;").Replace("<", "&lt;").Replace(">", "&gt;");
             return "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
-                + "<title>Meridian FairLend AI</title>"
+                + "<title>RinDristi FairLend AI</title>"
                 + "<style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#F7F3EB;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#112A22;}"
                 + ".card{max-width:440px;margin:24px;background:#fff;border:2px solid #064E3B;border-radius:16px;padding:30px;text-align:center;box-shadow:0 12px 32px rgba(6,78,59,.14);}"
                 + ".badge{display:inline-flex;width:54px;height:54px;border-radius:14px;background:#064E3B;color:#F8E7C9;align-items:center;justify-content:center;font-weight:900;font-size:26px;margin-bottom:14px;}"
                 + "h2{margin:0 0 10px;color:#064E3B;font-size:20px;}p{margin:0 0 20px;color:#4B6359;font-size:14px;line-height:1.5;}"
                 + "a.btn{display:inline-block;background:#064E3B;color:#fff;text-decoration:none;font-weight:700;padding:11px 22px;border-radius:10px;}"
-                + "</style></head><body><div class=\"card\"><div class=\"badge\">M</div>"
+                + "</style></head><body><div class=\"card\"><div class=\"badge\">R</div>"
                 + "<h2>Unable to Connect</h2>"
-                + "<p>Meridian FairLend AI could not reach the cloud server. Please check your internet connection and retry.</p>"
+                + "<p>RinDristi FairLend AI could not reach the cloud server. Please check your internet connection and retry.</p>"
                 + "<a class=\"btn\" href=\"" + safeUrl + "\">Retry Connection</a></div></body></html>";
         }
 
@@ -406,9 +406,9 @@ namespace MeridianFairLendDesktop
                 if (!string.IsNullOrEmpty(edgeExe))
                 {
                     string localApp = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-                    string profileDir = Path.Combine(localApp, "MeridianFairLendAI", "IsolatedEdgeProfile");
+                    string profileDir = Path.Combine(localApp, "RinDristiAI", "IsolatedEdgeProfile");
                     Directory.CreateDirectory(profileDir);
-                    string arguments = "--app=\"" + _targetUrl + "\" --user-data-dir=\"" + profileDir + "\" --new-window --no-first-run --no-default-browser-check --class=MeridianFairLendAI";
+                    string arguments = "--app=\"" + _targetUrl + "\" --user-data-dir=\"" + profileDir + "\" --new-window --no-first-run --no-default-browser-check --class=RinDristiAI";
                     Process.Start(new ProcessStartInfo
                     {
                         FileName = edgeExe,
@@ -424,8 +424,8 @@ namespace MeridianFairLendDesktop
             }
 
             MessageBox.Show(
-                "Microsoft Edge WebView2 Runtime is required to run Meridian FairLend AI Desktop.\n\nPlease install WebView2 Runtime or visit:\n" + _targetUrl,
-                "Meridian FairLend AI",
+                "Microsoft Edge WebView2 Runtime is required to run RinDristi FairLend AI Desktop.\n\nPlease install WebView2 Runtime or visit:\n" + _targetUrl,
+                "RinDristi FairLend AI",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Warning
             );

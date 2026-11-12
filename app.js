@@ -4,13 +4,13 @@ function resolveApiBase() {
     const paramApi = params.get('api');
     if (paramApi && paramApi.trim()) {
       const clean = paramApi.trim().replace(/\/+$/, '');
-      localStorage.setItem('meridian_api_base', clean);
+      localStorage.setItem('rindristi_api_base', clean);
       return clean;
     }
-    if (window.MERIDIAN_API_BASE) {
-      return String(window.MERIDIAN_API_BASE).trim().replace(/\/+$/, '');
+    if (window.RINDRISTI_API_BASE) {
+      return String(window.RINDRISTI_API_BASE).trim().replace(/\/+$/, '');
     }
-    const stored = localStorage.getItem('meridian_api_base');
+    const stored = localStorage.getItem('rindristi_api_base');
     if (stored && stored.trim()) {
       return stored.trim().replace(/\/+$/, '');
     }
@@ -22,7 +22,9 @@ function resolveApiBase() {
 }
 
 const DEFAULT_OFFLINE_TITLE_EN = 'Portal Temporarily Offline';
-const DEFAULT_OFFLINE_MSG_EN = 'Meridian FairLend AI is currently offline for scheduled maintenance. Online underwriting will resume shortly.';
+const DEFAULT_OFFLINE_MSG_EN = 'RinDristi FairLend AI is currently offline for scheduled maintenance. Online underwriting will resume shortly.';
+const SESSION_IDLE_TIMEOUT_MS = 10 * 60 * 1000;
+const LAST_ACTIVITY_STORAGE_KEY = 'rindristi_last_activity_at';
 
 function createBlankApplicantState() {
   return {
@@ -62,15 +64,15 @@ let pendingForgotPasswordModal = false;
 let datasetLoadPromise = null;
 
 function ensureDatasetLoaded() {
-  if (typeof MERIDIAN_DATASET !== 'undefined' && MERIDIAN_DATASET && Array.isArray(MERIDIAN_DATASET.records)) {
-    try { window.MERIDIAN_DATASET = MERIDIAN_DATASET; } catch (e) {}
-    return Promise.resolve(MERIDIAN_DATASET);
+  if (typeof RINDRISTI_DATASET !== 'undefined' && RINDRISTI_DATASET && Array.isArray(RINDRISTI_DATASET.records)) {
+    try { window.RINDRISTI_DATASET = RINDRISTI_DATASET; } catch (e) {}
+    return Promise.resolve(RINDRISTI_DATASET);
   }
   if (datasetLoadPromise) return datasetLoadPromise;
   datasetLoadPromise = new Promise((resolve) => {
     const existing = document.querySelector('script[data-lazy-dataset="true"]');
     if (existing) {
-      resolve(typeof MERIDIAN_DATASET !== 'undefined' ? MERIDIAN_DATASET : null);
+      resolve(typeof RINDRISTI_DATASET !== 'undefined' ? RINDRISTI_DATASET : null);
       return;
     }
     const script = document.createElement('script');
@@ -78,9 +80,9 @@ function ensureDatasetLoaded() {
     script.async = true;
     script.setAttribute('data-lazy-dataset', 'true');
     script.onload = () => {
-      if (typeof MERIDIAN_DATASET !== 'undefined') {
-        try { window.MERIDIAN_DATASET = MERIDIAN_DATASET; } catch (e) {}
-        resolve(MERIDIAN_DATASET);
+      if (typeof RINDRISTI_DATASET !== 'undefined') {
+        try { window.RINDRISTI_DATASET = RINDRISTI_DATASET; } catch (e) {}
+        resolve(RINDRISTI_DATASET);
       } else {
         resolve(null);
       }
@@ -143,7 +145,7 @@ function clearInlineAlert(elId) {
 
 const state = {
   currentRole: 'applicant',
-  currentLang: localStorage.getItem('meridian_lang') || 'en',
+  currentLang: localStorage.getItem('rindristi_lang') || 'en',
   currentTab: 'apply-view',
   hasApplied: false,
   affirmativeMode: false,
@@ -188,6 +190,79 @@ let currentAuthUser = null;
 let currentAuthToken = null;
 let forgotPasswordTargetRole = 'applicant';
 let availabilityPollTimerId = null;
+let idleSessionTimerId = null;
+let lastActivityWriteAt = 0;
+
+function clearStoredAuthSession() {
+  try {
+    localStorage.removeItem('rindristi_auth_user');
+    localStorage.removeItem('rindristi_auth_token');
+    localStorage.removeItem(LAST_ACTIVITY_STORAGE_KEY);
+    sessionStorage.removeItem('rindristi_auth_user');
+    sessionStorage.removeItem('rindristi_auth_token');
+  } catch (e) {}
+}
+
+function getLastActivityTimestamp() {
+  try {
+    const raw = localStorage.getItem(LAST_ACTIVITY_STORAGE_KEY);
+    const parsed = raw ? Number(raw) : 0;
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  } catch (e) {}
+  return lastActivityWriteAt || 0;
+}
+
+function isLocalSessionIdleExpired() {
+  const lastTs = getLastActivityTimestamp();
+  if (!lastTs) return false;
+  return (Date.now() - lastTs) >= SESSION_IDLE_TIMEOUT_MS;
+}
+
+function recordUserActivity(forceWrite = false) {
+  if (!currentAuthUser) return;
+  const now = Date.now();
+  if (!forceWrite && isLocalSessionIdleExpired()) {
+    window.handleLogout('inactivity');
+    return;
+  }
+  if (!forceWrite && (now - lastActivityWriteAt) < 5000) {
+    return;
+  }
+  lastActivityWriteAt = now;
+  try {
+    localStorage.setItem(LAST_ACTIVITY_STORAGE_KEY, String(now));
+  } catch (e) {}
+}
+
+function stopInactivityMonitor() {
+  if (idleSessionTimerId) {
+    clearInterval(idleSessionTimerId);
+    idleSessionTimerId = null;
+  }
+}
+
+function startInactivityMonitor() {
+  stopInactivityMonitor();
+  if (!currentAuthUser) return;
+  idleSessionTimerId = setInterval(() => {
+    if (!currentAuthUser) {
+      stopInactivityMonitor();
+      return;
+    }
+    if (isLocalSessionIdleExpired()) {
+      window.handleLogout('inactivity');
+    }
+  }, 10000);
+}
+
+function handleApiAuthFailure(res, data = null) {
+  if (res && res.status === 401 && currentAuthUser) {
+    const reason = (data && data.session_expired) ? 'inactivity' : 'inactivity';
+    window.handleLogout(reason);
+    return true;
+  }
+  return false;
+}
 
 function getDefaultUserSettings(role = 'applicant') {
   return {
@@ -221,9 +296,9 @@ function getUserSettingsStorageKey(user = currentAuthUser) {
   if (user && (user.id || user.email)) {
     const role = user.role === 'officer' ? 'officer' : 'applicant';
     const uid = String(user.id || user.email).trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_');
-    return `meridian_user_settings_${role}_${uid}`;
+    return `rindristi_user_settings_${role}_${uid}`;
   }
-  return 'meridian_user_settings_guest';
+  return 'rindristi_user_settings_guest';
 }
 
 function loadUserSettings(user = currentAuthUser) {
@@ -316,13 +391,25 @@ const OTP_SCOPE_CONFIG = {
     statusId: 'otp-status-forgot',
     boxId: null,
     defaultHintKey: 'otp_hint_forgot'
+  },
+  profile_email: {
+    purpose: 'email_change',
+    emailId: 'setting-prof-email',
+    otpId: 'setting-prof-otp',
+    sendBtnId: 'btn-send-otp-profile-email',
+    verifyBtnId: 'btn-verify-otp-profile-email',
+    badgeId: 'otp-badge-profile-email',
+    statusId: 'otp-status-profile-email',
+    boxId: 'otp-box-profile-email',
+    defaultHintKey: 'otp_hint_email_change'
   }
 };
 
 const otpState = {
   signup_app: { email: '', verified: false, verificationToken: '', cooldown: 0, timerId: null, sentOnce: false, statusKind: 'default', rawError: '' },
   signup_off: { email: '', verified: false, verificationToken: '', cooldown: 0, timerId: null, sentOnce: false, statusKind: 'default', rawError: '' },
-  forgot_password: { email: '', verified: false, verificationToken: '', cooldown: 0, timerId: null, sentOnce: false, statusKind: 'default', rawError: '' }
+  forgot_password: { email: '', verified: false, verificationToken: '', cooldown: 0, timerId: null, sentOnce: false, statusKind: 'default', rawError: '' },
+  profile_email: { email: '', verified: false, verificationToken: '', cooldown: 0, timerId: null, sentOnce: false, statusKind: 'default', rawError: '' }
 };
 
 function syncOtpUIStates() {
@@ -480,9 +567,12 @@ window.sendEmailOtp = async function(scope) {
   }
 
   try {
+    const reqHeaders = scope === 'profile_email'
+      ? buildAuthHeaders({ 'Content-Type': 'application/json' })
+      : { 'Content-Type': 'application/json' };
     const res = await fetch(`${state.apiBase}/api/auth/send-otp`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: reqHeaders,
       body: JSON.stringify({
         email,
         purpose: cfg.purpose,
@@ -490,12 +580,15 @@ window.sendEmailOtp = async function(scope) {
       })
     });
     const data = await res.json().catch(() => ({}));
+    if (handleApiAuthFailure(res, data)) {
+      return false;
+    }
 
     if (res.status === 503 && data.code === 'EMAIL_PROVIDER_NOT_CONFIGURED') {
       s.statusKind = 'unconfigured';
       s.rawError = '';
       syncOtpUIStates();
-      window.showMeridianToast(getLangDict().otp_hint_unconfigured, true);
+      window.showRinDristiToast(getLangDict().otp_hint_unconfigured, true);
       return false;
     }
 
@@ -511,7 +604,7 @@ window.sendEmailOtp = async function(scope) {
       s.statusKind = 'error';
       s.rawError = errMsg;
       syncOtpUIStates();
-      window.showMeridianToast(errMsg, true);
+      window.showRinDristiToast(errMsg, true);
       return false;
     }
 
@@ -532,7 +625,7 @@ window.sendEmailOtp = async function(scope) {
     s.statusKind = 'error';
     s.rawError = netMsg;
     syncOtpUIStates();
-    window.showMeridianToast(netMsg, true);
+    window.showRinDristiToast(netMsg, true);
     return false;
   }
 };
@@ -594,7 +687,7 @@ window.verifyEmailOtp = async function(scope) {
       s.statusKind = 'error';
       s.rawError = msg;
       syncOtpUIStates();
-      window.showMeridianToast(msg, true);
+      window.showRinDristiToast(msg, true);
       return false;
     }
 
@@ -608,14 +701,14 @@ window.verifyEmailOtp = async function(scope) {
       const fpAlert = document.getElementById('fp-alert');
       if (fpAlert) fpAlert.style.display = 'none';
     }
-    window.showMeridianToast(hi ? '✅ ईमेल OTP सफलतापूर्वक सत्यापित हो गया!' : '✅ Email OTP verified successfully!');
+    window.showRinDristiToast(hi ? '✅ ईमेल OTP सफलतापूर्वक सत्यापित हो गया!' : '✅ Email OTP verified successfully!');
     return true;
   } catch (err) {
     const msg = hi ? 'OTP सत्यापन में नेटवर्क त्रुटि हुई।' : 'Network error verifying OTP.';
     s.statusKind = 'error';
     s.rawError = msg;
     syncOtpUIStates();
-    window.showMeridianToast(msg, true);
+    window.showRinDristiToast(msg, true);
     return false;
   } finally {
     if (verifyBtn) {
@@ -885,7 +978,7 @@ window.handleSignIn = async function(e, expectedRole = 'applicant') {
       window.showAuthAlert(data.error || (hi ? 'प्रमाणीकरण विफल रहा। कृपया विवरण जांचें।' : 'Authentication failed. Please verify credentials.'));
     }
   } catch (err) {
-    if (!isOfficer && (!state.siteAvailability || state.siteAvailability.online !== false) && email.toLowerCase() === 'applicant@meridianbank.in' && password === 'Applicant@123') {
+    if (!isOfficer && (!state.siteAvailability || state.siteAvailability.online !== false) && email.toLowerCase() === 'applicant@rindristi.in' && password === 'Applicant@123') {
       const fallbackUser = { id: '03416d3d-ff2b-4101-9453-7509939590fc', email, full_name: 'Ananya Rao', phone: '9876543210', role: 'applicant' };
       await window.applyAuthenticatedSession(fallbackUser, 'offline-token-applicant');
     } else {
@@ -1023,7 +1116,7 @@ function escapeHtml(val) {
 
 function getOfflineQueueKey() {
   if (!currentAuthUser || !currentAuthUser.id) return null;
-  return `meridian_offline_queue_${currentAuthUser.id}`;
+  return `rindristi_offline_queue_${currentAuthUser.id}`;
 }
 
 function readOfflineQueue() {
@@ -1062,6 +1155,13 @@ async function syncPendingOfflineApplications() {
         headers: buildAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(rec)
       });
+      if (res.status === 401) {
+        const err = await res.json().catch(() => ({}));
+        remaining.push(rec);
+        writeOfflineQueue(remaining);
+        handleApiAuthFailure(res, err);
+        return;
+      }
       if (res.ok) {
         state.backendConnected = true;
       } else if (res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429) {
@@ -1117,7 +1217,7 @@ function resetWorkspaceState() {
   state.auditLog = [];
 
   try {
-    localStorage.removeItem('meridian_saved_apps');
+    localStorage.removeItem('rindristi_saved_apps');
   } catch (e) {}
 
   ['letter-modal', 'backend-info-modal', 'site-availability-modal', 'forgot-password-modal', 'settings-modal'].forEach(mid => {
@@ -1146,9 +1246,10 @@ function resetWorkspaceState() {
   if (activeBadge) activeBadge.innerText = '-';
 }
 
-window.handleLogout = function() {
+window.handleLogout = function(reason = 'manual') {
   const prevRole = currentAuthUser?.role || activePortal || 'applicant';
   const logoutHeaders = buildAuthHeaders();
+  stopInactivityMonitor();
   try {
     fetch(`${state.apiBase}/api/auth/logout`, {
       method: 'POST',
@@ -1159,12 +1260,7 @@ window.handleLogout = function() {
   currentAuthUser = null;
   currentAuthToken = null;
   pendingInitialTab = null;
-  try {
-    localStorage.removeItem('meridian_auth_user');
-    localStorage.removeItem('meridian_auth_token');
-    sessionStorage.removeItem('meridian_auth_user');
-    sessionStorage.removeItem('meridian_auth_token');
-  } catch (e) {}
+  clearStoredAuthSession();
 
   resetWorkspaceState();
   activeUserSettings = getDefaultUserSettings('applicant');
@@ -1183,6 +1279,11 @@ window.handleLogout = function() {
   window.switchPortalGateway(prevRole === 'officer' ? 'officer' : 'applicant', true);
   closeAllMobileMenus();
   syncVisibleH1Tag();
+  if (reason === 'inactivity') {
+    const expiredMsg = getLangDict().auth_session_expired_inactivity;
+    window.showAuthAlert(expiredMsg, true);
+    window.showRinDristiToast(expiredMsg, true);
+  }
 };
 
 window.showForgotPasswordAlert = function(msg, isError = true) {
@@ -1284,7 +1385,7 @@ window.handleForgotPasswordSubmit = async function(e) {
           : 'Password reset successfully! Please sign in with your new password.',
         false
       );
-      window.showMeridianToast(
+      window.showRinDristiToast(
         hi ? '✅ पासवर्ड सफलतापूर्वक रीसेट हो गया।' : '✅ Password reset successfully.'
       );
     } else {
@@ -1386,33 +1487,33 @@ function getSeoMetaForSlug(rawSlug) {
     '/': {
       title: dict.page_title,
       desc: hi
-        ? 'मेरिडियन फेयरलेंड एआई के साथ पारदर्शी खुदरा ऋण आवेदन, सिबिल एवं ईएमआई विश्लेषण और आरबीआई मुख्य तथ्य विवरण (KFS) प्राप्त करें।'
+        ? 'रिनदृष्टि फेयरलेंड एआई के साथ पारदर्शी खुदरा ऋण आवेदन, सिबिल एवं ईएमआई विश्लेषण और आरबीआई मुख्य तथ्य विवरण (KFS) प्राप्त करें।'
         : 'Transparent AI-powered retail loan underwriting, SHAP explainability, RBI Key Fact Statement (KFS), and fairness compliance under Mission Bharat.',
       crumb: dict.crumb_portal || 'Credit Gateway'
     },
     '/applicant': {
-      title: hi ? 'आवेदक पोर्टल साइन इन • मेरिडियन फेयरलेंड एआई' : 'Applicant Loan Portal • Meridian FairLend AI',
+      title: hi ? 'आवेदक पोर्टल साइन इन • रिनदृष्टि फेयरलेंड एआई' : 'Applicant Loan Portal • RinDristi FairLend AI',
       desc: hi
-        ? 'खुदरा ऋण आवेदन जमा करने, व्हाट-इफ ईएमआई सिम्युलेट करने और स्वीकृति पत्र डाउनलोड करने के लिए मेरिडियन आवेदक पोर्टल में साइन इन करें।'
-        : 'Sign in or register as a borrower on Meridian FairLend AI to apply for transparent retail credit, simulate approval scenarios, and download RBI KFS sanction letters.',
+        ? 'खुदरा ऋण आवेदन जमा करने, व्हाट-इफ ईएमआई सिम्युलेट करने और स्वीकृति पत्र डाउनलोड करने के लिए रिनदृष्टि आवेदक पोर्टल में साइन इन करें।'
+        : 'Sign in or register as a borrower on RinDristi FairLend AI to apply for transparent retail credit, simulate approval scenarios, and download RBI KFS sanction letters.',
       crumb: dict.gw_applicant_title
     },
     '/officer': {
-      title: hi ? 'ऋण अधिकारी संस्थागत लॉगिन • मेरिडियन फेयरलेंड एआई' : 'Loan Officer Portal • Meridian FairLend AI',
+      title: hi ? 'ऋण अधिकारी संस्थागत लॉगिन • रिनदृष्टि फेयरलेंड एआई' : 'Loan Officer Portal • RinDristi FairLend AI',
       desc: hi
-        ? 'मेरिडियन ऋण अधिकारी अंडरराइटिंग कॉकपिट, SHAP ऑडिट लॉग, केंद्रीय वॉल्ट और 80% नियम निष्पक्षता निगरानी टर्मिनल।'
-        : 'Institutional login for authorized Meridian Loan Officers to inspect underwriting SHAP waterfalls, manage sanctions, and audit 80% rule disparate impact fairness.',
+        ? 'रिनदृष्टि ऋण अधिकारी अंडरराइटिंग कॉकपिट, SHAP ऑडिट लॉग, केंद्रीय वॉल्ट और 80% नियम निष्पक्षता निगरानी टर्मिनल।'
+        : 'Institutional login for authorized RinDristi Loan Officers to inspect underwriting SHAP waterfalls, manage sanctions, and audit 80% rule disparate impact fairness.',
       crumb: dict.gw_officer_title
     },
     '/apply': {
-      title: hi ? 'खुदरा ऋण आवेदन • मेरिडियन फेयरलेंड एआई' : 'Apply for a Retail Loan • Meridian FairLend AI',
+      title: hi ? 'खुदरा ऋण आवेदन • रिनदृष्टि फेयरलेंड एआई' : 'Apply for a Retail Loan • RinDristi FairLend AI',
       desc: hi
         ? 'आसान खुदरा ऋण आवेदन फॉर्म भरें और तुरंत एआई पात्रता विश्लेषण एवं आरबीआई अनुपालन रिकॉर्ड प्राप्त करें।'
-        : 'Submit a transparent retail loan application for automated CIBIL evaluation, FOIR analysis, and instant underwriting storage in the Meridian Vault.',
+        : 'Submit a transparent retail loan application for automated CIBIL evaluation, FOIR analysis, and instant underwriting storage in the RinDristi Vault.',
       crumb: dict.ws_apply_crumb
     },
     '/decision-report': {
-      title: hi ? 'मेरी ऋण निर्णय रिपोर्ट और व्हाट-इफ सिम्युलेटर • मेरिडियन' : 'Decision Report & What-If Simulator • Meridian FairLend AI',
+      title: hi ? 'मेरी ऋण निर्णय रिपोर्ट और व्हाट-इफ सिम्युलेटर • रिनदृष्टि' : 'Decision Report & What-If Simulator • RinDristi FairLend AI',
       desc: hi
         ? 'अपनी व्यक्तिगत एक्सएआई निर्णय रिपोर्ट, व्हाट-इफ ईएमआई सिम्युलेटर और आरबीआई मुख्य तथ्य विवरण (KFS) देखें।'
         : 'Inspect personalized AI approval factors, interactive What-If counterfactual scenarios, and downloadable RBI Key Fact Statements.',
@@ -1420,67 +1521,67 @@ function getSeoMetaForSlug(rawSlug) {
     },
     '/vault': {
       title: isOfficer
-        ? (hi ? 'केंद्रीय आवेदन वॉल्ट • मेरिडियन फेयरलेंड एआई' : 'Central Application Vault • Meridian FairLend AI')
-        : (hi ? 'मेरे आवेदन वॉल्ट • मेरिडियन फेयरलेंड एआई' : 'My Applications Vault • Meridian FairLend AI'),
+        ? (hi ? 'केंद्रीय आवेदन वॉल्ट • रिनदृष्टि फेयरलेंड एआई' : 'Central Application Vault • RinDristi FairLend AI')
+        : (hi ? 'मेरे आवेदन वॉल्ट • रिनदृष्टि फेयरलेंड एआई' : 'My Applications Vault • RinDristi FairLend AI'),
       desc: hi
         ? 'सभी जमा ऋण आवेदनों और अनुमोदन स्थिति का सुरक्षित डेटाबेस वॉल्ट तथा CSV/JSON निर्यात केंद्र।'
         : 'Persistent borrower and institutional loan application registry with live approval tracking, KFS access, and CSV/JSON exports.',
       crumb: isOfficer ? dict.ws_vault_off_crumb : dict.ws_vault_app_crumb
     },
     '/underwriting-cockpit': {
-      title: hi ? 'अंडरराइटिंग कॉकपिट और SHAP विश्लेषण • मेरिडियन' : 'Underwriting Cockpit & SHAP Waterfall • Meridian FairLend AI',
+      title: hi ? 'अंडरराइटिंग कॉकपिट और SHAP विश्लेषण • रिनदृष्टि' : 'Underwriting Cockpit & SHAP Waterfall • RinDristi FairLend AI',
       desc: hi
         ? 'ऋण अधिकारियों के लिए लाइव SHAP लॉग-ऑड्स विश्लेषण, अनुमोदन निर्णय नियंत्रण और आरबीआई अनुपालन ऑडिट ट्रेल।'
         : 'Live loan officer underwriting workbench featuring additive SHAP feature attributions, sanction controls, and RBI audit trail logging.',
       crumb: dict.ws_officer_crumb
     },
     '/portfolio': {
-      title: hi ? 'ऐतिहासिक ऋण पोर्टफोलियो • मेरिडियन फेयरलेंड एआई' : 'Historical Loan Portfolio Analytics • Meridian FairLend AI',
+      title: hi ? 'ऐतिहासिक ऋण पोर्टफोलियो • रिनदृष्टि फेयरलेंड एआई' : 'Historical Loan Portfolio Analytics • RinDristi FairLend AI',
       desc: hi
         ? 'ग्रामीण एवं महिला ऋण समावेशन के आंकड़ों के साथ भारत ऋण पूल का खोजने योग्य ऐतिहासिक पोर्टफोलियो।'
         : 'Search and audit historical retail lending pool records across rural, semi-urban, and urban demographics.',
       crumb: dict.ws_portfolio_crumb
     },
     '/model-accuracy': {
-      title: hi ? 'मॉडल सटीकता एवं सत्यापन रिपोर्ट • मेरिडियन' : 'Model Accuracy & Validation Report • Meridian FairLend AI',
+      title: hi ? 'मॉडल सटीकता एवं सत्यापन रिपोर्ट • रिनदृष्टि' : 'Model Accuracy & Validation Report • RinDristi FairLend AI',
       desc: hi
         ? 'नियमित लॉजिस्टिक रिग्रेशन क्रेडिट मॉडल के लिए होल्डआउट कन्फ्यूज़न मैट्रिक्स, प्रिसिज़न, रिकॉल और ROC-AUC रिपोर्ट।'
         : 'Holdout validation confusion matrix, precision, recall sensitivity, ROC-AUC score, and global feature weights for transparent governance.',
       crumb: dict.ws_model_crumb
     },
     '/fairness-audit': {
-      title: hi ? 'निष्पक्षता एवं असमान प्रभाव ऑडिट • मेरिडियन' : 'Fairness Across Groups & 80% Rule Audit • Meridian FairLend AI',
+      title: hi ? 'निष्पक्षता एवं असमान प्रभाव ऑडिट • रिनदृष्टि' : 'Fairness Across Groups & 80% Rule Audit • RinDristi FairLend AI',
       desc: hi
         ? 'लिंग, क्षेत्र और शिक्षा समूहों में 80% (फोर-फिफ्थ्स) असमान प्रभाव अनुपात और TPR समता की जांच करें।'
         : 'Evaluate Disparate Impact Ratio (DIR) compliance against the 80% Four-Fifths Rule across gender, geography, and education groups.',
       crumb: dict.ws_fairness_crumb
     },
     '/privacy': {
-      title: hi ? 'डेटा गोपनीयता एवं DPDP नीति • मेरिडियन फेयरलेंड एआई' : 'Data Privacy & DPDP Policy • Meridian FairLend AI',
+      title: hi ? 'डेटा गोपनीयता एवं DPDP नीति • रिनदृष्टि फेयरलेंड एआई' : 'Data Privacy & DPDP Policy • RinDristi FairLend AI',
       desc: hi
         ? 'DPDP अधिनियम 2023 और RBI डिजिटल लेंडिंग दिशानिर्देशों के अंतर्गत एन्क्रिप्शन और उधारकर्ता डेटा सुरक्षा मानक।'
-        : 'Learn how Meridian FairLend AI protects borrower identity, financial disclosures, and encrypted vault logs under India DPDP Act 2023 and RBI Digital Lending Directions.',
+        : 'Learn how RinDristi FairLend AI protects borrower identity, financial disclosures, and encrypted vault logs under India DPDP Act 2023 and RBI Digital Lending Directions.',
       crumb: dict.foot_link_privacy
     },
     '/terms': {
-      title: hi ? 'खुदरा ऋण एवं उपयोग की शर्तें • मेरिडियन फेयरलेंड एआई' : 'Terms of Lending & Disclosures • Meridian FairLend AI',
+      title: hi ? 'खुदरा ऋण एवं उपयोग की शर्तें • रिनदृष्टि फेयरलेंड एआई' : 'Terms of Lending & Disclosures • RinDristi FairLend AI',
       desc: hi
         ? 'पारदर्शी APR गणना, 3-दिवसीय कूलिंग-ऑफ अवधि और निष्पक्ष ऋण प्रथाओं की प्रमुख शर्तें पढ़ें।'
         : 'Review fair lending terms, transparent Key Fact Statement pricing policies, 3-day cooling-off rights, and institutional audit terms.',
       crumb: dict.foot_link_terms
     },
     '/grievance': {
-      title: hi ? 'RBI ग्राहक शिकायत निवारण • मेरिडियन फेयरलेंड एआई' : 'RBI Grievance Redressal & Ombudsman • Meridian FairLend AI',
+      title: hi ? 'RBI ग्राहक शिकायत निवारण • रिनदृष्टि फेयरलेंड एआई' : 'RBI Grievance Redressal & Ombudsman • RinDristi FairLend AI',
       desc: hi
-        ? 'मेरिडियन फेयरलेंड एआई नोडल शिकायत अधिकारी और भारतीय रिज़र्व बैंक एकीकृत लोकपाल (14448) संपर्क विवरण।'
-        : 'Contact the Principal Nodal Grievance Redressal Officer (1800-209-4000 / grievance.bharat@meridian.fin) or escalate via RBI Ombudsman helpline 14448.',
+        ? 'रिनदृष्टि फेयरलेंड एआई नोडल शिकायत अधिकारी और भारतीय रिज़र्व बैंक एकीकृत लोकपाल (14448) संपर्क विवरण।'
+        : 'Contact the Principal Nodal Grievance Redressal Officer (1800-209-4000 / grievance.bharat@rindristi.fin) or escalate via RBI Ombudsman helpline 14448.',
       crumb: dict.foot_link_grievance
     },
     '/forgot-password': {
-      title: hi ? 'ईमेल OTP द्वारा पासवर्ड रीसेट • मेरिडियन फेयरलेंड एआई' : 'Reset Portal Password via Email OTP • Meridian FairLend AI',
+      title: hi ? 'ईमेल OTP द्वारा पासवर्ड रीसेट • रिनदृष्टि फेयरलेंड एआई' : 'Reset Portal Password via Email OTP • RinDristi FairLend AI',
       desc: hi
         ? 'अपने पंजीकृत आवेदक या ऋण अधिकारी ईमेल पर 6-अंकीय सुरक्षा OTP प्राप्त करके पासवर्ड रीसेट करें।'
-        : 'Recover your Meridian FairLend AI applicant or officer account securely using a 6-digit email OTP verification code.',
+        : 'Recover your RinDristi FairLend AI applicant or officer account securely using a 6-digit email OTP verification code.',
       crumb: dict.link_forgot_pwd
     }
   };
@@ -1570,13 +1671,13 @@ function syncDocumentSeoAndBreadcrumbs(explicitSlug = null) {
           {
             '@type': ['FinancialService', 'LocalBusiness'],
             '@id': `${origin}/#organization`,
-            name: 'Meridian FairLend AI',
+            name: 'RinDristi FairLend AI',
             url: origin,
             image: `${origin}/icons/og-share.png`,
             logo: `${origin}/icons/icon-192.png`,
             description: meta.desc,
             telephone: '+91-1800-209-4000',
-            email: 'grievance.bharat@meridian.fin',
+            email: 'grievance.bharat@rindristi.fin',
             priceRange: 'INR',
             address: {
               '@type': 'PostalAddress',
@@ -1675,13 +1776,13 @@ window.openPublicInfoModal = function(section = 'privacy', pushUrl = true) {
     privacy: {
       title: hi ? 'डेटा गोपनीयता एवं DPDP संरक्षण नीति (2026)' : 'Data Privacy & DPDP Act Protection Policy (2026)',
       html: hi
-        ? `<p><strong>डिजिटल व्यक्तिगत डेटा संरक्षण अधिनियम 2023 एवं RBI डिजिटल लेंडिंग मानक:</strong> मेरिडियन फेयरलेंड एआई में आवेदकों द्वारा साझा की गई सभी पहचान और वित्तीय जानकारी एंड-टू-एंड एन्क्रिप्शन तथा PBKDF2-HMAC-SHA256 सुरक्षा के अंतर्गत सुरक्षित रहती है।</p>
+        ? `<p><strong>डिजिटल व्यक्तिगत डेटा संरक्षण अधिनियम 2023 एवं RBI डिजिटल लेंडिंग मानक:</strong> रिनदृष्टि फेयरलेंड एआई में आवेदकों द्वारा साझा की गई सभी पहचान और वित्तीय जानकारी एंड-टू-एंड एन्क्रिप्शन तथा PBKDF2-HMAC-SHA256 सुरक्षा के अंतर्गत सुरक्षित रहती है।</p>
            <ul>
              <li><strong>न्यूनतम डेटा संग्रह:</strong> केवल क्रेडिट पात्रता, DTI/FOIR अनुपात और KFS तैयार करने हेतु आवश्यक विवरण ही संसाधित किए जाते हैं।</li>
              <li><strong>शून्य तृतीय-पक्ष बिक्री:</strong> उधारकर्ता का संपर्क नंबर, सिबिल या आय डेटा किसी बाहरी विज्ञापनदाता को नहीं बेचा जाता।</li>
              <li><strong>गोपनीयता मास्क विकल्प:</strong> आप सेटिंग्स में जाकर किसी भी समय वॉल्ट गोपनीयता मास्क मोड चालू कर सकते हैं।</li>
            </ul>`
-        : `<p><strong>DPDP Act 2023 &amp; RBI Digital Lending Directions Compliance:</strong> Meridian FairLend AI processes borrower identity, monthly earnings, and bureau risk indicators under strict encryption and PBKDF2-HMAC-SHA256 credential protection.</p>
+        : `<p><strong>DPDP Act 2023 &amp; RBI Digital Lending Directions Compliance:</strong> RinDristi FairLend AI processes borrower identity, monthly earnings, and bureau risk indicators under strict encryption and PBKDF2-HMAC-SHA256 credential protection.</p>
            <ul>
              <li><strong>Purpose Limitation:</strong> Submitted personal and household data is used strictly for automated XAI underwriting, Sanction / KFS generation, and statutory audit logs.</li>
              <li><strong>Zero Unauthorized Sharing:</strong> Applicant phone numbers, emails, and credit bureau checks are never sold or syndicated to third-party lead brokers.</li>
@@ -1697,7 +1798,7 @@ window.openPublicInfoModal = function(section = 'privacy', pushUrl = true) {
              <li><strong>3-दिवसीय कूलिंग-ऑफ अधिकार:</strong> स्वीकृति के 3 कार्य दिवसों के भीतर आवेदक बिना किसी दंड शुल्क के ऋण अनुबंध से बाहर निकल सकता है।</li>
              <li><strong>निष्पक्षता ऑडिट:</strong> ग्रामीण एवं महिला आवेदकों के साथ समान व्यवहार सुनिश्चित करने हेतु 80% असमान प्रभाव नियम की नियमित समीक्षा की जाती है।</li>
            </ul>`
-        : `<p><strong>Transparent Retail Credit Framework:</strong> Every application evaluated through Meridian FairLend AI includes itemized algorithmic explanations and a standardized RBI Key Fact Statement prior to sanction commitment.</p>
+        : `<p><strong>Transparent Retail Credit Framework:</strong> Every application evaluated through RinDristi FairLend AI includes itemized algorithmic explanations and a standardized RBI Key Fact Statement prior to sanction commitment.</p>
            <ul>
              <li><strong>Zero Hidden Processing Fees:</strong> Mission Bharat subsidized retail applications carry ₹0 upfront processing charges and ₹0 foreclosure penalties per RBI guidelines.</li>
              <li><strong>3-Day Cooling-Off / Look-Up Period:</strong> Borrowers retain the statutory right to exit a sanctioned facility within 3 business days with zero exit penalty.</li>
@@ -1707,16 +1808,16 @@ window.openPublicInfoModal = function(section = 'privacy', pushUrl = true) {
     grievance: {
       title: hi ? 'RBI ग्राहक शिकायत निवारण एवं लोकपाल सहायता' : 'RBI Grievance Redressal & Integrated Ombudsman Escalation',
       html: hi
-        ? `<p><strong>नोडल शिकायत निवारण अधिकारी:</strong> श्रीमती शालिनी वर्मा, मेरिडियन फेयरलेंड एआई, नरीमन पॉइंट, मुंबई 400021। कार्य समय के दौरान त्वरित सहायता 15 कार्य दिवसों के भीतर सुनिश्चित की जाती है।</p>
+        ? `<p><strong>नोडल शिकायत निवारण अधिकारी:</strong> श्रीमती शालिनी वर्मा, रिनदृष्टि फेयरलेंड एआई, नरीमन पॉइंट, मुंबई 400021। कार्य समय के दौरान त्वरित सहायता 15 कार्य दिवसों के भीतर सुनिश्चित की जाती है।</p>
            <ul>
              <li><strong>टोल-फ्री हेल्पलाइन:</strong> <a href="tel:18002094000" class="contact-link">1800-209-4000</a></li>
-             <li><strong>आधिकारिक ईमेल:</strong> <a href="mailto:grievance.bharat@meridian.fin" class="contact-link">grievance.bharat@meridian.fin</a></li>
+             <li><strong>आधिकारिक ईमेल:</strong> <a href="mailto:grievance.bharat@rindristi.fin" class="contact-link">grievance.bharat@rindristi.fin</a></li>
              <li><strong>RBI एकीकृत लोकपाल (30 दिन के उपरांत):</strong> <a href="tel:14448" class="contact-link">14448</a> पर कॉल करें या <a href="https://cms.rbi.org.in" target="_blank" rel="noopener noreferrer" class="contact-link">https://cms.rbi.org.in</a> पर शिकायत दर्ज करें।</li>
            </ul>`
-        : `<p><strong>Principal Nodal Grievance Redressal Officer:</strong> Smt. Shalini Verma, Meridian FairLend AI, Nariman Point, Mumbai 400021. Formal borrower complaints are acknowledged immediately with a 15-working-day SLA.</p>
+        : `<p><strong>Principal Nodal Grievance Redressal Officer:</strong> Smt. Shalini Verma, RinDristi FairLend AI, Nariman Point, Mumbai 400021. Formal borrower complaints are acknowledged immediately with a 15-working-day SLA.</p>
            <ul>
              <li><strong>Toll-Free Borrower Helpline:</strong> <a href="tel:18002094000" class="contact-link">1800-209-4000</a></li>
-             <li><strong>Dedicated Grievance Desk Email:</strong> <a href="mailto:grievance.bharat@meridian.fin" class="contact-link">grievance.bharat@meridian.fin</a></li>
+             <li><strong>Dedicated Grievance Desk Email:</strong> <a href="mailto:grievance.bharat@rindristi.fin" class="contact-link">grievance.bharat@rindristi.fin</a></li>
              <li><strong>RBI Integrated Ombudsman Scheme (30-Day Escalation):</strong> Dial toll-free <a href="tel:14448" class="contact-link">14448</a> or file online at <a href="https://cms.rbi.org.in" target="_blank" rel="noopener noreferrer" class="contact-link">https://cms.rbi.org.in</a>.</li>
            </ul>`
     }
@@ -1931,9 +2032,11 @@ window.applyAuthenticatedSession = async function(user, token) {
   currentAuthToken = token;
 
   try {
-    localStorage.setItem('meridian_auth_user', JSON.stringify(user));
-    if (token) localStorage.setItem('meridian_auth_token', token);
+    localStorage.setItem('rindristi_auth_user', JSON.stringify(user));
+    if (token) localStorage.setItem('rindristi_auth_token', token);
   } catch (e) {}
+  recordUserActivity(true);
+  startInactivityMonitor();
 
   resetWorkspaceState();
   activeUserSettings = loadUserSettings(user);
@@ -2027,64 +2130,81 @@ window.applyAuthenticatedSession = async function(user, token) {
 };
 
 window.checkExistingSession = async function() {
+  let expiredNotice = false;
   try {
-    const stored = localStorage.getItem('meridian_auth_user');
-    const token = localStorage.getItem('meridian_auth_token');
+    const stored = localStorage.getItem('rindristi_auth_user');
+    const token = localStorage.getItem('rindristi_auth_token');
+    const lastActRaw = localStorage.getItem(LAST_ACTIVITY_STORAGE_KEY);
     if (stored) {
-      const user = JSON.parse(stored);
-      if (user && user.email) {
-        if (user.id || (token && !String(token).startsWith('offline-'))) {
-          try {
-            const reqHeaders = {};
-            if (user.id) reqHeaders['X-User-Id'] = String(user.id);
-            if (token && !String(token).startsWith('offline-')) {
-              reqHeaders['Authorization'] = `Bearer ${token}`;
-            }
-            const verifyRes = await fetch(`${state.apiBase}/api/auth/session?user_id=${encodeURIComponent(user.id || '')}`, {
-              headers: reqHeaders
-            });
-            if (verifyRes.status === 401 || verifyRes.status === 404) {
-              localStorage.removeItem('meridian_auth_user');
-              localStorage.removeItem('meridian_auth_token');
-              currentAuthUser = null;
-              currentAuthToken = null;
-              activeUserSettings = getDefaultUserSettings('applicant');
-              draftUserSettings = { ...activeUserSettings };
-              applyVisualSettingsToDOM(activeUserSettings);
-              syncSiteAvailabilityUI();
-              return;
-            }
-            if (verifyRes.ok) {
-              const verified = await verifyRes.json();
-              if (verified && verified.user) {
-                await window.applyAuthenticatedSession(verified.user, token);
+      if (lastActRaw && (Date.now() - Number(lastActRaw)) >= SESSION_IDLE_TIMEOUT_MS) {
+        clearStoredAuthSession();
+        expiredNotice = true;
+      } else {
+        const user = JSON.parse(stored);
+        if (user && user.email) {
+          if (user.id || (token && !String(token).startsWith('offline-'))) {
+            try {
+              const reqHeaders = {};
+              if (user.id) reqHeaders['X-User-Id'] = String(user.id);
+              if (token && !String(token).startsWith('offline-')) {
+                reqHeaders['Authorization'] = `Bearer ${token}`;
+              }
+              const verifyRes = await fetch(`${state.apiBase}/api/auth/session?user_id=${encodeURIComponent(user.id || '')}`, {
+                headers: reqHeaders
+              });
+              if (verifyRes.status === 401 || verifyRes.status === 404) {
+                const verifyErr = await verifyRes.json().catch(() => ({}));
+                clearStoredAuthSession();
+                currentAuthUser = null;
+                currentAuthToken = null;
+                activeUserSettings = getDefaultUserSettings('applicant');
+                draftUserSettings = { ...activeUserSettings };
+                applyVisualSettingsToDOM(activeUserSettings);
+                syncSiteAvailabilityUI();
+                if (verifyRes.status === 401 && verifyErr && verifyErr.session_expired) {
+                  const expiredMsg = getLangDict().auth_session_expired_inactivity;
+                  window.showAuthAlert(expiredMsg, true);
+                  window.showRinDristiToast(expiredMsg, true);
+                }
                 return;
               }
-            }
-          } catch (e) {}
+              if (verifyRes.ok) {
+                const verified = await verifyRes.json();
+                if (verified && verified.user) {
+                  await window.applyAuthenticatedSession(verified.user, token);
+                  return;
+                }
+              }
+            } catch (e) {}
+          }
+          await window.applyAuthenticatedSession(user, token);
+          return;
         }
-        await window.applyAuthenticatedSession(user, token);
-        return;
       }
     }
   } catch (e) {}
 
   syncSiteAvailabilityUI();
+  if (expiredNotice) {
+    const expiredMsg = getLangDict().auth_session_expired_inactivity;
+    window.showAuthAlert(expiredMsg, true);
+    window.showRinDristiToast(expiredMsg, true);
+  }
 };
 
-window.showMeridianToast = function(msg, isError = false) {
+window.showRinDristiToast = function(msg, isError = false) {
   if (!isError && activeUserSettings && activeUserSettings.showToasts === false) return;
-  const container = document.getElementById('meridian-toast-container');
+  const container = document.getElementById('rindristi-toast-container');
   if (!container) return;
   const toast = document.createElement('div');
-  toast.className = `meridian-toast${isError ? ' error' : ''}`;
+  toast.className = `rindristi-toast${isError ? ' error' : ''}`;
   toast.innerText = msg;
   container.appendChild(toast);
   setTimeout(() => { toast.remove(); }, 4200);
 };
 
 function showToast(msg, isError = false) {
-  window.showMeridianToast(msg, isError);
+  window.showRinDristiToast(msg, isError);
 }
 
 function syncSiteAvailabilityUI() {
@@ -2208,20 +2328,20 @@ window.checkSiteAvailability = async function(isManual = false) {
         state.siteAvailability = data;
         syncSiteAvailabilityUI();
         if (isManual) {
-          window.showMeridianToast(
+          window.showRinDristiToast(
             data.online
               ? (hi ? '🟢 वेबसाइट ऑनलाइन है और सक्रिय है।' : '🟢 Website is ONLINE and ready.')
               : (hi ? '🔴 वेबसाइट वर्तमान में ऑफ़लाइन (रखरखाव मोड) में है।' : '🔴 Website is currently OFFLINE (Maintenance Mode).'),
             !data.online
           );
         } else if (wasOffline && data.online) {
-          window.showMeridianToast(hi ? '🟢 वेबसाइट पुनः ऑनलाइन हो गई है!' : '🟢 Website is back ONLINE!');
+          window.showRinDristiToast(hi ? '🟢 वेबसाइट पुनः ऑनलाइन हो गई है!' : '🟢 Website is back ONLINE!');
         }
         return data;
       }
     }
   } catch (e) {
-    if (isManual) window.showMeridianToast(hi ? 'स्थिति जांच विफल: सर्वर अभी उपलब्ध नहीं है।' : 'Checking status... server unreachable right now.', true);
+    if (isManual) window.showRinDristiToast(hi ? 'स्थिति जांच विफल: सर्वर अभी उपलब्ध नहीं है।' : 'Checking status... server unreachable right now.', true);
   }
   return state.siteAvailability;
 };
@@ -2264,15 +2384,18 @@ window.setWebsiteOnlineState = async function(targetOnline, customTitle = null, 
       body: JSON.stringify(bodyPayload)
     });
     const data = await res.json();
+    if (handleApiAuthFailure(res, data)) {
+      return false;
+    }
     if (!res.ok || !data.success) {
-      window.showMeridianToast(data.error || (hi ? 'वेबसाइट स्थिति अपडेट करने में त्रुटि।' : 'Failed to update website availability.'), true);
+      window.showRinDristiToast(data.error || (hi ? 'वेबसाइट स्थिति अपडेट करने में त्रुटि।' : 'Failed to update website availability.'), true);
       return false;
     }
 
     state.siteAvailability = data;
     syncSiteAvailabilityUI();
     window.closeSiteAvailabilityModal();
-    window.showMeridianToast(
+    window.showRinDristiToast(
       data.online
         ? (hi ? '🟢 वेबसाइट अब ऑनलाइन और सार्वजनिक रूप से उपलब्ध है।' : '🟢 Website is now ONLINE & publicly accessible.')
         : (hi ? '🔴 वेबसाइट अब ऑफ़लाइन (सार्वजनिक रखरखाव मोड सक्रिय) है।' : '🔴 Website is now OFFLINE (Public Maintenance Mode active).'),
@@ -2280,7 +2403,7 @@ window.setWebsiteOnlineState = async function(targetOnline, customTitle = null, 
     );
     return true;
   } catch (e) {
-    window.showMeridianToast(hi ? 'वेबसाइट स्थिति अपडेट करने में नेटवर्क त्रुटि।' : 'Network error updating website status.', true);
+    window.showRinDristiToast(hi ? 'वेबसाइट स्थिति अपडेट करने में नेटवर्क त्रुटि।' : 'Network error updating website status.', true);
     return false;
   }
 };
@@ -2315,7 +2438,7 @@ window.handleMaintOfficerSignIn = async function(e) {
     if (res.ok && data.success) {
       if (alertEl) alertEl.style.display = 'none';
       await window.applyAuthenticatedSession(data.user, data.token);
-      window.showMeridianToast(hi ? '🛡️ अधिकारी सत्यापन सफल। वेबसाइट ऑनलाइन करने के लिए ऊपर दिए गए बैनर का उपयोग करें।' : '🛡️ Officer authenticated. Use the banner above to bring the website Online.');
+      window.showRinDristiToast(hi ? '🛡️ अधिकारी सत्यापन सफल। वेबसाइट ऑनलाइन करने के लिए ऊपर दिए गए बैनर का उपयोग करें।' : '🛡️ Officer authenticated. Use the banner above to bring the website Online.');
     } else {
       if (alertEl) {
         alertEl.className = 'auth-alert auth-alert-error';
@@ -2360,17 +2483,17 @@ window.handleMaintPasskeyBringOnline = async function() {
 
 const I18N = {
   en: {
-    page_title: "Meridian FairLend AI • MISSION BHARAT | Explainable Loan Decision System",
+    page_title: "RinDristi FairLend AI • MISSION BHARAT | Explainable Loan Decision System",
     lang_btn: "🇮🇳 हिन्दी (Hindi)",
     title_lang_btn: "Bilingual Language Switcher",
-    brand_title: "Meridian FairLend AI",
+    brand_title: "RinDristi FairLend AI",
     brand_badge: "Mission Bharat",
     brand_sub: "AI-Powered Explainable Lending & Demographic Equity Platform",
     maint_header_pill: "WEBSITE OFFLINE",
     maint_card_badge: "SCHEDULED MAINTENANCE • PORTAL OFFLINE",
     default_maint_title: DEFAULT_OFFLINE_TITLE_EN,
     default_maint_msg: DEFAULT_OFFLINE_MSG_EN,
-    maint_meta_default: "Managed by Meridian Institutional Operations",
+    maint_meta_default: "Managed by RinDristi Institutional Operations",
     btn_check_status: "Check Website Status",
     btn_admin_ctrl: "Officer / Admin Control",
     maint_override_title: "Administrator / Officer Override",
@@ -2466,19 +2589,19 @@ const I18N = {
     btn_configure_notice: "Configure Notice",
     sub_banner_title: "Your Application Has Been Submitted!",
     sub_banner_ref_lbl: "Reference:",
-    sub_banner_desc: "Stored securely in Meridian Vault. Review your instant underwriting report below:",
+    sub_banner_desc: "Stored securely in RinDristi Vault. Review your instant underwriting report below:",
     btn_dl_sanction: "Download Sanction Letter",
     btn_dismiss: "Dismiss",
     hero_gauge_lbl: "Automated Approval Likelihood",
     hero_baseline_lbl: "Approval Baseline: ≥ 50%",
     apply_eyebrow: "Mission Bharat • Direct Borrower Application Portal",
     apply_heading: "Submit a Retail Loan Application",
-    apply_subheading: "Fill in your personal profile, monthly earnings, CIBIL score, and requested facility. Your application is automatically analyzed by AI and permanently recorded in the Meridian Application Vault & Registry.",
+    apply_subheading: "Fill in your personal profile, monthly earnings, CIBIL score, and requested facility. Your application is automatically analyzed by AI and permanently recorded in the RinDristi Application Vault & Registry.",
     apply_storage_lbl: "Storage Engine",
     apply_storage_val: "Secure Application Vault",
     apply_suc_title: "Application Successfully Saved in Database!",
     apply_suc_ref_prefix: "Your application has been assigned Reference ID",
-    apply_suc_ref_suffix: "and recorded permanently in the Meridian Vault.",
+    apply_suc_ref_suffix: "and recorded permanently in the RinDristi Vault.",
     apply_suc_status_lbl: "Status:",
     apply_suc_score_lbl: "AI Score:",
     apply_suc_emi_lbl: "Monthly EMI:",
@@ -2525,8 +2648,8 @@ const I18N = {
     tick_cibil_900: "900 (Stellar)",
     tick_cibil_900_perf: "900 (Perfect)",
     rbi_consent_title: "RBI Digital Lending & Fair Lending Statutory Consent (2022 Guidelines)",
-    rbi_consent_html: '<strong>Statutory Borrower Declaration (CICRA 2005 &amp; DPDP Act 2023):</strong> I hereby grant explicit consent to <strong>Meridian FairLend AI</strong> under <strong>Mission Bharat</strong> to access my credit bureau history (CIBIL/CRIF) and process my personal data locally in accordance with the <strong>RBI Digital Lending Directions 2022</strong>. I acknowledge that all underwriting decisions are non-discriminatory, transparent, explainable (XAI), and subject to a statutory <strong>3-Day Look-Up / Cooling-Off Period</strong> without exit penalty.',
-    apply_footer_note: "🔒 Guaranteed Data Encryption • Stored in Meridian Vault • Auditable under RBI Fair Practices Code",
+    rbi_consent_html: '<strong>Statutory Borrower Declaration (CICRA 2005 &amp; DPDP Act 2023):</strong> I hereby grant explicit consent to <strong>RinDristi FairLend AI</strong> under <strong>Mission Bharat</strong> to access my credit bureau history (CIBIL/CRIF) and process my personal data locally in accordance with the <strong>RBI Digital Lending Directions 2022</strong>. I acknowledge that all underwriting decisions are non-discriminatory, transparent, explainable (XAI), and subject to a statutory <strong>3-Day Look-Up / Cooling-Off Period</strong> without exit penalty.',
+    apply_footer_note: "🔒 Guaranteed Data Encryption • Stored in RinDristi Vault • Auditable under RBI Fair Practices Code",
     btn_reset_form: "Reset Form",
     btn_submit_app: "Submit & Record in Database",
     opt_female: "Female",
@@ -2593,7 +2716,7 @@ const I18N = {
     approved_title: "Likely to be Approved",
     conditional_title: "Borderline / Needs Review",
     rejected_title: "High Risk / Unlikely to be Approved",
-    approved_desc: "Your credit and financial profile comfortably satisfies Meridian Mission Bharat underwriting benchmarks.",
+    approved_desc: "Your credit and financial profile comfortably satisfies RinDristi Mission Bharat underwriting benchmarks.",
     conditional_desc: "Your application is near the approval threshold. Minor adjustments or guarantor backing will secure an offer.",
     rejected_desc: "Current risk markers exceed credit policy guidelines. Review the specific factors and remediation plan below.",
     cockpit_site_eyebrow: "🌐 Website Availability & Maintenance Control",
@@ -2708,7 +2831,7 @@ const I18N = {
     port_th_act: "Action",
     btn_prev_page: "← Previous",
     btn_next_page: "Next →",
-    db_title: "Official Meridian Application Vault & Registry",
+    db_title: "Official RinDristi Application Vault & Registry",
     db_sub: "All loan applications submitted via the portal are permanently recorded and available here",
     db_title_applicant: "My Submitted Loan Applications Vault",
     db_sub_applicant: "Every loan application you submit is securely archived here across sessions and devices",
@@ -2736,8 +2859,8 @@ const I18N = {
     footer_mission_statement: "Make every credit decision easier to understand.",
     footer_mission_supporting: "Explain the decision. Identify improvement opportunities. Evaluate fairness responsibly.",
     footer_division: "MISSION BHARAT • RETAIL CREDIT DIVISION • 2026",
-    footer_disclaimer: "© 2026 Meridian FairLend. Operating in compliance with the Reserve Bank of India (RBI) Regulatory Framework for Digital Lending.",
-    let_bank_name: "MERIDIAN FAIRLEND AI",
+    footer_disclaimer: "© 2026 RinDristi FairLend. Operating in compliance with the Reserve Bank of India (RBI) Regulatory Framework for Digital Lending.",
+    let_bank_name: "RINDRISTI FAIRLEND AI",
     let_division: "Mission Bharat • Inclusive Retail Credit Division",
     let_office: "Reg. Office: Nariman Point, Mumbai 400021 • RBI Reg #N-13.01928",
     let_ref_lbl: "Reference:",
@@ -2777,9 +2900,9 @@ const I18N = {
     adv_row_reapply: "Re-Application & Review Window",
     let_factors_heading: "Transparent Factor Determination (Under RBI Fair Lending Code):",
     let_sig_verify_title: "Electronic Underwriting Record • Tamper-Evident Audit",
-    let_sig_verify_sub: "Valid digital statement generated directly from the Meridian Central Application Vault.",
+    let_sig_verify_sub: "Valid digital statement generated directly from the RinDristi Central Application Vault.",
     let_sig_auth_lbl: "Issuing Authority",
-    let_ombudsman_html: '<strong>RBI Fair Practices Code &amp; Statutory Redressal Mechanism:</strong><br>• <strong>Principal Grievance Redressal Officer:</strong> Smt. Shalini Verma, Nodal Grievance Officer, Meridian FairLend AI, Nariman Point, Mumbai 400021. Toll-Free: <a href="tel:18002094000" style="color: #064E3B; font-weight: 700;">1800-209-4000</a> | Email: <a href="mailto:grievance.bharat@meridian.fin" style="color: #064E3B; font-weight: 700;">grievance.bharat@meridian.fin</a> (Resolution SLA: within 15 working days).<br>• <strong>RBI Integrated Ombudsman Scheme:</strong> If your grievance is not redressed within 30 days, you have the statutory right under the Reserve Bank of India Integrated Ombudsman Scheme, 2021 to lodge a complaint online at <strong><a href="https://cms.rbi.org.in" target="_blank" rel="noopener noreferrer" style="color: #064E3B; font-weight: 700; text-decoration: underline;">https://cms.rbi.org.in</a></strong> or dial toll-free <a href="tel:14448" style="color: #064E3B; font-weight: 700;">14448</a>.',
+    let_ombudsman_html: '<strong>RBI Fair Practices Code &amp; Statutory Redressal Mechanism:</strong><br>• <strong>Principal Grievance Redressal Officer:</strong> Smt. Shalini Verma, Nodal Grievance Officer, RinDristi FairLend AI, Nariman Point, Mumbai 400021. Toll-Free: <a href="tel:18002094000" style="color: #064E3B; font-weight: 700;">1800-209-4000</a> | Email: <a href="mailto:grievance.bharat@rindristi.fin" style="color: #064E3B; font-weight: 700;">grievance.bharat@rindristi.fin</a> (Resolution SLA: within 15 working days).<br>• <strong>RBI Integrated Ombudsman Scheme:</strong> If your grievance is not redressed within 30 days, you have the statutory right under the Reserve Bank of India Integrated Ombudsman Scheme, 2021 to lodge a complaint online at <strong><a href="https://cms.rbi.org.in" target="_blank" rel="noopener noreferrer" style="color: #064E3B; font-weight: 700; text-decoration: underline;">https://cms.rbi.org.in</a></strong> or dial toll-free <a href="tel:14448" style="color: #064E3B; font-weight: 700;">14448</a>.',
     btn_print_pdf: "Print / Save PDF",
     btn_close: "Close",
     modal_api_title: "FastAPI Backend Connection Hub",
@@ -2812,7 +2935,10 @@ const I18N = {
     ph_otp_code: "6-digit OTP",
     otp_hint_signup: "Click Send OTP to receive a 6-digit verification code in your inbox.",
     otp_hint_forgot: "Enter your registered email and click Send OTP to receive a recovery code.",
+    otp_hint_email_change: "Verify your new email address via 6-digit OTP before saving the email change.",
     otp_hint_unconfigured: "Real Email OTP is not active yet: add BREVO_API_KEY + EMAIL_FROM in Railway Variables (free HTTPS API) to deliver inbox codes.",
+    msg_profile_email_otp_required: "Please send and verify the 6-digit Email OTP sent to your new email address before changing your email.",
+    auth_session_expired_inactivity: "Your session expired after 10 minutes of inactivity. Please sign in again.",
     fp_modal_title: "Reset Password via Email OTP",
     fp_lbl_email: "Registered Email Address",
     ph_fp_email: "name@domain.com",
@@ -2926,7 +3052,7 @@ const I18N = {
     foot_link_terms: "Terms of Lending",
     foot_link_grievance: "RBI Grievance Redressal",
     foot_link_sitemap: "Sitemap",
-    foot_contact_html: 'Toll-Free: <a href="tel:18002094000" class="contact-link">1800-209-4000</a> &bull; RBI Ombudsman: <a href="tel:14448" class="contact-link">14448</a> &bull; Email: <a href="mailto:grievance.bharat@meridian.fin" class="contact-link">grievance.bharat@meridian.fin</a>',
+    foot_contact_html: 'Toll-Free: <a href="tel:18002094000" class="contact-link">1800-209-4000</a> &bull; RBI Ombudsman: <a href="tel:14448" class="contact-link">14448</a> &bull; Email: <a href="mailto:grievance.bharat@rindristi.fin" class="contact-link">grievance.bharat@rindristi.fin</a>',
     pub_info_badge: "RBI Regulatory Disclosure",
     ws_apply_title: "Apply for a Retail Loan",
     ws_apply_sub: "Submit your transparent retail credit application for instant XAI underwriting and persistent vault archiving.",
@@ -2961,21 +3087,21 @@ const I18N = {
     foot_grievance: "Grievance Redressal",
     foot_sitemap: "Sitemap",
     mob_call_helpline: "Call Helpline: 1800-209-4000",
-    mob_email_support: "Email: grievance.bharat@meridian.fin",
-    maint_help_html: 'Support Helpline: <a href="tel:18002094000" class="contact-link">1800-209-4000</a> &bull; Email: <a href="mailto:grievance.bharat@meridian.fin" class="contact-link">grievance.bharat@meridian.fin</a>'
+    mob_email_support: "Email: grievance.bharat@rindristi.fin",
+    maint_help_html: 'Support Helpline: <a href="tel:18002094000" class="contact-link">1800-209-4000</a> &bull; Email: <a href="mailto:grievance.bharat@rindristi.fin" class="contact-link">grievance.bharat@rindristi.fin</a>'
   },
   hi: {
-    page_title: "मेरिडियन फेयरलेंड एआई • मिशन भारत | पारदर्शी ऋण निर्णय प्रणाली",
+    page_title: "रिनदृष्टि फेयरलेंड एआई • मिशन भारत | पारदर्शी ऋण निर्णय प्रणाली",
     lang_btn: "🇬🇧 English",
     title_lang_btn: "द्विभाषी भाषा चयनकर्ता",
-    brand_title: "मेरिडियन फेयरलेंड एआई (Meridian FairLend AI)",
+    brand_title: "रिनदृष्टि फेयरलेंड एआई (RinDristi FairLend AI)",
     brand_badge: "मिशन भारत",
     brand_sub: "एआई-संचालित पारदर्शी ऋण निर्णय एवं सामाजिक समानता मंच",
     maint_header_pill: "वेबसाइट ऑफ़लाइन",
     maint_card_badge: "निर्धारित रखरखाव • पोर्टल ऑफ़लाइन",
     default_maint_title: "पोर्टल अस्थायी रूप से ऑफ़लाइन है",
-    default_maint_msg: "मेरिडियन फेयरलेंड एआई इस समय निर्धारित सिस्टम रखरखाव के लिए ऑफ़लाइन है। ऑनलाइन ऋण सेवाएं शीघ्र ही पुनः शुरू होंगी।",
-    maint_meta_default: "मेरिडियन संस्थागत परिचालन द्वारा प्रबंधित",
+    default_maint_msg: "रिनदृष्टि फेयरलेंड एआई इस समय निर्धारित सिस्टम रखरखाव के लिए ऑफ़लाइन है। ऑनलाइन ऋण सेवाएं शीघ्र ही पुनः शुरू होंगी।",
+    maint_meta_default: "रिनदृष्टि संस्थागत परिचालन द्वारा प्रबंधित",
     btn_check_status: "वेबसाइट स्थिति जांचें",
     btn_admin_ctrl: "अधिकारी / एडमिन नियंत्रण",
     maint_override_title: "प्रशासक / अधिकारी ओवरराइड",
@@ -3071,19 +3197,19 @@ const I18N = {
     btn_configure_notice: "सूचना संपादित करें",
     sub_banner_title: "आपका ऋण आवेदन सफलतापूर्वक जमा हो गया है!",
     sub_banner_ref_lbl: "संदर्भ संख्या:",
-    sub_banner_desc: "मेरिडियन वॉल्ट में सुरक्षित दर्ज। नीचे अपनी त्वरित ऋण निर्णय रिपोर्ट देखें:",
+    sub_banner_desc: "रिनदृष्टि वॉल्ट में सुरक्षित दर्ज। नीचे अपनी त्वरित ऋण निर्णय रिपोर्ट देखें:",
     btn_dl_sanction: "स्वीकृति पत्र डाउनलोड करें",
     btn_dismiss: "बंद करें",
     hero_gauge_lbl: "स्वचालित स्वीकृति संभावना",
     hero_baseline_lbl: "स्वीकृति आधार सीमा: ≥ 50%",
     apply_eyebrow: "मिशन भारत • प्रत्यक्ष आवेदक ऋण पोर्टल",
     apply_heading: "खुदरा ऋण आवेदन पत्र जमा करें",
-    apply_subheading: "अपना विवरण, मासिक आय, सिबिल स्कोर और वांछित ऋण राशि भरें। आपका आवेदन एआई द्वारा विश्लेषित होकर मेरिडियन सुरक्षित वॉल्ट एवं रजिस्ट्री में स्थायी रूप से दर्ज होगा।",
+    apply_subheading: "अपना विवरण, मासिक आय, सिबिल स्कोर और वांछित ऋण राशि भरें। आपका आवेदन एआई द्वारा विश्लेषित होकर रिनदृष्टि सुरक्षित वॉल्ट एवं रजिस्ट्री में स्थायी रूप से दर्ज होगा।",
     apply_storage_lbl: "डेटा संग्रह इंजन",
     apply_storage_val: "सुरक्षित आवेदन वॉल्ट",
     apply_suc_title: "आवेदन डेटाबेस में सफलतापूर्वक सहेजा गया!",
     apply_suc_ref_prefix: "आपके आवेदन को संदर्भ संख्या",
-    apply_suc_ref_suffix: "आवंटित की गई है और इसे मेरिडियन वॉल्ट में स्थायी रूप से दर्ज कर लिया गया है।",
+    apply_suc_ref_suffix: "आवंटित की गई है और इसे रिनदृष्टि वॉल्ट में स्थायी रूप से दर्ज कर लिया गया है।",
     apply_suc_status_lbl: "स्थिति:",
     apply_suc_score_lbl: "AI स्कोर:",
     apply_suc_emi_lbl: "मासिक किस्त:",
@@ -3130,8 +3256,8 @@ const I18N = {
     tick_cibil_900: "900 (सर्वोत्तम)",
     tick_cibil_900_perf: "900 (परिपूर्ण)",
     rbi_consent_title: "RBI डिजिटल लेंडिंग एवं निष्पक्ष ऋण वैधानिक सहमति (2022 दिशानिर्देश)",
-    rbi_consent_html: '<strong>वैधानिक आवेदक घोषणा (CICRA 2005 एवं DPDP अधिनियम 2023):</strong> मैं <strong>मिशन भारत</strong> के तहत <strong>मेरिडियन फेयरलेंड एआई</strong> को <strong>RBI डिजिटल लेंडिंग दिशानिर्देश 2022</strong> के अनुरूप मेरा क्रेडिट ब्यूरो इतिहास (CIBIL/CRIF) जांचने और डेटा संसाधित करने की स्पष्ट सहमति देता/देती हूँ। मैं स्वीकार करता/करती हूँ कि सभी निर्णय गैर-भेदभावपूर्ण, पारदर्शी (XAI) हैं और बिना किसी दंड शुल्क के वैधानिक <strong>3 कार्य दिवस कूलिंग-ऑफ / समीक्षा अवधि</strong> के अधीन हैं।',
-    apply_footer_note: "🔒 सुरक्षित डेटा एन्क्रिप्शन • मेरिडियन वॉल्ट में संग्रहीत • RBI फेयर प्रैक्टिसेज कोड के अंतर्गत ऑडिट योग्य",
+    rbi_consent_html: '<strong>वैधानिक आवेदक घोषणा (CICRA 2005 एवं DPDP अधिनियम 2023):</strong> मैं <strong>मिशन भारत</strong> के तहत <strong>रिनदृष्टि फेयरलेंड एआई</strong> को <strong>RBI डिजिटल लेंडिंग दिशानिर्देश 2022</strong> के अनुरूप मेरा क्रेडिट ब्यूरो इतिहास (CIBIL/CRIF) जांचने और डेटा संसाधित करने की स्पष्ट सहमति देता/देती हूँ। मैं स्वीकार करता/करती हूँ कि सभी निर्णय गैर-भेदभावपूर्ण, पारदर्शी (XAI) हैं और बिना किसी दंड शुल्क के वैधानिक <strong>3 कार्य दिवस कूलिंग-ऑफ / समीक्षा अवधि</strong> के अधीन हैं।',
+    apply_footer_note: "🔒 सुरक्षित डेटा एन्क्रिप्शन • रिनदृष्टि वॉल्ट में संग्रहीत • RBI फेयर प्रैक्टिसेज कोड के अंतर्गत ऑडिट योग्य",
     btn_reset_form: "फॉर्म रीसेट करें",
     btn_submit_app: "आवेदन जमा करें एवं डेटाबेस में सहेजें",
     opt_female: "महिला",
@@ -3198,7 +3324,7 @@ const I18N = {
     approved_title: "ऋण स्वीकृत होने की प्रबल संभावना",
     conditional_title: "समीक्षाधीन / सशर्त पात्रता",
     rejected_title: "उच्च जोखिम / वर्तमान में स्वीकृति कठिन",
-    approved_desc: "आपका वित्तीय एवं क्रेडिट प्रोफाइल मेरिडियन मिशन भारत के ऋण मानकों के सर्वथा अनुकूल है।",
+    approved_desc: "आपका वित्तीय एवं क्रेडिट प्रोफाइल रिनदृष्टि मिशन भारत के ऋण मानकों के सर्वथा अनुकूल है।",
     conditional_desc: "आपका आवेदन स्वीकृति सीमा के अत्यंत निकट है। थोड़े सुधार या सह-आवेदक के सहयोग से प्रस्ताव सुरक्षित हो सकता है।",
     rejected_desc: "वर्तमान जोखिम संकेत ऋण नीति मानकों से अधिक हैं। नीचे दिए गए कारणों और सुधार योजना का अवलोकन करें।",
     cockpit_site_eyebrow: "🌐 वेबसाइट उपलब्धता एवं रखरखाव नियंत्रण",
@@ -3313,7 +3439,7 @@ const I18N = {
     port_th_act: "कार्रवाई",
     btn_prev_page: "← पिछला",
     btn_next_page: "अगला →",
-    db_title: "आधिकारिक मेरिडियन आवेदन वॉल्ट एवं रजिस्ट्री",
+    db_title: "आधिकारिक रिनदृष्टि आवेदन वॉल्ट एवं रजिस्ट्री",
     db_sub: "पोर्टल के माध्यम से जमा किए गए सभी ऋण आवेदन यहां स्थायी रूप से सुरक्षित हैं",
     db_title_applicant: "मेरे जमा किए गए ऋण आवेदनों का वॉल्ट",
     db_sub_applicant: "आपके द्वारा जमा किए गए प्रत्येक ऋण आवेदन का स्थायी रिकॉर्ड विभिन्न सत्रों और उपकरणों पर यहां सुरक्षित रहता है",
@@ -3341,8 +3467,8 @@ const I18N = {
     footer_mission_statement: "प्रत्येक ऋण निर्णय को समझने में सरल एवं पारदर्शी बनाना।",
     footer_mission_supporting: "निर्णय का स्पष्ट कारण बताएं। सुधार के अवसर पहचानें। निष्पक्षता का जिम्मेदारी से मूल्यांकन करें।",
     footer_division: "मिशन भारत • खुदरा ऋण प्रभाग • 2026",
-    footer_disclaimer: "© 2026 मेरिडियन फेयरलेंड। भारतीय रिज़र्व बैंक (RBI) डिजिटल लेंडिंग दिशा-निर्देशों के पूर्णतः अनुपालन में संचालित।",
-    let_bank_name: "मेरिडियन फेयरलेंड एआई (MERIDIAN FAIRLEND AI)",
+    footer_disclaimer: "© 2026 रिनदृष्टि फेयरलेंड। भारतीय रिज़र्व बैंक (RBI) डिजिटल लेंडिंग दिशा-निर्देशों के पूर्णतः अनुपालन में संचालित।",
+    let_bank_name: "रिनदृष्टि फेयरलेंड एआई (RINDRISTI FAIRLEND AI)",
     let_division: "मिशन भारत • समावेशी खुदरा ऋण प्रभाग",
     let_office: "पंजीकृत कार्यालय: नरीमन पॉइंट, मुंबई 400021 • RBI पंजीकरण #N-13.01928",
     let_ref_lbl: "संदर्भ संख्या:",
@@ -3382,9 +3508,9 @@ const I18N = {
     adv_row_reapply: "पुनः आवेदन एवं समीक्षा विकल्प",
     let_factors_heading: "पारदर्शी कारक निर्धारण (RBI निष्पक्ष ऋण संहिता के अंतर्गत):",
     let_sig_verify_title: "इलेक्ट्रॉनिक अंडरराइटिंग अभिलेख • छेड़छाड़-रोधी ऑडिट",
-    let_sig_verify_sub: "मेरिडियन केंद्रीय आवेदन वॉल्ट से सीधे जनित मान्य डिजिटल विवरण।",
+    let_sig_verify_sub: "रिनदृष्टि केंद्रीय आवेदन वॉल्ट से सीधे जनित मान्य डिजिटल विवरण।",
     let_sig_auth_lbl: "जारीकर्ता प्राधिकरण",
-    let_ombudsman_html: '<strong>RBI फेयर प्रैक्टिसेज कोड एवं वैधानिक शिकायत निवारण प्रणाली:</strong><br>• <strong>प्रधान शिकायत निवारण अधिकारी:</strong> श्रीमती शालिनी वर्मा, नोडल शिकायत अधिकारी, मेरिडियन फेयरलेंड एआई, नरीमन पॉइंट, मुंबई 400021। टोल-फ्री: <a href="tel:18002094000" style="color: #064E3B; font-weight: 700;">1800-209-4000</a> | ईमेल: <a href="mailto:grievance.bharat@meridian.fin" style="color: #064E3B; font-weight: 700;">grievance.bharat@meridian.fin</a> (समाधान समय-सीमा: 15 कार्य दिवसों के भीतर)।<br>• <strong>RBI एकीकृत लोकपाल योजना:</strong> यदि आपकी शिकायत का समाधान 30 दिनों में नहीं होता है, तो आपको भारतीय रिज़र्व बैंक एकीकृत लोकपाल योजना, 2021 के अंतर्गत <strong><a href="https://cms.rbi.org.in" target="_blank" rel="noopener noreferrer" style="color: #064E3B; font-weight: 700; text-decoration: underline;">https://cms.rbi.org.in</a></strong> पर ऑनलाइन शिकायत दर्ज करने अथवा टोल-फ्री <a href="tel:14448" style="color: #064E3B; font-weight: 700;">14448</a> पर कॉल करने का वैधानिक अधिकार है।',
+    let_ombudsman_html: '<strong>RBI फेयर प्रैक्टिसेज कोड एवं वैधानिक शिकायत निवारण प्रणाली:</strong><br>• <strong>प्रधान शिकायत निवारण अधिकारी:</strong> श्रीमती शालिनी वर्मा, नोडल शिकायत अधिकारी, रिनदृष्टि फेयरलेंड एआई, नरीमन पॉइंट, मुंबई 400021। टोल-फ्री: <a href="tel:18002094000" style="color: #064E3B; font-weight: 700;">1800-209-4000</a> | ईमेल: <a href="mailto:grievance.bharat@rindristi.fin" style="color: #064E3B; font-weight: 700;">grievance.bharat@rindristi.fin</a> (समाधान समय-सीमा: 15 कार्य दिवसों के भीतर)।<br>• <strong>RBI एकीकृत लोकपाल योजना:</strong> यदि आपकी शिकायत का समाधान 30 दिनों में नहीं होता है, तो आपको भारतीय रिज़र्व बैंक एकीकृत लोकपाल योजना, 2021 के अंतर्गत <strong><a href="https://cms.rbi.org.in" target="_blank" rel="noopener noreferrer" style="color: #064E3B; font-weight: 700; text-decoration: underline;">https://cms.rbi.org.in</a></strong> पर ऑनलाइन शिकायत दर्ज करने अथवा टोल-फ्री <a href="tel:14448" style="color: #064E3B; font-weight: 700;">14448</a> पर कॉल करने का वैधानिक अधिकार है।',
     btn_print_pdf: "प्रिंट / पीडीएफ सहेजें",
     btn_close: "बंद करें",
     modal_api_title: "FastAPI बैकएंड कनेक्शन हब",
@@ -3417,7 +3543,10 @@ const I18N = {
     ph_otp_code: "6-अंकीय OTP",
     otp_hint_signup: "इनबॉक्स में 6-अंकीय सत्यापन कोड प्राप्त करने के लिए 'OTP भेजें' पर क्लिक करें।",
     otp_hint_forgot: "रिकवरी कोड प्राप्त करने के लिए अपना पंजीकृत ईमेल दर्ज करें और 'OTP भेजें' दबाएं।",
+    otp_hint_email_change: "ईमेल बदलाव सहेजने से पहले अपने नए ईमेल पते पर 6-अंकीय OTP द्वारा सत्यापन करें।",
     otp_hint_unconfigured: "लाइव ईमेल OTP अभी सक्रिय नहीं है: इनबॉक्स कोड भेजने के लिए Railway Variables में BREVO_API_KEY + EMAIL_FROM (मुफ़्त HTTPS API) जोड़ें।",
+    msg_profile_email_otp_required: "अपना ईमेल बदलने से पहले कृपया नए ईमेल पते पर भेजे गए 6-अंकीय ईमेल OTP को सत्यापित करें।",
+    auth_session_expired_inactivity: "10 मिनट की निष्क्रियता के बाद आपका सत्र समाप्त हो गया है। कृपया पुनः साइन इन करें।",
     fp_modal_title: "ईमेल OTP द्वारा पासवर्ड रीसेट करें",
     fp_lbl_email: "पंजीकृत ईमेल पता",
     ph_fp_email: "name@domain.com",
@@ -3531,7 +3660,7 @@ const I18N = {
     foot_link_terms: "ऋण की शर्तें",
     foot_link_grievance: "RBI शिकायत निवारण",
     foot_link_sitemap: "साइटमैप",
-    foot_contact_html: 'टोल-फ्री: <a href="tel:18002094000" class="contact-link">1800-209-4000</a> &bull; RBI लोकपाल: <a href="tel:14448" class="contact-link">14448</a> &bull; ईमेल: <a href="mailto:grievance.bharat@meridian.fin" class="contact-link">grievance.bharat@meridian.fin</a>',
+    foot_contact_html: 'टोल-फ्री: <a href="tel:18002094000" class="contact-link">1800-209-4000</a> &bull; RBI लोकपाल: <a href="tel:14448" class="contact-link">14448</a> &bull; ईमेल: <a href="mailto:grievance.bharat@rindristi.fin" class="contact-link">grievance.bharat@rindristi.fin</a>',
     pub_info_badge: "RBI नियामक प्रकटीकरण",
     ws_apply_title: "खुदरा ऋण के लिए आवेदन करें",
     ws_apply_sub: "त्वरित XAI अंडरराइटिंग और स्थायी वॉल्ट संग्रहण के लिए अपना पारदर्शी खुदरा ऋण आवेदन जमा करें।",
@@ -3566,8 +3695,8 @@ const I18N = {
     foot_grievance: "शिकायत निवारण",
     foot_sitemap: "साइटमैप",
     mob_call_helpline: "हेल्पलाइन कॉल करें: 1800-209-4000",
-    mob_email_support: "ईमेल: grievance.bharat@meridian.fin",
-    maint_help_html: 'सहायता हेल्पलाइन: <a href="tel:18002094000" class="contact-link">1800-209-4000</a> &bull; ईमेल: <a href="mailto:grievance.bharat@meridian.fin" class="contact-link">grievance.bharat@meridian.fin</a>'
+    mob_email_support: "ईमेल: grievance.bharat@rindristi.fin",
+    maint_help_html: 'सहायता हेल्पलाइन: <a href="tel:18002094000" class="contact-link">1800-209-4000</a> &bull; ईमेल: <a href="mailto:grievance.bharat@rindristi.fin" class="contact-link">grievance.bharat@rindristi.fin</a>'
   }
 };
 
@@ -3623,8 +3752,8 @@ function updateBackendStatusUI() {
     }
     if (modalDesc) {
       modalDesc.innerText = hi
-        ? `${healthData.service || 'मेरिडियन फेयरलेंड'} FastAPI (${state.apiBase}) से ${healthData.database || 'डुअल-सिंक'} डेटाबेस के साथ लाइव जुड़ा है।`
-        : `Connected live to ${healthData.service || 'Meridian FairLend'} FastAPI (${state.apiBase}) with ${healthData.database || 'dual-sync'} persistence.`;
+        ? `${healthData.service || 'रिनदृष्टि फेयरलेंड'} FastAPI (${state.apiBase}) से ${healthData.database || 'डुअल-सिंक'} डेटाबेस के साथ लाइव जुड़ा है।`
+        : `Connected live to ${healthData.service || 'RinDristi FairLend'} FastAPI (${state.apiBase}) with ${healthData.database || 'dual-sync'} persistence.`;
     }
   } else {
     if (pulseDot) pulseDot.style.background = '#F59E0B';
@@ -3671,12 +3800,12 @@ window.saveCustomApiBase = function() {
   if (!raw || (!raw.startsWith('http://') && !raw.startsWith('https://'))) {
     const errMsg = hi ? 'कृपया http:// या https:// से शुरू होने वाला वैध URL दर्ज करें।' : 'Please enter a valid URL starting with http:// or https://';
     showInlineAlert('backend-info-alert', errMsg, true);
-    window.showMeridianToast(errMsg, true);
+    window.showRinDristiToast(errMsg, true);
     input.focus();
     return;
   }
   try {
-    localStorage.setItem('meridian_api_base', raw);
+    localStorage.setItem('rindristi_api_base', raw);
   } catch (e) {}
   state.apiBase = raw;
   showInlineAlert('backend-info-alert', hi ? `API एंडपॉइंट अपडेट हुआ: ${raw}` : `API endpoint updated to ${raw}`, false);
@@ -3686,7 +3815,7 @@ window.saveCustomApiBase = function() {
 
 window.resetCustomApiBase = function() {
   try {
-    localStorage.removeItem('meridian_api_base');
+    localStorage.removeItem('rindristi_api_base');
   } catch (e) {}
   const input = document.getElementById('custom-api-base-input');
   if (input) input.value = '';
@@ -3713,7 +3842,7 @@ async function checkBackendConnection(showNotification = false) {
       state.backendHealthMeta = healthData;
       updateBackendStatusUI();
       if (showNotification) {
-        window.showMeridianToast(
+        window.showRinDristiToast(
           state.currentLang === 'hi'
             ? '✅ FastAPI बैकएंड से सफलतापूर्वक जुड़ गया।'
             : '✅ Connected live to FastAPI backend.'
@@ -3736,7 +3865,7 @@ async function checkBackendConnection(showNotification = false) {
   state.backendHealthMeta = null;
   updateBackendStatusUI();
   if (showNotification) {
-    window.showMeridianToast(
+    window.showRinDristiToast(
       state.currentLang === 'hi'
         ? '⚠️ बैकएंड सर्वर उपलब्ध नहीं है। स्थानीय मोड सक्रिय।'
         : '⚠️ Backend server unreachable. Standalone mode active.',
@@ -3749,7 +3878,7 @@ async function checkBackendConnection(showNotification = false) {
 window.toggleLanguage = function() {
   state.currentLang = state.currentLang === 'en' ? 'hi' : 'en';
   try {
-    localStorage.setItem('meridian_lang', state.currentLang);
+    localStorage.setItem('rindristi_lang', state.currentLang);
   } catch (e) {}
 
   applyTranslations();
@@ -4323,7 +4452,7 @@ window.handleLoanApplicationSubmit = async function(event) {
       ? 'ऋण आवेदन केवल आवेदक पोर्टल से ही जमा किए जा सकते हैं।'
       : 'Loan application submission is restricted to the Applicant Portal.';
     showInlineAlert('apply-form-alert', errMsg, true);
-    window.showMeridianToast(errMsg, true);
+    window.showRinDristiToast(errMsg, true);
     return;
   }
 
@@ -4342,35 +4471,35 @@ window.handleLoanApplicationSubmit = async function(event) {
   if (rawName.length < 2) {
     const msg = hi ? 'कृपया कम से कम 2 अक्षरों का वैध पूरा नाम दर्ज करें।' : 'Please enter the applicant full name (minimum 2 characters).';
     showInlineAlert('apply-form-alert', msg, true);
-    window.showMeridianToast(msg, true);
+    window.showRinDristiToast(msg, true);
     nameEl?.focus();
     return;
   }
   if (phoneDigits.length < 10 || phoneDigits.length > 13) {
     const msg = hi ? 'कृपया वैध 10-अंकीय मोबाइल नंबर दर्ज करें।' : 'Please enter a valid 10-digit contact mobile number.';
     showInlineAlert('apply-form-alert', msg, true);
-    window.showMeridianToast(msg, true);
+    window.showRinDristiToast(msg, true);
     phoneEl?.focus();
     return;
   }
   if (!Number.isFinite(appIncomeVal) || appIncomeVal < 1000) {
     const msg = hi ? 'कृपया न्यूनतम ₹1,000 मासिक आय दर्ज करें।' : 'Applicant monthly income must be at least ₹1,000.';
     showInlineAlert('apply-form-alert', msg, true);
-    window.showMeridianToast(msg, true);
+    window.showRinDristiToast(msg, true);
     incomeEl?.focus();
     return;
   }
   if (!Number.isFinite(loanAmountVal) || loanAmountVal < 1000) {
     const msg = hi ? 'कृपया न्यूनतम ₹1,000 ऋण राशि दर्ज करें।' : 'Requested loan amount must be at least ₹1,000.';
     showInlineAlert('apply-form-alert', msg, true);
-    window.showMeridianToast(msg, true);
+    window.showRinDristiToast(msg, true);
     loanAmtEl?.focus();
     return;
   }
   if (consentEl && !consentEl.checked) {
     const msg = hi ? 'आगे बढ़ने के लिए कृपया RBI डिजिटल लेंडिंग वैधानिक सहमति चेकबॉक्स चुनें।' : 'Please accept the RBI Digital Lending statutory consent checkbox before submitting.';
     showInlineAlert('apply-form-alert', msg, true);
-    window.showMeridianToast(msg, true);
+    window.showRinDristiToast(msg, true);
     consentEl.focus();
     return;
   }
@@ -4421,7 +4550,7 @@ window.handleLoanApplicationSubmit = async function(event) {
       await window.checkSiteAvailability();
       const maintMsg = hi ? 'पोर्टल निर्धारित रखरखाव के लिए अस्थायी रूप से ऑफ़लाइन है।' : 'Portal is temporarily offline for scheduled maintenance.';
       showInlineAlert('apply-form-alert', maintMsg, true);
-      window.showMeridianToast(maintMsg, true);
+      window.showRinDristiToast(maintMsg, true);
       if (submitBtn) {
         submitBtn.disabled = false;
         submitBtn.innerHTML = `<span>🚀</span> ${dict.btn_submit_app}`;
@@ -4431,9 +4560,16 @@ window.handleLoanApplicationSubmit = async function(event) {
 
     if (response.status === 401 || response.status === 403 || response.status === 400 || response.status === 422) {
       const errData = await response.json().catch(() => ({}));
+      if (handleApiAuthFailure(response, errData)) {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = `<span>🚀</span> ${dict.btn_submit_app}`;
+        }
+        return;
+      }
       const errMsg = errData.error || (hi ? 'आवेदन जमा करने में अवरोध आया। कृपया विवरण जांचें।' : 'Unable to submit loan application. Please verify all inputs.');
       showInlineAlert('apply-form-alert', errMsg, true);
-      window.showMeridianToast(errMsg, true);
+      window.showRinDristiToast(errMsg, true);
       if (submitBtn) {
         submitBtn.disabled = false;
         submitBtn.innerHTML = `<span>🚀</span> ${dict.btn_submit_app}`;
@@ -4454,7 +4590,7 @@ window.handleLoanApplicationSubmit = async function(event) {
 
   if (!savedRecord) {
     const randomId = Math.floor(1000 + Math.random() * 9000);
-    const appNo = `MB-OFFLINE-${randomId}`;
+    const appNo = `RD-OFFLINE-${randomId}`;
 
     prediction = computePrediction({
       applicant_income: formData.applicant_income,
@@ -4487,7 +4623,7 @@ window.handleLoanApplicationSubmit = async function(event) {
     const queue = readOfflineQueue();
     queue.unshift(savedRecord);
     writeOfflineQueue(queue);
-    window.showMeridianToast(
+    window.showRinDristiToast(
       hi
         ? '⚠️ नेटवर्क अनुपलब्ध है: आवेदन आपकी स्थानीय कतार में सुरक्षित है और पुनः जुड़ते ही सर्वर में सिंक हो जाएगा।'
         : '⚠️ Offline fallback: application queued locally and will auto-sync to persistent vault once connected.',
@@ -4630,20 +4766,20 @@ window.applyWhatIfScenario = async function() {
   const msg = persistedOnServer
     ? (hi ? '✨ व्हाट-इफ परिदृश्य स्थायी रूप से वॉल्ट में सहेजा गया और रिपोर्ट अपडेट हो गई!' : '✨ What-If scenario saved permanently to Vault and Decision Report updated!')
     : (hi ? '✨ व्हाट-इफ परिदृश्य लागू किया गया! आपकी निर्णय रिपोर्ट और मासिक किस्त अपडेट हो गई है।' : '✨ What-If scenario applied! Your active Decision Report has been recalculated.');
-  window.showMeridianToast(msg);
+  window.showRinDristiToast(msg);
 };
 
 window.saveOfficerTermUpdates = async function() {
   const hi = state.currentLang === 'hi';
   const dict = getLangDict();
   if (currentAuthUser?.role !== 'officer') {
-    window.showMeridianToast(hi ? 'केवल ऋण अधिकारी ही पैरामीटर सहेज सकते हैं।' : 'Officer clearance required to save parameter changes.', true);
+    window.showRinDristiToast(hi ? 'केवल ऋण अधिकारी ही पैरामीटर सहेज सकते हैं।' : 'Officer clearance required to save parameter changes.', true);
     return;
   }
 
   const appNo = state.currentApplicant?.id;
   if (!appNo) {
-    window.showMeridianToast(hi ? 'कृपया पहले केंद्रीय वॉल्ट से किसी आवेदन का चयन करें।' : 'Select an application from the Central Vault first.', true);
+    window.showRinDristiToast(hi ? 'कृपया पहले केंद्रीय वॉल्ट से किसी आवेदन का चयन करें।' : 'Select an application from the Central Vault first.', true);
     return;
   }
 
@@ -4676,6 +4812,9 @@ window.saveOfficerTermUpdates = async function() {
       body: JSON.stringify(patchBody)
     });
     const data = await res.json().catch(() => ({}));
+    if (handleApiAuthFailure(res, data)) {
+      return;
+    }
     if (res.ok && data.success) {
       state.backendConnected = true;
       if (data.application) {
@@ -4687,23 +4826,23 @@ window.saveOfficerTermUpdates = async function() {
       updateSimulationUI();
       await window.refreshDatabaseTable();
       await fetchAuditLogs();
-      window.showMeridianToast(
+      window.showRinDristiToast(
         hi
           ? `✅ आवेदन ${appNo} के संशोधित पैरामीटर डेटाबेस वॉल्ट में स्थायी रूप से सहेजे गए।`
           : `✅ Updated parameters for ${appNo} saved permanently to Central Vault.`
       );
     } else if (res.status === 404) {
-      window.showMeridianToast(
+      window.showRinDristiToast(
         hi
           ? `नोट: ऐतिहासिक पोर्टफ़ोलियो केस (${appNo}) केवल संदर्भ विश्लेषण के लिए हैं। सहेजने के लिए केंद्रीय वॉल्ट से जमा आवेदन चुनें।`
           : `Historical portfolio benchmark (${appNo}) is read-only. Select a submitted application from Central Vault to persist changes.`,
         true
       );
     } else {
-      window.showMeridianToast(data.error || (hi ? 'पैरामीटर सहेजने में त्रुटि।' : 'Failed to save parameter changes.'), true);
+      window.showRinDristiToast(data.error || (hi ? 'पैरामीटर सहेजने में त्रुटि।' : 'Failed to save parameter changes.'), true);
     }
   } catch (e) {
-    window.showMeridianToast(hi ? 'वॉल्ट सर्वर से संपर्क करने में नेटवर्क त्रुटि।' : 'Network error saving updated parameters.', true);
+    window.showRinDristiToast(hi ? 'वॉल्ट सर्वर से संपर्क करने में नेटवर्क त्रुटि।' : 'Network error saving updated parameters.', true);
   } finally {
     if (btn) {
       btn.disabled = false;
@@ -4887,7 +5026,7 @@ window.exportVaultToCSV = function() {
     : (state.hasApplied && state.currentApplicant?.id ? [state.currentApplicant] : []);
 
   if (apps.length === 0) {
-    window.showMeridianToast(hi ? 'निर्यात करने के लिए कोई आवेदन उपलब्ध नहीं है।' : 'No loan applications available to export yet.', true);
+    window.showRinDristiToast(hi ? 'निर्यात करने के लिए कोई आवेदन उपलब्ध नहीं है।' : 'No loan applications available to export yet.', true);
     return;
   }
 
@@ -4916,7 +5055,7 @@ window.exportVaultToCSV = function() {
     rawCsvBody += row + '\n';
   });
 
-  const csvFilename = `meridian_loan_applications_${new Date().toISOString().substring(0, 10)}.csv`;
+  const csvFilename = `rindristi_loan_applications_${new Date().toISOString().substring(0, 10)}.csv`;
   if (window.AndroidBridge && typeof window.AndroidBridge.saveTextFile === 'function') {
     window.AndroidBridge.saveTextFile(csvFilename, 'text/csv', rawCsvBody);
     return;
@@ -4938,12 +5077,12 @@ window.exportVaultToJSON = function() {
     : (state.hasApplied && state.currentApplicant?.id ? [state.currentApplicant] : []);
 
   if (apps.length === 0) {
-    window.showMeridianToast(hi ? 'निर्यात करने के लिए कोई आवेदन उपलब्ध नहीं है।' : 'No loan applications available to export yet.', true);
+    window.showRinDristiToast(hi ? 'निर्यात करने के लिए कोई आवेदन उपलब्ध नहीं है।' : 'No loan applications available to export yet.', true);
     return;
   }
 
   const rawJson = JSON.stringify(apps, null, 2);
-  const jsonFilename = `meridian_loan_vault_backup_${new Date().toISOString().substring(0, 10)}.json`;
+  const jsonFilename = `rindristi_loan_vault_backup_${new Date().toISOString().substring(0, 10)}.json`;
   if (window.AndroidBridge && typeof window.AndroidBridge.saveTextFile === 'function') {
     window.AndroidBridge.saveTextFile(jsonFilename, 'application/json', rawJson);
     return;
@@ -5051,6 +5190,10 @@ window.refreshDatabaseTable = async function() {
       ? '?role=officer'
       : `?user_id=${encodeURIComponent(currentAuthUser.id)}&role=applicant&email=${encodeURIComponent(currentAuthUser.email || '')}`;
     const response = await fetch(`${state.apiBase}/api/saved-applications${queryParams}`, { headers: buildAuthHeaders() });
+    if (response.status === 401) {
+      const errData = await response.json().catch(() => ({}));
+      if (handleApiAuthFailure(response, errData)) return;
+    }
     if (response.status === 503 && !isOfficer) {
       await window.checkSiteAvailability();
       return;
@@ -5132,7 +5275,8 @@ window.loadDbApplicantById = async function(appNo) {
     }
     if (res.status === 401 || res.status === 403) {
       const err = await res.json().catch(() => ({}));
-      window.showMeridianToast(err.error || (hi ? 'अस्वीकृत: आप केवल अपने आवेदन देख सकते हैं।' : 'Forbidden: You may only access your own loan applications.'), true);
+      if (handleApiAuthFailure(res, err)) return;
+      window.showRinDristiToast(err.error || (hi ? 'अस्वीकृत: आप केवल अपने आवेदन देख सकते हैं।' : 'Forbidden: You may only access your own loan applications.'), true);
       return;
     }
     if (res.ok) {
@@ -5145,7 +5289,7 @@ window.loadDbApplicantById = async function(appNo) {
   } catch (e) {}
 
   if (!found) {
-    window.showMeridianToast(hi ? `आवेदन ${appNo} नहीं मिला।` : `Application ${appNo} could not be loaded.`, true);
+    window.showRinDristiToast(hi ? `आवेदन ${appNo} नहीं मिला।` : `Application ${appNo} could not be loaded.`, true);
     return;
   }
 
@@ -5470,7 +5614,7 @@ window.officerSanctionLoan = async function(newStatus, note) {
   if (currentAuthUser?.role !== 'officer') {
     const msg = hi ? 'अस्वीकृत: ऋण अधिकारी अनुमति आवश्यक है।' : 'Forbidden: Officer clearance required.';
     showInlineAlert('officer-action-alert', msg, true);
-    window.showMeridianToast(msg, true);
+    window.showRinDristiToast(msg, true);
     return;
   }
 
@@ -5480,7 +5624,7 @@ window.officerSanctionLoan = async function(newStatus, note) {
       ? 'निर्णय दर्ज करने से पहले कृपया केंद्रीय वॉल्ट से किसी आवेदन का चयन करें।'
       : 'Please select a submitted application from Central Application Vault first.';
     showInlineAlert('officer-action-alert', msg, true);
-    window.showMeridianToast(msg, true);
+    window.showRinDristiToast(msg, true);
     return;
   }
 
@@ -5500,10 +5644,13 @@ window.officerSanctionLoan = async function(newStatus, note) {
       })
     });
     const payload = await res.json().catch(() => ({}));
+    if (handleApiAuthFailure(res, payload)) {
+      return;
+    }
     if (res.status === 403) {
       const errMsg = payload.error || (hi ? 'अस्वीकृत: ऋण अधिकारी अनुमति आवश्यक है।' : 'Forbidden: Officer clearance required.');
       showInlineAlert('officer-action-alert', errMsg, true);
-      window.showMeridianToast(errMsg, true);
+      window.showRinDristiToast(errMsg, true);
       return;
     }
     if (res.status === 404) {
@@ -5511,13 +5658,13 @@ window.officerSanctionLoan = async function(newStatus, note) {
         ? `नोट: ऐतिहासिक पोर्टफोलियो केस (${appNo}) केवल संदर्भ विश्लेषण के लिए हैं। निर्णय दर्ज करने के लिए केंद्रीय वॉल्ट से जमा आवेदन चुनें।`
         : `Application ${appNo} is not in the persistent vault (historical portfolio samples are read-only). Select a submitted application from Central Vault.`;
       showInlineAlert('officer-action-alert', errMsg, true);
-      window.showMeridianToast(errMsg, true);
+      window.showRinDristiToast(errMsg, true);
       return;
     }
     if (!res.ok || !payload.success) {
       const errMsg = payload.error || (hi ? 'ऋण निर्णय दर्ज करने में त्रुटि हुई।' : 'Failed to record officer decision.');
       showInlineAlert('officer-action-alert', errMsg, true);
-      window.showMeridianToast(errMsg, true);
+      window.showRinDristiToast(errMsg, true);
       return;
     }
 
@@ -5537,14 +5684,14 @@ window.officerSanctionLoan = async function(newStatus, note) {
 
     const statusLocalized = localizeStatus(newStatus, state.currentLang);
     const okMsg = hi
-      ? `निर्णय दर्ज हुआ: ${appNo} (${applicantName}) — स्थिति: ${statusLocalized}। मेरिडियन सर्वर वॉल्ट में स्थायी रूप से सुरक्षित!`
-      : `Loan Decision Recorded: ${appNo} (${applicantName}) — Status: ${newStatus}. Stored persistently in Meridian Server Vault.`;
+      ? `निर्णय दर्ज हुआ: ${appNo} (${applicantName}) — स्थिति: ${statusLocalized}। रिनदृष्टि सर्वर वॉल्ट में स्थायी रूप से सुरक्षित!`
+      : `Loan Decision Recorded: ${appNo} (${applicantName}) — Status: ${newStatus}. Stored persistently in RinDristi Server Vault.`;
     showInlineAlert('officer-action-alert', okMsg, false);
-    window.showMeridianToast(`✅ ${okMsg}`);
+    window.showRinDristiToast(`✅ ${okMsg}`);
   } catch (e) {
-    const netMsg = hi ? 'सर्वर से संपर्क नहीं हो सका। निर्णय सहेजा नहीं गया।' : 'Network error reaching Meridian Server Vault. Decision was not saved.';
+    const netMsg = hi ? 'सर्वर से संपर्क नहीं हो सका। निर्णय सहेजा नहीं गया।' : 'Network error reaching RinDristi Server Vault. Decision was not saved.';
     showInlineAlert('officer-action-alert', netMsg, true);
-    window.showMeridianToast(netMsg, true);
+    window.showRinDristiToast(netMsg, true);
   }
 };
 
@@ -5639,7 +5786,35 @@ function setupEventListeners() {
         otpState[scope].rawError = '';
         syncOtpUIStates();
       }
+      if (scope === 'profile_email' && typeof window.syncProfileEmailOtpBoxVisibility === 'function') {
+        window.syncProfileEmailOtpBoxVisibility();
+      }
     });
+  });
+
+  const onUserActivityEvent = () => {
+    if (!currentAuthUser) return;
+    recordUserActivity(false);
+  };
+  let lastMouseActivityAt = 0;
+  ['pointerdown', 'keydown', 'scroll', 'touchstart', 'click'].forEach(evtName => {
+    document.addEventListener(evtName, onUserActivityEvent, { passive: true });
+  });
+  document.addEventListener('mousemove', () => {
+    const now = Date.now();
+    if (now - lastMouseActivityAt >= 15000) {
+      lastMouseActivityAt = now;
+      onUserActivityEvent();
+    }
+  }, { passive: true });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && currentAuthUser) {
+      if (isLocalSessionIdleExpired()) {
+        window.handleLogout('inactivity');
+      } else {
+        recordUserActivity(false);
+      }
+    }
   });
 
   ['fp-email', 'fp-new-password', 'fp-confirm-password'].forEach(id => {
@@ -5755,7 +5930,7 @@ function setupEventListeners() {
     const docTag = letterEl.getAttribute('data-effective-status') === 'rejected' || offLow === 'rejected'
       ? 'Adverse_Notice'
       : 'Decision_Letter';
-    document.title = `Meridian_${docTag}_${rawRef}`;
+    document.title = `RinDristi_${docTag}_${rawRef}`;
   };
   const restoreLetterPrintContext = () => {
     if (savedPrintTitle) {
@@ -5987,7 +6162,7 @@ window.openDecisionLetterModal = function(allowOfficerPreview = false) {
   const isOfficer = currentAuthUser?.role === 'officer' || state.currentRole === 'officer';
   if (!state.hasApplied) {
     if (allowOfficerPreview || isOfficer) {
-      window.showMeridianToast(
+      window.showRinDristiToast(
         hi
           ? 'सूचना पत्र बनाने के लिए कृपया पहले केंद्रीय वॉल्ट या पोर्टफोलियो से कोई आवेदन चुनें।'
           : 'Please select an application from Central Application Vault or Portfolio first to preview a sanction notice.',
@@ -6000,7 +6175,7 @@ window.openDecisionLetterModal = function(allowOfficerPreview = false) {
       : 'Please submit your loan application first to generate and download your official Sanction Letter.';
     window.activateWorkspaceTab('apply-view');
     showInlineAlert('apply-form-alert', msg, true);
-    window.showMeridianToast(msg, true);
+    window.showRinDristiToast(msg, true);
     return;
   }
   const modal = document.getElementById('letter-modal');
@@ -6068,8 +6243,8 @@ window.openDecisionLetterModal = function(allowOfficerPreview = false) {
     : (Math.round((basePrincipalEmi / totInc) * 1000) / 10);
   const effectiveFoirPct = Math.round((emiVal / totInc) * 1000) / 10;
 
-  const rawId = String(app.id || 'MB-PENDING').trim();
-  const formattedRef = rawId.startsWith('MERIDIAN-') ? rawId : `MERIDIAN-${rawId}`;
+  const rawId = String(app.id || 'RD-PENDING').trim();
+  const formattedRef = rawId.startsWith('RINDRISTI-') ? rawId : `RINDRISTI-${rawId}`;
   const submittedStr = formatLetterTimestamp(app.created_at, hi) || (hi ? 'ऐतिहासिक पोर्टफोलियो अभिलेख' : 'Historical Portfolio Record');
   const todayStr = new Date().toLocaleDateString(hi ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
   const decisionStr = formatLetterTimestamp(app.updated_at || app.created_at, hi) || todayStr;
@@ -6225,7 +6400,7 @@ window.openDecisionLetterModal = function(allowOfficerPreview = false) {
       if (kfsPrincipalLbl) kfsPrincipalLbl.innerText = hi ? 'प्रस्तावित ऋण राशि (मूलधन)' : 'Proposed Facility Amount (Principal)';
       if (verdictText) {
         verdictText.innerHTML = hi
-          ? `आवेदन <strong>${escapeHtml(rawId)}</strong> मेरिडियन AI अंडरराइटिंग मानदंडों में सैद्धांतिक रूप से पात्र पाया गया है। संस्थागत अधिकारी की अंतिम स्वीकृति से पूर्व नीचे सांकेतिक <strong>मुख्य तथ्य विवरण (KFS)</strong> प्रस्तुत है।`
+          ? `आवेदन <strong>${escapeHtml(rawId)}</strong> रिनदृष्टि AI अंडरराइटिंग मानदंडों में सैद्धांतिक रूप से पात्र पाया गया है। संस्थागत अधिकारी की अंतिम स्वीकृति से पूर्व नीचे सांकेतिक <strong>मुख्य तथ्य विवरण (KFS)</strong> प्रस्तुत है।`
           : `Application <strong>${escapeHtml(rawId)}</strong> satisfies automated AI underwriting benchmarks in principle. Below is your indicative <strong>Key Fact Statement (KFS)</strong> pending final verification and Loan Officer sign-off.`;
       }
     } else {
@@ -6313,12 +6488,12 @@ window.openDecisionLetterModal = function(allowOfficerPreview = false) {
     if (isOfficerFinal) {
       const officerActor = currentAuthUser?.role === 'officer' && currentAuthUser?.full_name
         ? `${currentAuthUser.full_name} (Loan Officer)`
-        : (hi ? 'अधिकृत ऋण अधिकारी • मेरिडियन वॉल्ट' : 'Authorized Loan Officer • Meridian Vault');
+        : (hi ? 'अधिकृत ऋण अधिकारी • रिनदृष्टि वॉल्ट' : 'Authorized Loan Officer • RinDristi Vault');
       sigNameEl.innerText = `${officerActor} • ${decisionStr}`;
     } else {
       sigNameEl.innerText = hi
-        ? `मेरिडियन XAI इंजन • ${decisionStr} (अधिकारी हस्ताक्षर शेष)`
-        : `Meridian XAI Engine • ${decisionStr} (Awaiting Officer Sign-Off)`;
+        ? `रिनदृष्टि XAI इंजन • ${decisionStr} (अधिकारी हस्ताक्षर शेष)`
+        : `RinDristi XAI Engine • ${decisionStr} (Awaiting Officer Sign-Off)`;
     }
   }
 
@@ -6337,6 +6512,10 @@ async function fetchAuditLogs() {
     const res = await fetch(`${state.apiBase}/api/officer/audit-logs?limit=50`, {
       headers: buildAuthHeaders()
     });
+    if (res.status === 401) {
+      const errData = await res.json().catch(() => ({}));
+      if (handleApiAuthFailure(res, errData)) return;
+    }
     if (res.ok) {
       state.backendConnected = true;
       const data = await res.json();
@@ -6434,23 +6613,27 @@ function renderAuditTable() {
 window.downloadSqliteBackup = async function() {
   const hi = state.currentLang === 'hi';
   if (currentAuthUser?.role !== 'officer') {
-    window.showMeridianToast(hi ? 'केवल ऋण अधिकारी ही वॉल्ट बैकअप डाउनलोड कर सकते हैं।' : 'Officer clearance required to download vault backup.', true);
+    window.showRinDristiToast(hi ? 'केवल ऋण अधिकारी ही वॉल्ट बैकअप डाउनलोड कर सकते हैं।' : 'Officer clearance required to download vault backup.', true);
     return;
   }
   try {
     const res = await fetch(`${state.apiBase}/api/officer/backup?format=sqlite`, {
       headers: buildAuthHeaders()
     });
+    if (res.status === 401) {
+      const errData = await res.json().catch(() => ({}));
+      if (handleApiAuthFailure(res, errData)) return;
+    }
     if (res.status === 401 || res.status === 403) {
-      window.showMeridianToast(hi ? 'अस्वीकृत: डेटाबेस बैकअप डाउनलोड करने के लिए अधिकारी प्रमाणन आवश्यक है।' : 'Forbidden: Verified officer session required for SQLite backup.', true);
+      window.showRinDristiToast(hi ? 'अस्वीकृत: डेटाबेस बैकअप डाउनलोड करने के लिए अधिकारी प्रमाणन आवश्यक है।' : 'Forbidden: Verified officer session required for SQLite backup.', true);
       return;
     }
     if (!res.ok) {
-      window.showMeridianToast(hi ? 'वॉल्ट बैकअप डाउनलोड करने में त्रुटि हुई।' : 'Failed to generate vault SQLite backup.', true);
+      window.showRinDristiToast(hi ? 'वॉल्ट बैकअप डाउनलोड करने में त्रुटि हुई।' : 'Failed to generate vault SQLite backup.', true);
       return;
     }
     const blob = await res.blob();
-    const dbFilename = `meridian_loans_backup_${new Date().toISOString().substring(0, 10)}.db`;
+    const dbFilename = `rindristi_loans_backup_${new Date().toISOString().substring(0, 10)}.db`;
     if (window.AndroidBridge && typeof window.AndroidBridge.saveBase64File === 'function') {
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -6462,7 +6645,7 @@ window.downloadSqliteBackup = async function() {
         }
       };
       reader.readAsDataURL(blob);
-      window.showMeridianToast(hi ? '💽 SQLite वॉल्ट बैकअप डाउनलोड हो रहा है!' : '💽 Saving SQLite Vault backup...');
+      window.showRinDristiToast(hi ? '💽 SQLite वॉल्ट बैकअप डाउनलोड हो रहा है!' : '💽 Saving SQLite Vault backup...');
       return;
     }
     const url = URL.createObjectURL(blob);
@@ -6473,9 +6656,9 @@ window.downloadSqliteBackup = async function() {
     link.click();
     document.body.removeChild(link);
     setTimeout(() => URL.revokeObjectURL(url), 1500);
-    window.showMeridianToast(hi ? '💽 SQLite वॉल्ट बैकअप डाउनलोड हो गया!' : '💽 SQLite Vault backup downloaded successfully!');
+    window.showRinDristiToast(hi ? '💽 SQLite वॉल्ट बैकअप डाउनलोड हो गया!' : '💽 SQLite Vault backup downloaded successfully!');
   } catch (e) {
-    window.showMeridianToast(hi ? 'वॉल्ट बैकअप डाउनलोड करने में नेटवर्क त्रुटि।' : 'Network error downloading vault backup.', true);
+    window.showRinDristiToast(hi ? 'वॉल्ट बैकअप डाउनलोड करने में नेटवर्क त्रुटि।' : 'Network error downloading vault backup.', true);
   }
 };
 
@@ -6538,8 +6721,8 @@ async function renderModelPerformanceCharts() {
 
   if (weights.length === 0) {
     await ensureDatasetLoaded();
-    if (typeof MERIDIAN_DATASET !== 'undefined' && MERIDIAN_DATASET.weights) {
-      weights = Object.entries(MERIDIAN_DATASET.weights).map(([feature, weight]) => ({ feature, weight }));
+    if (typeof RINDRISTI_DATASET !== 'undefined' && RINDRISTI_DATASET.weights) {
+      weights = Object.entries(RINDRISTI_DATASET.weights).map(([feature, weight]) => ({ feature, weight }));
     }
   }
 
@@ -6590,8 +6773,8 @@ async function renderFairnessCharts() {
   if (!report) {
     await ensureDatasetLoaded();
   }
-  if (!report && typeof MERIDIAN_DATASET !== 'undefined' && Array.isArray(MERIDIAN_DATASET.records)) {
-    const recs = MERIDIAN_DATASET.records;
+  if (!report && typeof RINDRISTI_DATASET !== 'undefined' && Array.isArray(RINDRISTI_DATASET.records)) {
+    const recs = RINDRISTI_DATASET.records;
     const stats = (fn) => {
       const subset = recs.filter(fn);
       const total = subset.length;
@@ -6668,16 +6851,16 @@ async function renderPortfolioTable() {
   if (!tbody) return;
   const hi = state.currentLang === 'hi';
 
-  if (typeof MERIDIAN_DATASET === 'undefined' || !MERIDIAN_DATASET.records) {
+  if (typeof RINDRISTI_DATASET === 'undefined' || !RINDRISTI_DATASET.records) {
     tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding: 2rem; color: #4B6359;">${hi ? 'ऐतिहासिक पोर्टफोलियो रिकॉर्ड लोड हो रहे हैं...' : 'Loading historical portfolio dataset...'}</td></tr>`;
     await ensureDatasetLoaded();
   }
-  if (typeof MERIDIAN_DATASET === 'undefined' || !MERIDIAN_DATASET.records) {
+  if (typeof RINDRISTI_DATASET === 'undefined' || !RINDRISTI_DATASET.records) {
     tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding: 2rem; color: #DC2626;">${hi ? 'ऐतिहासिक डेटासेट लोड नहीं हो सका।' : 'Historical portfolio dataset unavailable.'}</td></tr>`;
     return;
   }
 
-  let records = MERIDIAN_DATASET.records;
+  let records = RINDRISTI_DATASET.records;
 
   const f = state.portfolioFilter || 'all';
   if (f === 'approved') {
@@ -6797,11 +6980,11 @@ window.loadHistoricalCase = async function(caseId) {
   state.hasApplied = true;
   state.backendPrediction = null;
   state.backendExplanation = null;
-  if (typeof MERIDIAN_DATASET === 'undefined' || !MERIDIAN_DATASET.records) {
+  if (typeof RINDRISTI_DATASET === 'undefined' || !RINDRISTI_DATASET.records) {
     await ensureDatasetLoaded();
   }
-  if (typeof MERIDIAN_DATASET === 'undefined' || !MERIDIAN_DATASET.records) return;
-  const r = MERIDIAN_DATASET.records.find(rec => rec.id === caseId);
+  if (typeof RINDRISTI_DATASET === 'undefined' || !RINDRISTI_DATASET.records) return;
+  const r = RINDRISTI_DATASET.records.find(rec => rec.id === caseId);
   if (!r) return;
 
   const appInc = r.applicant_income ? r.applicant_income * 10 : 35000;
@@ -7080,6 +7263,20 @@ function syncDisplayedUserIdentity() {
   if (inputEmail) inputEmail.value = email;
 }
 
+window.syncProfileEmailOtpBoxVisibility = function() {
+  const box = document.getElementById('otp-box-profile-email');
+  if (!box) return;
+  const currentEmail = String(currentAuthUser?.email || '').trim().toLowerCase();
+  const typedEmail = String(document.getElementById('setting-prof-email')?.value || '').trim().toLowerCase();
+  const changed = Boolean(currentAuthUser && typedEmail && typedEmail !== currentEmail);
+  box.style.display = changed ? 'block' : 'none';
+  if (!changed) {
+    invalidateOtpScope('profile_email', true);
+  } else {
+    syncOtpUIStates();
+  }
+};
+
 window.saveProfileIdentityFromSettings = async function(silentIfUnchanged = false) {
   const hi = state.currentLang === 'hi';
   if (!currentAuthUser) {
@@ -7088,6 +7285,7 @@ window.saveProfileIdentityFromSettings = async function(silentIfUnchanged = fals
 
   const nameInput = document.getElementById('setting-prof-fullname');
   const emailInput = document.getElementById('setting-prof-email');
+  const otpInput = document.getElementById('setting-prof-otp');
   const saveBtn = document.getElementById('btn-save-profile-identity');
 
   const newName = (nameInput?.value || '').trim();
@@ -7110,7 +7308,7 @@ window.saveProfileIdentityFromSettings = async function(silentIfUnchanged = fals
   if (newName.length < 2) {
     const msg = hi ? 'कृपया कम से कम 2 अक्षरों का पूरा नाम दर्ज करें।' : 'Full Name must be at least 2 characters.';
     setSettingsProfileFeedback(msg, true);
-    window.showMeridianToast(msg, true);
+    window.showRinDristiToast(msg, true);
     nameInput?.focus();
     return { ok: false, changed: true };
   }
@@ -7118,9 +7316,29 @@ window.saveProfileIdentityFromSettings = async function(silentIfUnchanged = fals
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
     const msg = hi ? 'कृपया वैध ईमेल पता दर्ज करें।' : 'Please enter a valid email address.';
     setSettingsProfileFeedback(msg, true);
-    window.showMeridianToast(msg, true);
+    window.showRinDristiToast(msg, true);
     emailInput?.focus();
     return { ok: false, changed: true };
+  }
+
+  const emailChanged = newEmail !== oldEmail;
+  let otpToken = '';
+  let otpCode = '';
+  if (emailChanged) {
+    const st = otpState.profile_email;
+    const rawOtp = (otpInput?.value || '').replace(/\s+/g, '');
+    if (st && st.verified && st.email === newEmail && st.verificationToken) {
+      otpToken = st.verificationToken;
+    } else if (/^\d{6}$/.test(rawOtp)) {
+      otpCode = rawOtp;
+    } else {
+      const msg = getLangDict().msg_profile_email_otp_required;
+      setSettingsProfileFeedback(msg, true);
+      window.showRinDristiToast(msg, true);
+      window.syncProfileEmailOtpBoxVisibility();
+      otpInput?.focus();
+      return { ok: false, changed: true };
+    }
   }
 
   const dict = getLangDict();
@@ -7131,35 +7349,55 @@ window.saveProfileIdentityFromSettings = async function(silentIfUnchanged = fals
   }
 
   try {
+    const reqBody = {
+      full_name: newName,
+      email: newEmail
+    };
+    if (emailChanged) {
+      if (otpToken) reqBody.otp_verification_token = otpToken;
+      if (otpCode) reqBody.otp_code = otpCode;
+    }
+
     const res = await fetch(`${state.apiBase}/api/auth/profile`, {
       method: 'PATCH',
       headers: buildAuthHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({
-        full_name: newName,
-        email: newEmail
-      })
+      body: JSON.stringify(reqBody)
     });
     const data = await res.json().catch(() => ({}));
+    if (handleApiAuthFailure(res, data)) {
+      return { ok: false, changed: true };
+    }
     if (!res.ok || !data.success || !data.user) {
       const errMsg = data.error || (hi ? 'नाम और ईमेल अपडेट नहीं हो सके।' : 'Failed to update name and email.');
       setSettingsProfileFeedback(errMsg, true);
-      window.showMeridianToast(errMsg, true);
-      if (res.status === 409) emailInput?.focus();
+      window.showRinDristiToast(errMsg, true);
+      if (data.code === 'EMAIL_OTP_REQUIRED' || data.code === 'EMAIL_OTP_INVALID') {
+        invalidateOtpScope('profile_email', false);
+        otpState.profile_email.statusKind = 'error';
+        otpState.profile_email.rawError = errMsg;
+        syncOtpUIStates();
+        window.syncProfileEmailOtpBoxVisibility();
+        otpInput?.focus();
+      } else if (res.status === 409) {
+        emailInput?.focus();
+      }
       return { ok: false, changed: true };
     }
 
     currentAuthUser = { ...currentAuthUser, ...data.user };
     try {
-      localStorage.setItem('meridian_auth_user', JSON.stringify(currentAuthUser));
+      localStorage.setItem('rindristi_auth_user', JSON.stringify(currentAuthUser));
     } catch (e) {}
 
+    invalidateOtpScope('profile_email', true);
     syncDisplayedUserIdentity();
+    window.syncProfileEmailOtpBoxVisibility();
     const okMsg = hi
       ? 'नाम और ईमेल सफलतापूर्वक अपडेट हो गए!'
       : 'Name and email updated successfully!';
     setSettingsProfileFeedback(okMsg, false);
     if (!silentIfUnchanged) {
-      window.showMeridianToast(`✅ ${okMsg}`);
+      window.showRinDristiToast(`✅ ${okMsg}`);
     }
     if (typeof window.refreshDatabaseTable === 'function') {
       window.refreshDatabaseTable().catch(() => {});
@@ -7170,7 +7408,7 @@ window.saveProfileIdentityFromSettings = async function(silentIfUnchanged = fals
       ? `${state.apiBase} से संपर्क नहीं हो सका। कृपया ऑनलाइन होने पर पुनः प्रयास करें।`
       : `Unable to reach backend server at ${state.apiBase}. Please try again while online.`;
     setSettingsProfileFeedback(netMsg, true);
-    window.showMeridianToast(netMsg, true);
+    window.showRinDristiToast(netMsg, true);
     return { ok: false, changed: true };
   } finally {
     if (saveBtn) {
@@ -7188,7 +7426,9 @@ window.openSettingsModal = function() {
 
   draftUserSettings = { ...activeUserSettings };
 
+  invalidateOtpScope('profile_email', true);
   syncDisplayedUserIdentity();
+  window.syncProfileEmailOtpBoxVisibility();
   setSettingsProfileFeedback('', false);
 
   const phoneEl = document.getElementById('settings-prof-phone');
@@ -7247,7 +7487,7 @@ window.saveAndCloseSettingsModal = async function() {
     applyApplicationFormDefaultsFromSettings(activeUserSettings);
   }
   window.closeSettingsModal(false);
-  window.showMeridianToast(
+  window.showRinDristiToast(
     hi
       ? (profResult?.changed ? '✅ नाम, ईमेल और वेबसाइट सेटिंग्स सहेजी व लागू की गईं।' : '✅ आपकी वेबसाइट और खाता सेटिंग्स सहेजी व लागू की गईं।')
       : (profResult?.changed ? '✅ Name, email & workspace settings saved and applied.' : '✅ Your website & workspace settings have been saved and applied.')
@@ -7266,7 +7506,7 @@ window.resetUserSettingsToDefaults = function() {
   if (!state.hasApplied && role !== 'officer') {
     applyApplicationFormDefaultsFromSettings(defaults);
   }
-  window.showMeridianToast(
+  window.showRinDristiToast(
     hi
       ? '↺ सभी सेटिंग्स डिफ़ॉल्ट मानकों पर रीसेट हो गई हैं।'
       : '↺ All settings restored to default configuration.'
@@ -7293,7 +7533,7 @@ window.clearUserOfflineQueue = async function() {
   writeOfflineQueue([]);
   updateSettingsModalStatusUI();
   await window.refreshDatabaseTable();
-  window.showMeridianToast(
+  window.showRinDristiToast(
     count > 0
       ? (hi ? `🧹 ${count} ऑफ़लाइन ड्राफ्ट स्थानीय कतार से साफ़ किए गए।` : `🧹 Cleared ${count} pending draft(s) from local offline queue.`)
       : (hi ? 'ऑफ़लाइन कतार पहले से ही खाली है।' : 'Local offline queue is already empty.')
@@ -7313,7 +7553,7 @@ window.refreshConnectionFromSettings = async function() {
 
 document.addEventListener('DOMContentLoaded', async () => {
   try {
-    const rawUser = localStorage.getItem('meridian_auth_user');
+    const rawUser = localStorage.getItem('rindristi_auth_user');
     if (rawUser) {
       const parsedUser = JSON.parse(rawUser);
       if (parsedUser && parsedUser.email) {

@@ -5,9 +5,9 @@
     ],
     "target": {
       "namespace": "android_app",
-      "package_name": "com.meridianfairlend.app",
+      "package_name": "com.rindristi.app",
       "sha256_cert_fingerprints": [
-        "A4:8D:D0:C4:BA:C9:21:B0:17:D4:7C:05:34:A8:69:CC:61:07:F4:0D:D6:E3:40:7D:6F:81:B4:D2:7E:95:A1:30"
+        "79:6F:C7:DD:35:32:06:B8:A2:95:61:89:D5:F5:07:6D:F6:C7:6A:FE:88:9C:42:26:4E:94:64:9E:55:F1:A8:04"
       ]
     }
   }

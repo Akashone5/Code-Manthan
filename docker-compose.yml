@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: meridian_fairlend_api
+    container_name: rindristi_fairlend_api
     ports:
       - "5000:5000"
     environment:
@@ -16,7 +16,7 @@ services:
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-}
       - OFFICER_REGISTRATION_KEY=${OFFICER_REGISTRATION_KEY:-replace-with-institutional-secret}
       - SITE_ONLINE=${SITE_ONLINE:-true}
-      - SQLITE_DB_PATH=${SQLITE_DB_PATH:-/app/data/meridian_loans.db}
+      - SQLITE_DB_PATH=${SQLITE_DB_PATH:-/app/data/rindristi_loans.db}
     volumes:
       - ./data:/app/data
     restart: unless-stopped

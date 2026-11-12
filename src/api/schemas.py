@@ -23,12 +23,12 @@ class ForgotPasswordRequest(BaseModel):
 
 class SendOtpRequest(BaseModel):
     email: str = Field(..., description="Recipient email address for 6-digit OTP delivery")
-    purpose: str = Field(default="signup", description="Verification scope: signup or forgot_password")
+    purpose: str = Field(default="signup", description="Verification scope: signup, forgot_password, or email_change")
     lang: str = Field(default="en", description="Preferred email language: en or hi")
 
 class VerifyOtpRequest(BaseModel):
     email: str = Field(..., description="Email address receiving the OTP")
-    purpose: str = Field(default="signup", description="Verification scope: signup or forgot_password")
+    purpose: str = Field(default="signup", description="Verification scope: signup, forgot_password, or email_change")
     otp: str = Field(..., description="6-digit OTP verification code")
 
 class ResetPasswordRequest(BaseModel):
@@ -41,6 +41,8 @@ class ResetPasswordRequest(BaseModel):
 class ProfileUpdateRequest(BaseModel):
     full_name: str = Field(..., description="Updated full name of the account holder")
     email: str = Field(..., description="Updated account email address")
+    otp_verification_token: Optional[str] = Field(default=None, description="Verified email OTP token required when changing email")
+    otp_code: Optional[str] = Field(default=None, description="Optional 6-digit email OTP code required when changing email")
 
 class UserProfileResponse(BaseModel):
     id: str
@@ -89,7 +91,7 @@ class WhatIfRequest(BaseModel):
     adjustments: Dict[str, Any] = Field(..., description="Proposed counterfactual adjustments (e.g. tenure, income)")
 
 class OfficerSanctionRequest(BaseModel):
-    application_no: str = Field(..., description="Unique application identifier (e.g. MB-2026-1001)")
+    application_no: str = Field(..., description="Unique application identifier (e.g. RD-2026-1001)")
     status: str = Field(default="Approved", description="Decision verdict: Approved, Conditional, or Rejected")
     remarks: Optional[str] = Field(default=None, description="Officer analytical remarks and justification")
     note: Optional[str] = Field(default=None, description="Alternative field for officer remarks")

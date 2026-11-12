@@ -1,4 +1,4 @@
-const MERIDIAN_DATASET = {
+const RINDRISTI_DATASET = {
   "bias": 0.7032,
   "weights": {
     "credit_history": 1.2994,

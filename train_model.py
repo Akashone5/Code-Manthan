@@ -7,7 +7,7 @@ import json
 
 def train_and_score_model():
     print("=" * 76)
-    print("      MERIDIAN FAIRLEND - MACHINE LEARNING TRAINING & INFERENCE ENGINE")
+    print("      RINDRISTI FAIRLEND - MACHINE LEARNING TRAINING & INFERENCE ENGINE")
     print("                   Mission Bharat Retail Credit Division")
     print("=" * 76)
 
@@ -223,7 +223,7 @@ def train_and_score_model():
             'f1_score': round(f1, 2)
         }
     }
-    artifact_path = os.path.join(base_dir, 'meridian_trained_model.json')
+    artifact_path = os.path.join(base_dir, 'rindristi_trained_model.json')
     with open(artifact_path, 'w', encoding='utf-8') as f:
         json.dump(model_artifact, f, indent=2)
     print(f"\n[OK] Trained model weights saved to: {artifact_path}")

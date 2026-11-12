@@ -46,10 +46,10 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"[WARN] Shutdown DB checkpoint notice: {e}")
 
-    print("[INFO] Meridian FairLend API shutdown complete.")
+    print("[INFO] RinDristi FairLend API shutdown complete.")
 
 app = FastAPI(
-    title="Meridian FairLend - Credit Decision & Underwriting API",
+    title="RinDristi FairLend - Credit Decision & Underwriting API",
     description=(
         "Production-grade RESTful API for automated, transparent retail credit underwriting. "
         "Provides multi-tenant authentication (Applicant & Loan Officer gateways), "
@@ -79,90 +79,90 @@ app.add_middleware(
 app.add_middleware(GZipMiddleware, minimum_size=500)
 
 DEFAULT_CANONICAL_BASE = "https://meridian-fairlend-production.up.railway.app"
-SITE_LASTMOD = "2026-11-11"
+SITE_LASTMOD = "2026-11-12"
 
 SLUG_SEO_META: Dict[str, Dict[str, str]] = {
     "/": {
-        "title": "Meridian FairLend AI • MISSION BHARAT | Explainable Loan Decision System",
-        "description": "Meridian FairLend Mission Bharat: Transparent credit underwriting, SHAP explainability, counterfactual scenario simulation, and algorithmic equity portal.",
+        "title": "RinDristi FairLend AI • MISSION BHARAT | Explainable Loan Decision System",
+        "description": "RinDristi FairLend Mission Bharat: Transparent credit underwriting, SHAP explainability, counterfactual scenario simulation, and algorithmic equity portal.",
         "crumb": "Home",
         "priority": "1.0",
     },
     "/applicant": {
-        "title": "Applicant Loan Portal • Apply & Track Loans | Meridian FairLend AI",
-        "description": "Sign in or register as an Applicant on Meridian FairLend AI to submit loan requests, test interactive What-If scenarios, and download RBI Key Fact Statements.",
+        "title": "Applicant Loan Portal • Apply & Track Loans | RinDristi FairLend AI",
+        "description": "Sign in or register as an Applicant on RinDristi FairLend AI to submit loan requests, test interactive What-If scenarios, and download RBI Key Fact Statements.",
         "crumb": "Applicant Portal",
         "priority": "0.95",
     },
     "/officer": {
-        "title": "Loan Officer Institutional Portal & Cockpit | Meridian FairLend AI",
+        "title": "Loan Officer Institutional Portal & Cockpit | RinDristi FairLend AI",
         "description": "Institutional Loan Officer portal for real-time SHAP underwriting inspection, regulatory audit trails, portfolio analytics, and 80% fairness calibration.",
         "crumb": "Officer Portal",
         "priority": "0.95",
     },
     "/apply": {
-        "title": "Apply for a Retail Loan • Direct Borrower Intake | Meridian FairLend AI",
+        "title": "Apply for a Retail Loan • Direct Borrower Intake | RinDristi FairLend AI",
         "description": "Submit a transparent retail credit application in INR with CIBIL calibration, 1-to-30 year flexible tenure, and instant AI underwriting assessment.",
         "crumb": "Apply for a Loan",
         "priority": "0.90",
     },
     "/decision-report": {
-        "title": "Decision Report & Counterfactual Simulator | Meridian FairLend AI",
+        "title": "Decision Report & Counterfactual Simulator | RinDristi FairLend AI",
         "description": "Inspect plain-language AI decision breakdowns, adjust interactive loan What-If sliders, and print official RBI Key Fact Statement (KFS) letters.",
         "crumb": "Decision Report",
         "priority": "0.85",
     },
     "/vault": {
-        "title": "Application Vault & Registry | Meridian FairLend AI",
-        "description": "Access permanently archived loan applications, CSV/JSON/SQLite exports, and live officer sanction statuses in the Meridian Vault.",
+        "title": "Application Vault & Registry | RinDristi FairLend AI",
+        "description": "Access permanently archived loan applications, CSV/JSON/SQLite exports, and live officer sanction statuses in the RinDristi Vault.",
         "crumb": "Application Vault",
         "priority": "0.85",
     },
     "/underwriting-cockpit": {
-        "title": "Underwriting Cockpit & SHAP Waterfall | Meridian FairLend AI",
+        "title": "Underwriting Cockpit & SHAP Waterfall | RinDristi FairLend AI",
         "description": "Evaluate borrower variables live with additive SHAP attribution, DTI ratios, and institutional sanction recording.",
         "crumb": "Underwriting Cockpit",
         "priority": "0.80",
     },
     "/portfolio": {
-        "title": "Historical Lending Portfolio Analytics | Meridian FairLend AI",
+        "title": "Historical Lending Portfolio Analytics | RinDristi FairLend AI",
         "description": "Browse, search, and audit historical retail loan records across rural, semi-urban, and metropolitan Mission Bharat segments.",
         "crumb": "Historical Portfolio",
         "priority": "0.80",
     },
     "/model-accuracy": {
-        "title": "Model Accuracy & Confusion Matrix Report | Meridian FairLend AI",
+        "title": "Model Accuracy & Confusion Matrix Report | RinDristi FairLend AI",
         "description": "Review holdout validation accuracy, ROC-AUC metrics, confusion matrix breakdowns, and global feature weights for regulatory governance.",
         "crumb": "Model Accuracy",
         "priority": "0.80",
     },
     "/fairness-audit": {
-        "title": "Demographic Parity & 80% Fairness Audit | Meridian FairLend AI",
+        "title": "Demographic Parity & 80% Fairness Audit | RinDristi FairLend AI",
         "description": "Monitor four-fifths (80%) Disparate Impact Ratios and Equal Opportunity TPR parity across gender, territory, and education groups.",
         "crumb": "Fairness Audit",
         "priority": "0.80",
     },
     "/privacy": {
-        "title": "Privacy Policy & DPDP Act 2023 Compliance | Meridian FairLend AI",
-        "description": "Read how Meridian FairLend AI protects borrower identity, CIBIL disclosures, PBKDF2 security, and Digital Personal Data Protection compliance.",
+        "title": "Privacy Policy & DPDP Act 2023 Compliance | RinDristi FairLend AI",
+        "description": "Read how RinDristi FairLend AI protects borrower identity, CIBIL disclosures, PBKDF2 security, and Digital Personal Data Protection compliance.",
         "crumb": "Privacy Policy",
         "priority": "0.70",
     },
     "/terms": {
-        "title": "Terms of Service & RBI Digital Lending Framework | Meridian FairLend AI",
+        "title": "Terms of Service & RBI Digital Lending Framework | RinDristi FairLend AI",
         "description": "Review lending terms, statutory 3-day cooling-off period rights, zero processing fees, and Fair Practices Code obligations.",
         "crumb": "Terms of Service",
         "priority": "0.70",
     },
     "/grievance": {
-        "title": "Grievance Redressal & RBI Ombudsman | Meridian FairLend AI",
-        "description": "Contact the Nodal Grievance Officer on toll-free 1800-209-4000 or grievance.bharat@meridian.fin and escalate via the RBI Integrated Ombudsman Scheme (14448).",
+        "title": "Grievance Redressal & RBI Ombudsman | RinDristi FairLend AI",
+        "description": "Contact the Nodal Grievance Officer on toll-free 1800-209-4000 or grievance.bharat@rindristi.fin and escalate via the RBI Integrated Ombudsman Scheme (14448).",
         "crumb": "Grievance Redressal",
         "priority": "0.75",
     },
     "/forgot-password": {
-        "title": "Reset Account Password via Email OTP | Meridian FairLend AI",
-        "description": "Recover access to your Meridian FairLend AI Applicant or Loan Officer account using 6-digit verified email OTP.",
+        "title": "Reset Account Password via Email OTP | RinDristi FairLend AI",
+        "description": "Recover access to your RinDristi FairLend AI Applicant or Loan Officer account using 6-digit verified email OTP.",
         "crumb": "Reset Password",
         "priority": "0.50",
     },
@@ -209,7 +209,7 @@ def build_json_ld_payload(base_url: str, canonical_url: str, slug_path: str, cru
             {
                 "@type": "Organization",
                 "@id": f"{base_url}/#organization",
-                "name": "Meridian FairLend AI",
+                "name": "RinDristi FairLend AI",
                 "url": f"{base_url}/",
                 "logo": {
                     "@type": "ImageObject",
@@ -218,17 +218,17 @@ def build_json_ld_payload(base_url: str, canonical_url: str, slug_path: str, cru
                     "height": 512,
                 },
                 "telephone": "+91-1800-209-4000",
-                "email": "grievance.bharat@meridian.fin",
+                "email": "grievance.bharat@rindristi.fin",
             },
             {
                 "@type": ["FinancialService", "LocalBusiness"],
                 "@id": f"{base_url}/#localbusiness",
-                "name": "Meridian FairLend AI — Mission Bharat",
+                "name": "RinDristi FairLend AI — Mission Bharat",
                 "description": "AI-powered explainable retail credit underwriting and demographic fairness lending institution operating under RBI Digital Lending Directions.",
                 "url": f"{base_url}/",
                 "image": [og_img, logo_img],
                 "telephone": "+91-1800-209-4000",
-                "email": "grievance.bharat@meridian.fin",
+                "email": "grievance.bharat@rindristi.fin",
                 "priceRange": "₹0 Processing Fee",
                 "areaServed": "IN",
                 "address": {
@@ -255,7 +255,7 @@ def build_json_ld_payload(base_url: str, canonical_url: str, slug_path: str, cru
                 "contactPoint": {
                     "@type": "ContactPoint",
                     "telephone": "+91-1800-209-4000",
-                    "email": "grievance.bharat@meridian.fin",
+                    "email": "grievance.bharat@rindristi.fin",
                     "contactType": "customer service",
                     "areaServed": "IN",
                     "availableLanguage": ["en", "hi"],
@@ -265,7 +265,7 @@ def build_json_ld_payload(base_url: str, canonical_url: str, slug_path: str, cru
                 "@type": "WebSite",
                 "@id": f"{base_url}/#website",
                 "url": f"{base_url}/",
-                "name": "Meridian FairLend AI",
+                "name": "RinDristi FairLend AI",
                 "publisher": {"@id": f"{base_url}/#organization"},
                 "inLanguage": ["en-IN", "hi-IN"],
             },
@@ -362,7 +362,7 @@ def render_404_page(request: Request) -> HTMLResponse:
         content = content.replace(DEFAULT_CANONICAL_BASE, base_url)
         return HTMLResponse(content=content, status_code=status.HTTP_404_NOT_FOUND)
     return HTMLResponse(
-        content="<!DOCTYPE html><html lang='en'><head><meta charset='UTF-8'><title>404 — Page Not Found | Meridian FairLend AI</title></head><body><h1>404 — Page Not Found</h1><p><a href='/'>Return Home</a></p></body></html>",
+        content="<!DOCTYPE html><html lang='en'><head><meta charset='UTF-8'><title>404 — Page Not Found | RinDristi FairLend AI</title></head><body><h1>404 — Page Not Found</h1><p><a href='/'>Return Home</a></p></body></html>",
         status_code=status.HTTP_404_NOT_FOUND,
     )
 
@@ -549,9 +549,9 @@ async def serve_assetlinks():
     return JSONResponse(status_code=status.HTTP_200_OK, content=[])
 
 ALLOWED_DOWNLOADS = {
-    "MeridianFairLend-Windows.exe": "application/vnd.microsoft.portable-executable",
-    "MeridianFairLend-Mac.zip": "application/zip",
-    "MeridianFairLend-Android.apk": "application/vnd.android.package-archive",
+    "RinDristi-Windows.exe": "application/vnd.microsoft.portable-executable",
+    "RinDristi-Mac.zip": "application/zip",
+    "RinDristi-Android.apk": "application/vnd.android.package-archive",
 }
 
 @app.get("/api/downloads/info", tags=["System & Diagnostics"], summary="Check available downloadable app installers across Laptop and Phone")
@@ -571,16 +571,16 @@ async def get_downloads_info():
         status_code=status.HTTP_200_OK,
         content={
             "success": True,
-            "app_name": "Meridian FairLend AI",
+            "app_name": "RinDristi FairLend AI",
             "version": "3.0.0",
             "pwa_ready": (
                 os.path.isfile(os.path.join(BASE_DIR, "manifest.webmanifest"))
                 and os.path.isfile(os.path.join(BASE_DIR, "sw.js"))
             ),
             "platforms": {
-                "windows": _file_meta("MeridianFairLend-Windows.exe"),
-                "android": _file_meta("MeridianFairLend-Android.apk"),
-                "mac": _file_meta("MeridianFairLend-Mac.zip"),
+                "windows": _file_meta("RinDristi-Windows.exe"),
+                "android": _file_meta("RinDristi-Android.apk"),
+                "mac": _file_meta("RinDristi-Mac.zip"),
                 "ios": {
                     "available": True,
                     "mode": "safari-home-screen",
@@ -621,7 +621,7 @@ async def serve_favicon_svg():
         '</linearGradient></defs>'
         '<rect width="64" height="64" rx="14" fill="url(#g)" stroke="#F8E7C9" stroke-width="3"/>'
         '<text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" '
-        'font-family="Arial,sans-serif" font-weight="900" font-size="36" fill="#F8E7C9">M</text>'
+        'font-family="Arial,sans-serif" font-weight="900" font-size="36" fill="#F8E7C9">R</text>'
         '</svg>'
     )
     return Response(content=svg_icon, media_type="image/svg+xml", status_code=status.HTTP_200_OK)
@@ -638,7 +638,7 @@ async def serve_favicon():
         '</linearGradient></defs>'
         '<rect width="64" height="64" rx="14" fill="url(#g)" stroke="#F8E7C9" stroke-width="3"/>'
         '<text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" '
-        'font-family="Arial,sans-serif" font-weight="900" font-size="36" fill="#F8E7C9">M</text>'
+        'font-family="Arial,sans-serif" font-weight="900" font-size="36" fill="#F8E7C9">R</text>'
         '</svg>'
     )
     return Response(content=svg_icon, media_type="image/svg+xml", status_code=status.HTTP_200_OK)
@@ -707,7 +707,7 @@ if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 5000))
     print("=" * 70)
-    print("  Meridian FairLend - Production FastAPI Server")
+    print("  RinDristi FairLend - Production FastAPI Server")
     print(f"  Listening on: http://localhost:{port}")
     print(f"  Interactive OpenAPI Docs: http://localhost:{port}/docs")
     print(f"  ReDoc API Reference: http://localhost:{port}/redoc")

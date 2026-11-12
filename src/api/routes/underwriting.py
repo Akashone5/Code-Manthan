@@ -127,7 +127,7 @@ async def submit_application(
             content={
                 "success": True,
                 "email_otp_verified": False,
-                "message": "Loan application successfully submitted and recorded in Meridian Vault.",
+                "message": "Loan application successfully submitted and recorded in RinDristi Vault.",
                 "application": saved_record,
                 "prediction": prediction,
                 "explanation": explanation
@@ -358,7 +358,7 @@ async def export_officer_vault_backup(
         return Response(
             content=db_bytes,
             media_type="application/x-sqlite3",
-            headers={"Content-Disposition": "attachment; filename=meridian_loans_backup.db"}
+            headers={"Content-Disposition": "attachment; filename=rindristi_loans_backup.db"}
         )
     snapshot = database.get_full_vault_snapshot()
     return JSONResponse(status_code=status.HTTP_200_OK, content={"success": True, **snapshot})

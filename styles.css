@@ -1750,7 +1750,7 @@ button.site-status-pill:hover {
   max-width: 380px;
 }
 
-.meridian-toast {
+.rindristi-toast {
   background: #064E3B;
   color: #FFFFFF;
   border: 1.5px solid var(--warm-cream);
@@ -1871,7 +1871,7 @@ button.site-status-pill:hover {
   border-radius: var(--radius-lg);
 }
 
-.meridian-toast.error {
+.rindristi-toast.error {
   background: #991B1B;
   border-color: #FCA5A5;
 }

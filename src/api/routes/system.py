@@ -25,7 +25,7 @@ async def health_check():
         status_code=status.HTTP_200_OK,
         content={
             "status": "healthy",
-            "service": "Meridian FairLend",
+            "service": "RinDristi FairLend",
             "database": db_mode,
             "site_online": avail["online"],
             "site_status": avail["status"]
@@ -130,7 +130,7 @@ async def api_hub():
     html_content = f"""<!DOCTYPE html>
 <html>
 <head>
-    <title>Meridian FairLend - Credit Underwriting Hub</title>
+    <title>RinDristi FairLend - Credit Underwriting Hub</title>
     <style>
         body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 40px; background: #0F172A; color: #F8FAFC; }}
         .card {{ background: #1E293B; padding: 28px; border-radius: 12px; border: 1.5px solid #334155; max-width: 680px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); }}
@@ -145,7 +145,7 @@ async def api_hub():
 </head>
 <body>
     <div class="card">
-        <h1>Meridian FairLend - Credit Underwriting Hub</h1>
+        <h1>RinDristi FairLend - Credit Underwriting Hub</h1>
         <p>Engine Status: <span class="badge">{db_badge}</span> <span class="badge" style="background: {site_badge_bg}; margin-left: 6px;">{site_badge}</span></p>
         <p>Active Applications in Vault: <strong>{len(saved_apps)} records</strong></p>
         <a href="/docs" class="docs-link" target="_blank">Open Interactive Swagger API Docs &rarr;</a>
