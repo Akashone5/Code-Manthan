@@ -1651,7 +1651,7 @@ function syncDocumentSeoAndBreadcrumbs(explicitSlug = null) {
 
   const origin = (window.location && window.location.origin && window.location.origin.startsWith('http'))
     ? window.location.origin
-    : 'https://meridian-fairlend-production.up.railway.app';
+    : 'https://rindristi-fairlend-production.up.railway.app';
   const canonicalUrl = `${origin}${activeSlug === '/' ? '/' : activeSlug}`;
 
   setMetaAttr('meta[name="description"]', 'content', meta.desc);

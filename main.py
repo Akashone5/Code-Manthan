@@ -78,7 +78,7 @@ app.add_middleware(
 )
 app.add_middleware(GZipMiddleware, minimum_size=500)
 
-DEFAULT_CANONICAL_BASE = "https://meridian-fairlend-production.up.railway.app"
+DEFAULT_CANONICAL_BASE = "https://rindristi-fairlend-production.up.railway.app"
 SITE_LASTMOD = "2026-11-12"
 
 SLUG_SEO_META: Dict[str, Dict[str, str]] = {
@@ -452,7 +452,7 @@ async def serve_custom_404_file(request: Request):
 async def serve_css():
     css_file = os.path.join(BASE_DIR, "styles.css")
     if os.path.exists(css_file):
-        return FileResponse(css_file, media_type="text/css")
+        return FileResponse(css_file, media_type="text/css", headers={"Cache-Control": "no-cache, must-revalidate"})
     return JSONResponse(
         status_code=status.HTTP_404_NOT_FOUND,
         content={"error": "styles.css not found"}
@@ -462,7 +462,7 @@ async def serve_css():
 async def serve_app_js():
     js_file = os.path.join(BASE_DIR, "app.js")
     if os.path.exists(js_file):
-        return FileResponse(js_file, media_type="application/javascript")
+        return FileResponse(js_file, media_type="application/javascript", headers={"Cache-Control": "no-cache, must-revalidate"})
     return JSONResponse(
         status_code=status.HTTP_404_NOT_FOUND,
         content={"error": "app.js not found"}
@@ -472,7 +472,7 @@ async def serve_app_js():
 async def serve_dataset_js():
     data_file = os.path.join(BASE_DIR, "dataset_data.js")
     if os.path.exists(data_file):
-        return FileResponse(data_file, media_type="application/javascript")
+        return FileResponse(data_file, media_type="application/javascript", headers={"Cache-Control": "no-cache, must-revalidate"})
     return JSONResponse(
         status_code=status.HTTP_404_NOT_FOUND,
         content={"error": "dataset_data.js not found"}
@@ -485,7 +485,7 @@ async def serve_manifest():
         return FileResponse(
             manifest_file,
             media_type="application/manifest+json",
-            headers={"Cache-Control": "public, max-age=3600"}
+            headers={"Cache-Control": "no-cache, must-revalidate"}
         )
     return JSONResponse(
         status_code=status.HTTP_404_NOT_FOUND,
@@ -530,7 +530,7 @@ async def serve_icon(icon_name: str):
         return FileResponse(
             icon_path,
             media_type=mime,
-            headers={"Cache-Control": "public, max-age=86400"}
+            headers={"Cache-Control": "public, max-age=300, must-revalidate"}
         )
     return JSONResponse(
         status_code=status.HTTP_404_NOT_FOUND,
@@ -630,7 +630,7 @@ async def serve_favicon_svg():
 async def serve_favicon():
     ico_path = os.path.join(BASE_DIR, "icons", "app-icon.ico")
     if os.path.isfile(ico_path):
-        return FileResponse(ico_path, media_type="image/x-icon", headers={"Cache-Control": "public, max-age=86400"})
+        return FileResponse(ico_path, media_type="image/x-icon", headers={"Cache-Control": "public, max-age=300, must-revalidate"})
     svg_icon = (
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">'
         '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">'

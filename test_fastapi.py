@@ -1146,7 +1146,7 @@ def run_tests():
         page_title = s_html[t_start:t_end].strip()
         assert page_title and "Vite" not in page_title and "React" not in page_title
         seo_titles[slug] = page_title
-        expected_canon = "https://meridian-fairlend-production.up.railway.app/" if slug == "/" else f"https://meridian-fairlend-production.up.railway.app{slug}"
+        expected_canon = "https://rindristi-fairlend-production.up.railway.app/" if slug == "/" else f"https://rindristi-fairlend-production.up.railway.app{slug}"
         assert f'<link rel="canonical" href="{expected_canon}">' in s_html
         assert '<meta name="description"' in s_html
         assert '<meta property="og:image"' in s_html and '/icons/og-share.png"' in s_html

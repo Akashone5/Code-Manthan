@@ -1,4 +1,4 @@
-const CACHE_NAME = 'rindristi-fairlend-v3';
+const CACHE_NAME = 'rindristi-fairlend-v4';
 const PRECACHE_URLS = [
   '/',
   '/index.html',
@@ -32,7 +32,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) => {
       return Promise.all(
         keys
-          .filter((key) => key.startsWith('rindristi-fairlend-') && key !== CACHE_NAME)
+          .filter((key) => key !== CACHE_NAME)
           .map((key) => caches.delete(key))
       );
     }).then(() => self.clients.claim())

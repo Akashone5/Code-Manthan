@@ -26,7 +26,7 @@ namespace RinDristiDesktop
 
     internal static class Program
     {
-        private const string DefaultAppUrl = "https://meridian-fairlend-production.up.railway.app/?platform=windows";
+        private const string DefaultAppUrl = "https://rindristi-fairlend-production.up.railway.app/?platform=windows";
         private static readonly Dictionary<string, Assembly> LoadedAssemblies = new Dictionary<string, Assembly>(StringComparer.OrdinalIgnoreCase);
 
         [STAThread]

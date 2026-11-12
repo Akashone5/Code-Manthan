@@ -492,7 +492,39 @@ def init_db():
             )
             migrated_brand_rows += cursor.rowcount or 0
             cursor.execute(
+                "UPDATE loan_applications SET recommendations_json = REPLACE(recommendations_json, 'Meridian', 'RinDristi') WHERE recommendations_json LIKE '%Meridian%'"
+            )
+            migrated_brand_rows += cursor.rowcount or 0
+            cursor.execute(
+                "UPDATE loan_applications SET officer_notes = REPLACE(officer_notes, 'Meridian', 'RinDristi') WHERE officer_notes LIKE '%Meridian%'"
+            )
+            migrated_brand_rows += cursor.rowcount or 0
+            cursor.execute(
+                "UPDATE loan_applications SET officer_remarks = REPLACE(officer_remarks, 'Meridian', 'RinDristi') WHERE officer_remarks LIKE '%Meridian%'"
+            )
+            migrated_brand_rows += cursor.rowcount or 0
+            cursor.execute(
                 "UPDATE loan_applications SET application_no = REPLACE(application_no, 'MB-2026-', 'RD-2026-') WHERE application_no LIKE 'MB-2026-%'"
+            )
+            migrated_brand_rows += cursor.rowcount or 0
+            cursor.execute(
+                "UPDATE audit_logs SET remarks = REPLACE(REPLACE(remarks, 'Meridian', 'RinDristi'), 'MB-2026-', 'RD-2026-') WHERE remarks LIKE '%Meridian%' OR remarks LIKE '%MB-2026-%'"
+            )
+            migrated_brand_rows += cursor.rowcount or 0
+            cursor.execute(
+                "UPDATE audit_logs SET application_no = REPLACE(application_no, 'MB-2026-', 'RD-2026-') WHERE application_no LIKE 'MB-2026-%'"
+            )
+            migrated_brand_rows += cursor.rowcount or 0
+            cursor.execute(
+                "UPDATE audit_logs SET officer_name = REPLACE(officer_name, 'Meridian', 'RinDristi') WHERE officer_name LIKE '%Meridian%'"
+            )
+            migrated_brand_rows += cursor.rowcount or 0
+            cursor.execute(
+                "UPDATE audit_logs SET notes = REPLACE(REPLACE(notes, 'Meridian', 'RinDristi'), 'MB-2026-', 'RD-2026-') WHERE notes LIKE '%Meridian%' OR notes LIKE '%MB-2026-%'"
+            )
+            migrated_brand_rows += cursor.rowcount or 0
+            cursor.execute(
+                "UPDATE audit_logs SET action = REPLACE(action, 'Meridian', 'RinDristi') WHERE action LIKE '%Meridian%'"
             )
             migrated_brand_rows += cursor.rowcount or 0
             migrated_loan_count += migrated_brand_rows
