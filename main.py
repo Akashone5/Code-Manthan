@@ -78,7 +78,7 @@ app.add_middleware(
 )
 app.add_middleware(GZipMiddleware, minimum_size=500)
 
-DEFAULT_CANONICAL_BASE = "https://rindristi-fairlend-production.up.railway.app"
+DEFAULT_CANONICAL_BASE = "https://meridian-fairlend-production.up.railway.app"
 SITE_LASTMOD = "2026-11-12"
 
 SLUG_SEO_META: Dict[str, Dict[str, str]] = {
