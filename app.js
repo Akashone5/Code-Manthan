@@ -10,12 +10,20 @@ function resolveApiBase() {
     if (window.RINDRISTI_API_BASE) {
       return String(window.RINDRISTI_API_BASE).trim().replace(/\/+$/, '');
     }
+    const currentOrigin = (window.location && window.location.protocol && window.location.protocol.startsWith('http'))
+      ? window.location.origin
+      : '';
     const stored = localStorage.getItem('rindristi_api_base');
     if (stored && stored.trim()) {
-      return stored.trim().replace(/\/+$/, '');
+      const cleanStored = stored.trim().replace(/\/+$/, '');
+      if (cleanStored.includes('rindristi-fairlend-production.up.railway.app') && currentOrigin) {
+        localStorage.removeItem('rindristi_api_base');
+        return currentOrigin;
+      }
+      return cleanStored;
     }
-    if (window.location && window.location.protocol && window.location.protocol.startsWith('http')) {
-      return window.location.origin;
+    if (currentOrigin) {
+      return currentOrigin;
     }
   } catch (e) {}
   return 'http://localhost:5000';
@@ -3816,50 +3824,76 @@ window.saveCustomApiBase = function() {
 window.resetCustomApiBase = function() {
   try {
     localStorage.removeItem('rindristi_api_base');
+    localStorage.removeItem('meridian_api_base');
   } catch (e) {}
   const input = document.getElementById('custom-api-base-input');
   if (input) input.value = '';
-  state.apiBase = resolveApiBase();
+  const currentOrigin = (window.location && window.location.protocol && window.location.protocol.startsWith('http'))
+    ? window.location.origin
+    : '';
+  state.apiBase = currentOrigin || resolveApiBase();
   syncBackendModalUI();
   checkBackendConnection(true);
 };
 
 async function checkBackendConnection(showNotification = false) {
   syncBackendModalUI();
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3500);
-    const response = await fetch(`${state.apiBase}/api/health`, {
-      method: 'GET',
-      signal: controller.signal
-    });
-    clearTimeout(timeoutId);
+  const currentOrigin = (window.location && window.location.protocol && window.location.protocol.startsWith('http'))
+    ? window.location.origin
+    : '';
 
-    if (response.ok) {
-      let healthData = {};
-      try { healthData = await response.json(); } catch (e) {}
-      state.backendConnected = true;
-      state.backendHealthMeta = healthData;
-      updateBackendStatusUI();
-      if (showNotification) {
-        window.showRinDristiToast(
-          state.currentLang === 'hi'
-            ? '✅ FastAPI बैकएंड से सफलतापूर्वक जुड़ गया।'
-            : '✅ Connected live to FastAPI backend.'
-        );
+  const pingEndpoint = async (targetBase) => {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3500);
+      const res = await fetch(`${targetBase}/api/health`, {
+        method: 'GET',
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      if (res.ok) {
+        return await res.json().catch(() => ({}));
       }
-      if (currentAuthUser) {
-        await syncPendingOfflineApplications();
-        await window.refreshDatabaseTable();
-        if (currentAuthUser.role === 'officer') {
-          if (state.currentTab === 'model-view') renderModelPerformanceCharts();
-          if (state.currentTab === 'fairness-view') renderFairnessCharts();
-          if (state.currentTab === 'officer-view') await fetchAuditLogs();
-        }
-      }
-      return true;
+    } catch (e) {}
+    return null;
+  };
+
+  let healthData = await pingEndpoint(state.apiBase);
+  if (!healthData && currentOrigin && state.apiBase !== currentOrigin) {
+    const fallbackData = await pingEndpoint(currentOrigin);
+    if (fallbackData) {
+      state.apiBase = currentOrigin;
+      try {
+        localStorage.removeItem('rindristi_api_base');
+        localStorage.removeItem('meridian_api_base');
+      } catch (e) {}
+      syncBackendModalUI();
+      healthData = fallbackData;
     }
-  } catch (err) {}
+  }
+
+  if (healthData) {
+    state.backendConnected = true;
+    state.backendHealthMeta = healthData;
+    updateBackendStatusUI();
+    if (showNotification) {
+      window.showRinDristiToast(
+        state.currentLang === 'hi'
+          ? '✅ FastAPI बैकएंड से सफलतापूर्वक जुड़ गया।'
+          : '✅ Connected live to FastAPI backend.'
+      );
+    }
+    if (currentAuthUser) {
+      await syncPendingOfflineApplications();
+      await window.refreshDatabaseTable();
+      if (currentAuthUser.role === 'officer') {
+        if (state.currentTab === 'model-view') renderModelPerformanceCharts();
+        if (state.currentTab === 'fairness-view') renderFairnessCharts();
+        if (state.currentTab === 'officer-view') await fetchAuditLogs();
+      }
+    }
+    return true;
+  }
 
   state.backendConnected = false;
   state.backendHealthMeta = null;
